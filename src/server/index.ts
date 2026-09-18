@@ -1,0 +1,25 @@
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { createServer, getServerPort } from '@devvit/web/server';
+import { forms } from './routes/forms';
+import { levels } from './routes/levels';
+import { menu } from './routes/menu';
+import { runs } from './routes/runs';
+import { triggers } from './routes/triggers';
+
+const app = new Hono();
+const internal = new Hono();
+
+internal.route('/menu', menu);
+internal.route('/form', forms);
+internal.route('/triggers', triggers);
+
+app.route('/internal', internal);
+app.route('/api/runs', runs);
+app.route('/api/levels', levels);
+
+serve({
+  fetch: app.fetch,
+  createServer,
+  port: getServerPort(),
+});
