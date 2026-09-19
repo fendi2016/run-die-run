@@ -1,0 +1,346 @@
+import { Scene } from 'phaser';
+import type * as Phaser from 'phaser';
+import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
+import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
+import {
+  isProposeCurseResponse,
+  type CurseCategory,
+  type DraftObject,
+  type ProposeCurseRequest,
+} from '../../../shared/editorApi';
+import {
+  isLevelVersion,
+  type LevelObject,
+  type LevelVersion,
+  type ObjectType,
+} from '../../../shared/types';
+import { CurseToolbar } from '../../ui/CurseToolbar';
+import {
+  boardGridConfig,
+  drawGrid,
+  normalizeBoardRow,
+  EDITOR_BOARD_ROWS,
+} from '../editor/GridSystem';
+import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
+import { renderLevelObject } from '../objects/ObjectRegistry';
+import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
+
+type CursePreselect = {
+  category: CurseCategory;
+  object: DraftObject;
+};
+
+type CurseSceneData = {
+  levelId: string;
+  preselected?: CursePreselect;
+  message?: string;
+};
+
+// The curse flow's placement screen (spec sections 14-15): a deliberately
+// smaller component than EditorScene. It renders the level's currently
+// published objects read-only — nothing here can select, move, or delete
+// them — and lets the player place exactly one new object from a
+// restricted category set before proving it's beatable in the real
+// GameScene (spec section 16).
+export class CurseScene extends Scene {
+  private rexBoard!: BoardPlugin;
+  private board!: BoardPlugin.Board;
+
+  private toolbar!: CurseToolbar;
+  private levelId = '';
+  private proposalRequest: object | undefined;
+  private baseLevel: LevelVersion | undefined;
+  private category: CurseCategory | undefined;
+  private selectedType: ObjectType | undefined;
+  private pending: DraftObject | undefined;
+  private initialMessage: string | undefined;
+
+  private gridGraphics!: Phaser.GameObjects.Graphics;
+  private pendingGraphics!: Phaser.GameObjects.Graphics;
+  private baseImages: Phaser.GameObjects.Image[] = [];
+  private pendingImage: Phaser.GameObjects.Image | undefined;
+
+  private panZoom!: PanZoomCamera;
+
+  constructor() {
+    super('CurseScene');
+  }
+
+  init(data: CurseSceneData): void {
+    this.proposalRequest = undefined;
+    this.levelId = data.levelId;
+    this.baseLevel = undefined;
+    this.category = data.preselected?.category;
+    this.selectedType = data.preselected?.object.type;
+    this.pending = data.preselected?.object;
+    this.initialMessage = data.message;
+    this.baseImages = [];
+    this.pendingImage = undefined;
+  }
+
+  create(): void {
+    ensurePlaceholderTextures(this);
+    this.cameras.main.setBackgroundColor(0x14141f);
+
+    this.gridGraphics = this.add.graphics();
+    this.pendingGraphics = this.add.graphics();
+
+    this.board = this.rexBoard.add.board({
+      grid: boardGridConfig(),
+      width: EDITOR_MAX_COLUMNS,
+      height: EDITOR_BOARD_ROWS,
+    });
+    this.board.setInteractive({ useTouchZone: false });
+    this.board.on('tiletap', this.onBoardTileTap, this);
+
+    this.toolbar = CurseToolbar.instance();
+    this.toolbar.setHandlers({
+      onCategorySelected: (category) => this.selectCategory(category),
+      onTypeSelected: (type) => this.selectType(type),
+      onPanLeft: () => this.panZoom.panBy(-PAN_STEP_PX),
+      onPanRight: () => this.panZoom.panBy(PAN_STEP_PX),
+      onClear: () => this.clearPending(),
+      onProve: () => void this.handleProve(),
+      onCancel: () => this.scene.start('MainMenu'),
+    });
+    this.toolbar.setActiveCategory(this.category);
+    this.toolbar.setActiveType(this.selectedType);
+    this.toolbar.setClearEnabled(this.pending !== undefined);
+    this.toolbar.setProveEnabled(false);
+    this.toolbar.show();
+    if (this.initialMessage) {
+      this.toolbar.showMessage(this.initialMessage);
+    }
+
+    this.panZoom = new PanZoomCamera(this, 'curse-toolbar', () =>
+      this.redrawGrid()
+    );
+    this.panZoom.attach();
+
+    this.events.once('shutdown', this.cleanup, this);
+
+    void this.loadBaseLevel();
+  }
+
+  private async loadBaseLevel(): Promise<void> {
+    try {
+      const response = await fetch(
+        `/api/levels/${encodeURIComponent(this.levelId)}`
+      );
+      if (!response.ok) {
+        this.toolbar.showMessage('Could not load this level.');
+        return;
+      }
+      const body: unknown = await response.json();
+      if (!isLevelVersion(body)) {
+        this.toolbar.showMessage('Unexpected server response.');
+        return;
+      }
+      this.baseLevel = body;
+      this.redrawBase();
+      this.redrawPending();
+      this.updateProveEnabled();
+    } catch {
+      this.toolbar.showMessage('Failed to reach the server.');
+    }
+  }
+
+  private selectCategory(category: CurseCategory): void {
+    if (this.proposalRequest) return;
+    this.category = category;
+    this.selectedType = undefined;
+    this.pending = undefined;
+    this.toolbar.setActiveType(undefined);
+    this.toolbar.setClearEnabled(false);
+    this.toolbar.hideMessage();
+    this.redrawPending();
+    this.updateProveEnabled();
+  }
+
+  private selectType(type: ObjectType): void {
+    if (this.proposalRequest) return;
+    this.selectedType = type;
+    this.pending = undefined;
+    this.toolbar.setClearEnabled(false);
+    this.toolbar.hideMessage();
+    this.redrawPending();
+    this.updateProveEnabled();
+  }
+
+  private clearPending(): void {
+    if (this.proposalRequest) return;
+    this.pending = undefined;
+    this.toolbar.setClearEnabled(false);
+    this.redrawPending();
+    this.updateProveEnabled();
+  }
+
+  private onBoardTileTap(
+    _tap: unknown,
+    tileXY: { x: number; y: number }
+  ): void {
+    if (this.proposalRequest) return;
+    if (!this.selectedType) {
+      this.toolbar.showMessage('Choose a curse type first.');
+      return;
+    }
+    const row = normalizeBoardRow(tileXY.y);
+    const world = this.board.tileXYToWorldXY(tileXY.x, row);
+
+    if (this.isOccupiedByBase(world.x, world.y)) {
+      this.toolbar.showMessage(
+        'Something is already there — try another spot.'
+      );
+      return;
+    }
+
+    this.toolbar.hideMessage();
+    this.pending = {
+      id: 'pending',
+      type: this.selectedType,
+      x: world.x,
+      y: world.y,
+    };
+    this.toolbar.setClearEnabled(true);
+    this.redrawPending();
+    this.updateProveEnabled();
+  }
+
+  private isOccupiedByBase(x: number, y: number): boolean {
+    return (this.baseLevel?.objects ?? []).some((o) => o.type !== 'ground' && o.x === x && o.y === y);
+  }
+
+  private updateProveEnabled(): void {
+    const ready =
+      !this.proposalRequest &&
+      this.baseLevel !== undefined &&
+      this.pending !== undefined &&
+      !this.isOccupiedByBase(this.pending.x, this.pending.y);
+    this.toolbar.setProveEnabled(ready);
+  }
+
+  private redrawBase(): void {
+    for (const image of this.baseImages) {
+      image.destroy();
+    }
+    this.baseImages = [];
+    for (const object of this.baseLevel?.objects ?? []) {
+      const image =
+        object.type === 'spawn'
+          ? this.add
+              .image(object.x, object.y, 'player')
+              .setOrigin(0.5, 1)
+              .setAlpha(0.6)
+          : renderLevelObject(this, object);
+      if (image) {
+        image.disableInteractive();
+        this.baseImages.push(image);
+      }
+    }
+  }
+
+  private redrawPending(): void {
+    this.pendingGraphics.clear();
+    this.pendingImage?.destroy();
+    this.pendingImage = undefined;
+    if (!this.pending) {
+      return;
+    }
+    const previewObject: LevelObject = {
+      id: this.pending.id,
+      type: this.pending.type,
+      x: this.pending.x,
+      y: this.pending.y,
+      properties: {},
+      addedBy: 'you',
+      addedInVersion: 0,
+    };
+    const image = renderLevelObject(this, previewObject);
+    if (image) {
+      image.setAlpha(0.85);
+      image.disableInteractive();
+      this.pendingImage = image;
+    }
+    this.pendingGraphics.lineStyle(3, 0xff3966, 1);
+    this.pendingGraphics.strokeRect(
+      this.pending.x - 30,
+      this.pending.y - 60,
+      60,
+      60
+    );
+  }
+
+  private redrawGrid(): void {
+    const zoom = this.cameras.main.zoom;
+    const scrollX = this.cameras.main.scrollX;
+    const visibleWorldWidth = this.scale.width / zoom;
+    drawGrid(this.gridGraphics, scrollX, scrollX + visibleWorldWidth);
+  }
+
+  private async handleProve(): Promise<void> {
+    if (this.proposalRequest || !this.pending || !this.category) {
+      return;
+    }
+    const category = this.category;
+    const pending = { ...this.pending };
+    const levelId = this.levelId;
+    const requestId = {};
+    this.proposalRequest = requestId;
+    this.toolbar.setEditingEnabled(false);
+    this.updateProveEnabled();
+    this.toolbar.showMessage('Checking your curse...');
+    try {
+      const request: ProposeCurseRequest = {
+        levelId,
+        object: pending,
+      };
+      const response = await fetch('/api/curse/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      const json: unknown = await response.json();
+      if (this.proposalRequest !== requestId) return;
+      if (!isProposeCurseResponse(json)) {
+        this.toolbar.showMessage('Unexpected server response.');
+        return;
+      }
+      if (json.status === 'error') {
+        this.toolbar.showMessage(json.errors.join(' '));
+        return;
+      }
+      this.toolbar.hideMessage();
+
+      const object: DraftObject = { ...pending, id: json.objectId };
+      const previewLevel = json.previewLevel;
+
+      this.scene.start('GameScene', {
+        previewLevel,
+        candidateToken: json.candidateToken,
+        previewReturn: {
+          kind: 'curse',
+          levelId,
+          category,
+          object,
+        },
+      });
+    } catch {
+      if (this.proposalRequest === requestId) {
+        this.toolbar.showMessage('Failed to reach the server.');
+      }
+    } finally {
+      if (this.proposalRequest === requestId) {
+        this.proposalRequest = undefined;
+        this.toolbar.setEditingEnabled(true);
+        this.updateProveEnabled();
+      }
+    }
+  }
+
+  private cleanup(): void {
+    this.proposalRequest = undefined;
+    this.toolbar.setEditingEnabled(true);
+    this.panZoom.detach();
+    this.toolbar.hide();
+  }
+}

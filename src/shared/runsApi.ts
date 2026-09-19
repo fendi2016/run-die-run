@@ -45,3 +45,37 @@ export function isSubmitRunResponse(
     Array.isArray(value.topTen)
   );
 }
+
+// Wire contract for POST /api/runs/trap-kill (spec section 23: trap
+// ownership/attribution). Fired-and-forgotten from the death path so it
+// never delays the instant respawn (spec section 30) — `objectId` is the
+// hazard that killed the player, already known client-side from the loaded
+// LevelVersion, so this call exists only to grow the server-authoritative
+// kill counters, not to discover who owns the trap.
+export type TrapKillRequest = {
+  levelId: string;
+  version: number;
+  objectId: string;
+};
+
+export type TrapKillResponse = {
+  objectId: string;
+  kills: number;
+  addedBy: string;
+  contributorTotalKills: number;
+};
+
+export function isTrapKillResponse(value: unknown): value is TrapKillResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'objectId' in value &&
+    typeof value.objectId === 'string' &&
+    'kills' in value &&
+    typeof value.kills === 'number' &&
+    'addedBy' in value &&
+    typeof value.addedBy === 'string' &&
+    'contributorTotalKills' in value &&
+    typeof value.contributorTotalKills === 'number'
+  );
+}
