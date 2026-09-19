@@ -10,12 +10,347 @@
   <body>
     <div id="app">
       <div id="game-container"></div>
+      <div id="death-toast" class="hidden" aria-live="polite">
+        <div id="death-toast-attribution"></div>
+        <div id="death-toast-kills"></div>
+      </div>
       <div id="run-result" class="hidden" aria-live="polite">
         <div id="run-result-title">CLEAR!</div>
         <div id="run-result-time"></div>
         <div id="run-result-rank"></div>
         <div id="run-result-pb"></div>
         <div id="run-result-wr"></div>
+        <div id="run-result-actions">
+          <button
+            type="button"
+            id="run-result-retry-btn"
+            class="editor-btn hidden"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            id="run-result-curse-btn"
+            class="editor-btn editor-btn-primary hidden"
+          >
+            Curse This Level?
+          </button>
+        </div>
+      </div>
+      <div id="editor-ui" class="hidden">
+        <div id="editor-message" class="hidden"></div>
+        <div id="editor-toolbar">
+          <div id="editor-toolbar-handle"></div>
+          <div id="editor-palette" class="editor-row">
+            <button type="button" id="editor-tool-select" class="editor-btn">
+              <span class="editor-btn-icon">&#8598;</span>
+              <span class="editor-btn-label">Select</span>
+            </button>
+            <button type="button" id="editor-tool-ground" class="editor-btn">
+              <span class="editor-btn-icon">&#9644;</span>
+              <span class="editor-btn-label">Ground</span>
+            </button>
+            <button type="button" id="editor-tool-platform" class="editor-btn">
+              <span class="editor-btn-icon">&#9645;</span>
+              <span class="editor-btn-label">Platform</span>
+            </button>
+            <button type="button" id="editor-tool-spike" class="editor-btn">
+              <span class="editor-btn-icon">&#9650;</span>
+              <span class="editor-btn-label">Spike</span>
+            </button>
+            <button type="button" id="editor-tool-saw" class="editor-btn">
+              <span class="editor-btn-icon">&#9679;</span>
+              <span class="editor-btn-label">Saw</span>
+            </button>
+            <button type="button" id="editor-tool-movingSaw" class="editor-btn">
+              <span class="editor-btn-icon">&#8646;</span>
+              <span class="editor-btn-label">Moving Saw</span>
+            </button>
+            <button
+              type="button"
+              id="editor-tool-movingPlatform"
+              class="editor-btn"
+            >
+              <span class="editor-btn-icon">&#8645;</span>
+              <span class="editor-btn-label">Moving Platform</span>
+            </button>
+            <button
+              type="button"
+              id="editor-tool-doubleJump"
+              class="editor-btn"
+            >
+              <span class="editor-btn-icon">&#8648;</span>
+              <span class="editor-btn-label">Double Jump</span>
+            </button>
+            <button type="button" id="editor-tool-shield" class="editor-btn">
+              <span class="editor-btn-icon">&#9679;</span>
+              <span class="editor-btn-label">Shield</span>
+            </button>
+            <button
+              type="button"
+              id="editor-tool-speedBoost"
+              class="editor-btn"
+            >
+              <span class="editor-btn-icon">&#187;</span>
+              <span class="editor-btn-label">Speed Boost</span>
+            </button>
+            <button type="button" id="editor-tool-slowTime" class="editor-btn">
+              <span class="editor-btn-icon">&#8986;</span>
+              <span class="editor-btn-label">Slow Time</span>
+            </button>
+            <button type="button" id="editor-tool-autoDash" class="editor-btn">
+              <span class="editor-btn-icon">&#10148;</span>
+              <span class="editor-btn-label">Auto Dash</span>
+            </button>
+            <button type="button" id="editor-tool-spawn" class="editor-btn">
+              <span class="editor-btn-icon">&#9873;</span>
+              <span class="editor-btn-label">Spawn</span>
+            </button>
+            <button type="button" id="editor-tool-finish" class="editor-btn">
+              <span class="editor-btn-icon">&#9670;</span>
+              <span class="editor-btn-label">Finish</span>
+            </button>
+          </div>
+          <div id="editor-actions" class="editor-row">
+            <button
+              type="button"
+              id="editor-pan-left"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8249;</span>
+            </button>
+            <button
+              type="button"
+              id="editor-pan-right"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8250;</span>
+            </button>
+            <span class="editor-divider"></span>
+            <button
+              type="button"
+              id="editor-undo"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8630;</span>
+              <span class="editor-btn-label">Undo</span>
+            </button>
+            <button
+              type="button"
+              id="editor-redo"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8631;</span>
+              <span class="editor-btn-label">Redo</span>
+            </button>
+            <button
+              type="button"
+              id="editor-delete"
+              class="editor-btn editor-btn-compact editor-btn-danger"
+            >
+              <span class="editor-btn-icon">&#9003;</span>
+              <span class="editor-btn-label">Delete</span>
+            </button>
+            <span class="editor-divider"></span>
+            <button
+              type="button"
+              id="editor-test"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#9654;</span>
+              <span class="editor-btn-label">Test</span>
+            </button>
+            <button
+              type="button"
+              id="editor-publish"
+              class="editor-btn editor-btn-compact editor-btn-primary"
+            >
+              <span class="editor-btn-icon">&#8593;</span>
+              <span class="editor-btn-label">Publish</span>
+            </button>
+            <button
+              type="button"
+              id="editor-exit"
+              class="editor-btn editor-btn-compact editor-btn-ghost"
+            >
+              <span class="editor-btn-icon">&#8592;</span>
+              <span class="editor-btn-label">Exit</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="editor-publish-dialog" class="hidden">
+        <div id="editor-publish-panel">
+          <label for="editor-title-input">Level title</label>
+          <input
+            id="editor-title-input"
+            type="text"
+            maxlength="60"
+            placeholder="My Level"
+          />
+          <div id="editor-publish-dialog-actions">
+            <button type="button" id="editor-publish-cancel" class="editor-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              id="editor-publish-confirm"
+              class="editor-btn editor-btn-primary"
+            >
+              Publish
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="editor-preview-back" class="hidden">
+        <button type="button" id="editor-preview-back-btn">
+          ← Back to Editor
+        </button>
+      </div>
+      <div id="curse-ui" class="hidden">
+        <div id="curse-message" class="hidden"></div>
+        <div id="curse-toolbar">
+          <div id="curse-toolbar-handle"></div>
+          <div id="curse-row" class="editor-row">
+            <button type="button" id="curse-category-hazard" class="editor-btn">
+              <span class="editor-btn-icon">&#9650;</span>
+              <span class="editor-btn-label">Hazard</span>
+            </button>
+            <button
+              type="button"
+              id="curse-category-platform"
+              class="editor-btn"
+            >
+              <span class="editor-btn-icon">&#9645;</span>
+              <span class="editor-btn-label">Platform</span>
+            </button>
+            <button
+              type="button"
+              id="curse-category-powerUp"
+              class="editor-btn"
+            >
+              <span class="editor-btn-icon">&#9733;</span>
+              <span class="editor-btn-label">Power-Up</span>
+            </button>
+            <span class="editor-divider"></span>
+            <button
+              type="button"
+              id="curse-type-spike"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#9650;</span>
+              <span class="editor-btn-label">Spike</span>
+            </button>
+            <button type="button" id="curse-type-saw" class="editor-btn hidden">
+              <span class="editor-btn-icon">&#9679;</span>
+              <span class="editor-btn-label">Saw</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-movingSaw"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#8646;</span>
+              <span class="editor-btn-label">Moving Saw</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-platform"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#9645;</span>
+              <span class="editor-btn-label">Platform</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-movingPlatform"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#8645;</span>
+              <span class="editor-btn-label">Moving Platform</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-doubleJump"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#8648;</span>
+              <span class="editor-btn-label">Double Jump</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-shield"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#9679;</span>
+              <span class="editor-btn-label">Shield</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-speedBoost"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#187;</span>
+              <span class="editor-btn-label">Speed Boost</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-slowTime"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#8986;</span>
+              <span class="editor-btn-label">Slow Time</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-autoDash"
+              class="editor-btn hidden"
+            >
+              <span class="editor-btn-icon">&#10148;</span>
+              <span class="editor-btn-label">Auto Dash</span>
+            </button>
+          </div>
+          <div id="curse-actions" class="editor-row">
+            <button
+              type="button"
+              id="curse-pan-left"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8249;</span>
+            </button>
+            <button
+              type="button"
+              id="curse-pan-right"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8250;</span>
+            </button>
+            <span class="editor-divider"></span>
+            <button
+              type="button"
+              id="curse-clear"
+              class="editor-btn editor-btn-compact editor-btn-danger"
+            >
+              <span class="editor-btn-icon">&#9003;</span>
+              <span class="editor-btn-label">Clear</span>
+            </button>
+            <button
+              type="button"
+              id="curse-prove"
+              class="editor-btn editor-btn-compact editor-btn-primary"
+            >
+              <span class="editor-btn-label">Prove It's Possible</span>
+            </button>
+            <button
+              type="button"
+              id="curse-cancel"
+              class="editor-btn editor-btn-compact editor-btn-ghost"
+            >
+              <span class="editor-btn-icon">&#8592;</span>
+              <span class="editor-btn-label">Cancel</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <script type="module" src="game.ts"></script>

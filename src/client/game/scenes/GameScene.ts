@@ -1,23 +1,71 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
-import { FALL_DEATH_Y, LOGICAL_HEIGHT } from '../../../shared/constants';
+import {
+  FALL_DEATH_Y,
+  LOGICAL_HEIGHT,
+  SEED_AUTHOR,
+} from '../../../shared/constants';
+import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
+import {
+  isPublishCurseResponse,
+  isVerifyLevelResponse,
+} from '../../../shared/editorApi';
 import {
   isSubmitRunResponse,
+  isTrapKillResponse,
   type SubmitRunRequest,
+  type TrapKillRequest,
 } from '../../../shared/runsApi';
-import { isLevelVersion, type LevelVersion } from '../../../shared/types';
+import {
+  isLevelVersion,
+  type LevelVersion,
+  type ObjectType,
+} from '../../../shared/types';
+import { DeathAttributionToast } from '../../ui/DeathAttributionToast';
+import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import {
   DEATH_RESTART_DELAY_MS,
   FINISH_RESTART_DELAY_MS,
   PLAYER_SCREEN_ANCHOR,
+  SLOW_TIME_DURATION_MS,
+  SLOW_TIME_HAZARD_SCALE,
 } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
-import { loadLevel } from '../systems/LevelLoader';
+import { burstParticles } from '../systems/Juice';
+import { loadLevel, setPowerUpAvailable } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
+
+// Where a preview ("Test"/"Prove it's possible") run sends the player back
+// to once it resolves — the base editor (spec section 13) and the curse
+// flow (spec sections 14-16) both launch GameScene in preview mode, but
+// they need to land somewhere different (and carry different data) once
+// verification finishes.
+type PreviewReturn =
+  | { kind: 'editor'; objects: DraftObject[] }
+  | {
+      kind: 'curse';
+      levelId: string;
+      category: CurseCategory;
+      object: DraftObject;
+    };
+
+// Data passed in via `scene.start('GameScene', data)`. Absent (a normal
+// menu -> GameScene entry) means "load the requested/default published
+// level and submit runs normally". `previewLevel` present means this is a
+// preview run (base-editor Test or curse "Prove it's possible") — the
+// level comes from the client directly instead of a fetch, and finishing
+// verifies against `candidateToken` (spec section 20) instead of
+// submitting to a leaderboard.
+type GameSceneData = {
+  previewLevel?: LevelVersion;
+  candidateToken?: string;
+  previewReturn?: PreviewReturn;
+  levelId?: string;
+};
 
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
 // the server as data (LevelVersion) and built through the ObjectRegistry /
@@ -25,14 +73,43 @@ const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
+  private deathToast!: DeathAttributionToast;
   private levelVersion: LevelVersion | undefined;
   private levelWidth = 0;
   private spawn = FALLBACK_SPAWN;
   private runEnded = false;
   private runStartTime = 0;
 
+  // Slow Time (spec section 21) scales only these tweens' playback speed —
+  // never the run timer above, which is what `runStartTime` alone drives.
+  private movingObjectTweens: Phaser.Tweens.Tween[] = [];
+  private powerUpImages: Phaser.GameObjects.Image[] = [];
+  private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
+
+  private previewLevel: LevelVersion | undefined;
+  private candidateToken: string | undefined;
+  private previewReturn: PreviewReturn | undefined;
+  private explicitLevelId: string | undefined;
+
   constructor() {
     super('GameScene');
+  }
+
+  init(data: GameSceneData): void {
+    this.previewLevel = data.previewLevel;
+    this.candidateToken = data.candidateToken;
+    this.previewReturn = data.previewReturn;
+    this.explicitLevelId = data.levelId;
+
+    this.player = undefined;
+    this.levelVersion = undefined;
+    this.levelWidth = 0;
+    this.spawn = FALLBACK_SPAWN;
+    this.runEnded = false;
+    this.runStartTime = 0;
+    this.movingObjectTweens = [];
+    this.powerUpImages = [];
+    this.slowTimeTimer = undefined;
   }
 
   create(): void {
@@ -42,6 +119,7 @@ export class GameScene extends Scene {
     this.scale.on('resize', this.applyResponsiveZoom, this);
 
     this.resultOverlay = new RunResultOverlay();
+    this.deathToast = new DeathAttributionToast();
     this.events.once('shutdown', this.cleanup, this);
 
     void this.loadAndStart();
@@ -75,7 +153,31 @@ export class GameScene extends Scene {
   }
 
   private async loadAndStart(): Promise<void> {
-    const levelId = getRequestedLevelId();
+    if (this.previewLevel) {
+      this.levelVersion = this.previewLevel;
+      this.startRun(this.previewLevel);
+      const previewReturn = this.previewReturn;
+      PreviewBackButton.instance().setOnBack(() => {
+        if (previewReturn?.kind === 'curse') {
+          this.scene.start('CurseScene', {
+            levelId: previewReturn.levelId,
+            preselected: {
+              category: previewReturn.category,
+              object: previewReturn.object,
+            },
+          });
+        } else {
+          this.scene.start('EditorScene', {
+            objects:
+              previewReturn?.kind === 'editor' ? previewReturn.objects : [],
+          });
+        }
+      });
+      PreviewBackButton.instance().show();
+      return;
+    }
+
+    const levelId = this.explicitLevelId ?? getRequestedLevelId();
 
     let levelVersion: LevelVersion;
     try {
@@ -109,12 +211,15 @@ export class GameScene extends Scene {
     this.player = player;
 
     const loaded = loadLevel(this, levelVersion, player.sprite, {
-      onHazardHit: () => this.onPlayerDied(),
+      onHazardHit: (objectId) => this.onHazardHit(objectId),
       onFinishReached: () => this.onFinishReached(),
+      onPowerUpCollected: (type) => this.onPowerUpCollected(type),
     });
 
     this.spawn = loaded.spawn;
     this.levelWidth = loaded.levelWidth;
+    this.movingObjectTweens = loaded.movingObjectTweens;
+    this.powerUpImages = loaded.powerUpImages;
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
     player.reset(this.spawn.x, this.spawn.y);
@@ -128,9 +233,121 @@ export class GameScene extends Scene {
     this.runEnded = true;
     this.player.freeze();
 
+    // Purely cosmetic — doesn't touch `timeMs` below in any way.
+    burstParticles(
+      this,
+      this.player.sprite.x,
+      this.player.sprite.y,
+      0x39ff88,
+      22
+    );
+    this.cameras.main.flash(150, 57, 255, 136, false);
+
     const timeMs = Math.round(this.time.now - this.runStartTime);
     this.resultOverlay.showTime(timeMs);
-    void this.submitRun(this.levelVersion, timeMs);
+
+    if (this.previewLevel && this.candidateToken) {
+      void this.submitVerification(this.candidateToken, timeMs);
+    } else {
+      const levelVersion = this.levelVersion;
+      this.resultOverlay.setRetryHandler(() => this.restartRun());
+      void this.submitRun(levelVersion, timeMs);
+    }
+  }
+
+  // Verification (spec section 16) is shared by both preview flows — only
+  // what happens after success/failure differs, handled by the two
+  // `previewReturn` branches below.
+  private async submitVerification(
+    candidateToken: string,
+    timeMs: number
+  ): Promise<void> {
+    const previewReturn = this.previewReturn;
+    let verified = false;
+    try {
+      const response = await fetch('/api/publish/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateToken, timeMs }),
+      });
+      const json: unknown = await response.json();
+      verified = isVerifyLevelResponse(json) && json.status === 'ok';
+    } catch {
+      verified = false;
+    }
+
+    if (previewReturn?.kind === 'curse') {
+      if (verified) {
+        void this.publishCurseAndReturn(candidateToken, previewReturn);
+      } else {
+        this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+          this.scene.start('CurseScene', {
+            levelId: previewReturn.levelId,
+            preselected: {
+              category: previewReturn.category,
+              object: previewReturn.object,
+            },
+          });
+        });
+      }
+      return;
+    }
+
+    const returnObjects =
+      previewReturn?.kind === 'editor' ? previewReturn.objects : [];
+    this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+      this.scene.start('EditorScene', {
+        objects: returnObjects,
+        verifiedCandidateToken: verified ? candidateToken : undefined,
+      });
+    });
+  }
+
+  // A curse has nothing left to decide once verification succeeds — spec
+  // section 15's "PROVE IT'S POSSIBLE" already collected the one object and
+  // the title/category choice, unlike the base editor which still needs a
+  // separate title entry before publish. Publish immediately, then land
+  // the player back in the now-updated live level so they can see (and
+  // replay) their contribution.
+  private async publishCurseAndReturn(
+    candidateToken: string,
+    previewReturn: Extract<PreviewReturn, { kind: 'curse' }>
+  ): Promise<void> {
+    let message = 'Could not publish your curse — please try again.';
+    let conflict = false;
+    let published = false;
+    try {
+      const response = await fetch('/api/curse/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateToken }),
+      });
+      const json: unknown = await response.json();
+      if (isPublishCurseResponse(json)) {
+        if (json.status === 'ok') {
+          published = true;
+        } else {
+          message = json.message;
+          conflict = json.conflict === true;
+        }
+      }
+    } catch {
+      // message/conflict already default to the network-failure case
+    }
+
+    this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+      if (published) {
+        this.scene.start('GameScene', { levelId: previewReturn.levelId });
+        return;
+      }
+      this.scene.start('CurseScene', {
+        levelId: previewReturn.levelId,
+        preselected: conflict
+          ? undefined
+          : { category: previewReturn.category, object: previewReturn.object },
+        message,
+      });
+    });
   }
 
   private async submitRun(
@@ -153,6 +370,9 @@ export class GameScene extends Scene {
         const body: unknown = await response.json();
         if (isSubmitRunResponse(body)) {
           this.resultOverlay.showResult(body);
+          this.resultOverlay.setCurseHandler(() =>
+            this.scene.start('CurseScene', { levelId: levelVersion.levelId })
+          );
         } else {
           console.error('Unexpected /api/runs response shape', body);
         }
@@ -162,18 +382,114 @@ export class GameScene extends Scene {
     } catch (error) {
       console.error('Failed to submit run:', error);
     }
-
-    this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => this.restartRun());
   }
 
-  private onPlayerDied(): void {
+  // Shield (spec section 21) absorbs the next fatal hit and never reaches
+  // death/attribution at all — checked here, before `onPlayerDied`, since
+  // an absorbed hit isn't a death and shouldn't award a trap kill.
+  private onHazardHit(objectId: string): void {
+    if (this.player?.tryAbsorbHit()) {
+      return;
+    }
+    this.onPlayerDied(objectId);
+  }
+
+  private onPowerUpCollected(type: ObjectType): void {
+    if (!this.player) {
+      return;
+    }
+    switch (type) {
+      case 'doubleJump':
+        this.player.grantDoubleJump();
+        break;
+      case 'shield':
+        this.player.grantShield();
+        break;
+      case 'speedBoost':
+        this.player.applySpeedBoost();
+        break;
+      case 'autoDash':
+        this.player.applyDash();
+        break;
+      case 'slowTime':
+        this.applySlowTime();
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Scales moving hazard/platform tweens only — `runStartTime`/the timer
+  // are untouched, so this can never leak into a submitted time (spec
+  // section 21: "Do NOT slow the actual run timer").
+  private applySlowTime(): void {
+    for (const tween of this.movingObjectTweens) {
+      tween.timeScale = SLOW_TIME_HAZARD_SCALE;
+    }
+    this.slowTimeTimer?.remove();
+    this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
+      for (const tween of this.movingObjectTweens) {
+        tween.timeScale = 1;
+      }
+      this.slowTimeTimer = undefined;
+    });
+  }
+
+  // `objectId` is absent for a fall-death (running off the level, not a
+  // placed hazard) — there's nothing to attribute in that case.
+  private onPlayerDied(objectId?: string): void {
     if (this.runEnded || !this.player) {
       return;
     }
     this.runEnded = true;
+    if (objectId) {
+      this.reportHazardDeath(objectId);
+    }
     this.player.die(() =>
       this.time.delayedCall(DEATH_RESTART_DELAY_MS, () => this.restartRun())
     );
+  }
+
+  // Attribution (spec section 23) is shown instantly from data already on
+  // the client — the network call only grows the server-authoritative kill
+  // counters in the background and must never gate the respawn (spec
+  // section 30), so this is deliberately fire-and-forget.
+  private reportHazardDeath(objectId: string): void {
+    const object = this.levelVersion?.objects.find((o) => o.id === objectId);
+    if (!object) {
+      return;
+    }
+
+    const shownToken = object.addedBy === SEED_AUTHOR
+      ? undefined
+      : this.deathToast.showAttribution(object.addedBy, object.type);
+
+    if (this.previewLevel) {
+      // A preview/curse-test run's objects may not exist in Redis yet —
+      // nothing to report to.
+      return;
+    }
+    const levelId = this.levelVersion?.levelId;
+    const version = this.levelVersion?.version;
+    if (!levelId || version === undefined) {
+      return;
+    }
+
+    const request: TrapKillRequest = { levelId, version, objectId };
+    fetch('/api/runs/trap-kill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((json: unknown) => {
+        if (shownToken !== undefined && isTrapKillResponse(json)) {
+          this.deathToast.setKillCount(shownToken, json.kills);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — the instant attribution line already showed.
+      });
   }
 
   private restartRun(): void {
@@ -185,10 +501,26 @@ export class GameScene extends Scene {
     this.cameras.main.scrollX = 0;
     this.runStartTime = this.time.now;
     this.runEnded = false;
+
+    // Power-ups are re-collectible each attempt (spec section 21's
+    // pickups are deterministic, not consumed forever) — the world
+    // persists across a same-scene restart, so collected ones must be
+    // brought back by hand rather than by reloading the level.
+    for (const image of this.powerUpImages) {
+      setPowerUpAvailable(image, true);
+    }
+    this.slowTimeTimer?.remove();
+    this.slowTimeTimer = undefined;
+    for (const tween of this.movingObjectTweens) {
+      tween.timeScale = 1;
+    }
   }
 
   private cleanup(): void {
+    this.resultOverlay.hide();
+    this.deathToast.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
+    PreviewBackButton.instance().hide();
   }
 }

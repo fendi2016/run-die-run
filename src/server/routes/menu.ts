@@ -5,6 +5,19 @@ import { createPost } from '../core/post';
 
 export const menu = new Hono();
 
+menu.post('/example-form', (c) =>
+  c.json<UiResponse>({
+    showForm: {
+      name: 'exampleForm',
+      form: {
+        title: 'Example form',
+        acceptLabel: 'Submit',
+        fields: [{ name: 'message', label: 'Message', type: 'string' }],
+      },
+    },
+  })
+);
+
 menu.post('/post-create', async (c) => {
   try {
     const post = await createPost();

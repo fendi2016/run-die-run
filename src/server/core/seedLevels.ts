@@ -1,4 +1,8 @@
-import { GRID_CELL_SIZE, GROUND_TOP_Y } from '../../shared/constants';
+import {
+  GRID_CELL_SIZE,
+  GROUND_TOP_Y,
+  SEED_AUTHOR,
+} from '../../shared/constants';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 
 // Hand-authored placeholder levels (spec section 38, Phase 3: "two or three
@@ -6,7 +10,6 @@ import type { LevelObject, LevelVersion } from '../../shared/types';
 // yet, so these stand in for what Phase 4's editor will eventually publish
 // — LevelService seeds them into Redis the first time each is requested,
 // through the exact same storage path a real publish will use later.
-const SEED_AUTHOR = 'cursed_seed';
 const SEED_CREATED_AT = Date.UTC(2026, 0, 1);
 
 function groundStrip(startX: number, widthPx: number): LevelObject[] {
@@ -60,6 +63,18 @@ function level(
 }
 
 // The default level: two gaps, two spikes.
+//
+// Ground/spike/saw are bottom-anchored objects that SIT ON the surface at
+// GROUND_TOP_Y (ObjectRegistry.originFor: 'hazard'/'finish' → origin 0.5,1),
+// so they're placed AT GROUND_TOP_Y. Spawn is placed slightly above it
+// (GROUND_TOP_Y - 60) so the player has a short, natural fall onto the
+// ground at the start of a run. The finish portal previously copied that
+// same "- 60" hover offset — wrong for finish, since it's a tall (120px)
+// bottom-anchored object: hovering it 60px above the surface left it
+// floating entirely above the player's on-ground hitbox, so a normal run
+// passed underneath it without ever overlapping (the player ran off the
+// end of the level instead of finishing). Finish must sit flush at
+// GROUND_TOP_Y like the hazards, not hover like spawn.
 const meatGrinder = level(
   'meat-grinder',
   [
@@ -70,7 +85,7 @@ const meatGrinder = level(
     placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
     placed('spike-1', 'spike', 1100, GROUND_TOP_Y),
     placed('spike-2', 'spike', 1850, GROUND_TOP_Y),
-    placed('finish-1', 'finish', 3100, GROUND_TOP_Y - 60),
+    placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
   ],
   9831
 );
@@ -85,15 +100,22 @@ const gapGauntlet = level(
     ...groundStrip(1140, 300),
     ...groundStrip(1580, 300),
     ...groundStrip(2020, 300),
-    ...groundStrip(2460, 700),
+    // A 360px gap — wider than the ~179px a straight jump covers at this
+    // run speed/gravity, so the moving platform below is load-bearing, not
+    // decorative: catch it near the left edge, ride it, hop off near the
+    // right edge.
+    ...groundStrip(2680, 700),
+    placed('moving-platform-1', 'movingPlatform', 2420, GROUND_TOP_Y),
     placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
-    placed('finish-1', 'finish', 3060, GROUND_TOP_Y - 60),
+    placed('double-jump-1', 'doubleJump', 300, GROUND_TOP_Y - 60),
+    placed('finish-1', 'finish', 3280, GROUND_TOP_Y),
   ],
   11204
 );
 
-// A raised platform and a saw, to prove the ObjectRegistry generalizes
-// beyond spikes/ground.
+// A raised platform, a saw, a moving saw, and a couple of power-ups, to
+// prove the ObjectRegistry generalizes beyond spikes/ground (and, later,
+// that Phase 8's power-ups/moving hazards do too).
 const sawAlley = level(
   'saw-alley',
   [
@@ -102,9 +124,12 @@ const sawAlley = level(
     placed('platform-2', 'platform', 1170, GROUND_TOP_Y - 90),
     ...groundStrip(1300, 1900),
     placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
+    placed('auto-dash-1', 'autoDash', 500, GROUND_TOP_Y - 60),
     placed('saw-1', 'saw', 1900, GROUND_TOP_Y),
+    placed('moving-saw-1', 'movingSaw', 2250, GROUND_TOP_Y),
+    placed('shield-1', 'shield', 2450, GROUND_TOP_Y - 60),
     placed('spike-1', 'spike', 2600, GROUND_TOP_Y),
-    placed('finish-1', 'finish', 3100, GROUND_TOP_Y - 60),
+    placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
   ],
   10556
 );

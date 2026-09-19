@@ -1,7 +1,8 @@
 import * as Phaser from 'phaser';
 import type { LevelObject, ObjectType } from '../../../shared/types';
 
-export type ObjectCategory = 'solid' | 'hazard' | 'finish' | 'spawn' | 'unsupported';
+export type ObjectCategory =
+  'solid' | 'hazard' | 'finish' | 'spawn' | 'powerup' | 'unsupported';
 
 // Object architecture must be extensible (spec section 11): adding a new
 // ObjectType means adding one entry to each map below, not touching
@@ -9,19 +10,45 @@ export type ObjectCategory = 'solid' | 'hazard' | 'finish' | 'spawn' | 'unsuppor
 const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   ground: 'solid',
   platform: 'solid',
+  movingPlatform: 'solid',
   spike: 'hazard',
   saw: 'hazard',
+  movingSaw: 'hazard',
   finish: 'finish',
   spawn: 'spawn',
+  doubleJump: 'powerup',
+  shield: 'powerup',
+  speedBoost: 'powerup',
+  slowTime: 'powerup',
+  autoDash: 'powerup',
 };
 
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   ground: 'ground',
   platform: 'platform',
+  // Placeholder art is shared with the regular platform (spec section 32:
+  // art comes after gameplay) — LevelLoader is what gives it motion.
+  movingPlatform: 'platform',
   spike: 'spike',
   saw: 'saw',
+  // Placeholder art is shared with the regular saw (spec section 32: art
+  // comes after gameplay) — LevelLoader is what gives it motion.
+  movingSaw: 'saw',
   finish: 'finish',
+  doubleJump: 'doubleJump',
+  shield: 'shield',
+  speedBoost: 'speedBoost',
+  slowTime: 'slowTime',
+  autoDash: 'autoDash',
 };
+
+// A moving platform needs a *dynamic* Arcade body — `Body.setDirectControl`
+// (used by LevelLoader to make the tween carry a standing player, instead
+// of the manual `StaticBody.updateFromGameObject()` resync movingSaw uses,
+// which is fine for an overlap-only hazard but wouldn't compute correct
+// push/carry velocity for a collider) only exists on the dynamic Body
+// class, not StaticBody. Everything else here still renders as static.
+const DYNAMIC_BODY_TYPES = new Set<ObjectType>(['movingPlatform']);
 
 export function categoryOf(type: ObjectType): ObjectCategory {
   return CATEGORY_BY_TYPE[type] ?? 'unsupported';
@@ -51,13 +78,17 @@ export function renderLevelObject(
   const textureKey = TEXTURE_BY_TYPE[object.type];
   if (!textureKey) {
     if (object.type !== 'spawn') {
-      console.warn(`No ObjectRegistry texture for type "${object.type}" (${object.id})`);
+      console.warn(
+        `No ObjectRegistry texture for type "${object.type}" (${object.id})`
+      );
     }
     return null;
   }
 
   const [originX, originY] = originFor(categoryOf(object.type));
-  const image = scene.add.image(object.x, object.y, textureKey).setOrigin(originX, originY);
-  scene.physics.add.existing(image, true);
+  const image = scene.add
+    .image(object.x, object.y, textureKey)
+    .setOrigin(originX, originY);
+  scene.physics.add.existing(image, !DYNAMIC_BODY_TYPES.has(object.type));
   return image;
 }

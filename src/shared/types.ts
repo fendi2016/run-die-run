@@ -54,7 +54,9 @@ export type RunResult = {
   username: string;
 };
 
-function isLevelObject(value: unknown): value is LevelObject {
+// Exported so services building a curse candidate (spec sections 14-20) can
+// validate a `LevelObject[]` read back out of Redis without an `as` cast.
+export function isLevelObject(value: unknown): value is LevelObject {
   return (
     typeof value === 'object' &&
     value !== null &&

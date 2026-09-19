@@ -1,9 +1,12 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { createServer, getServerPort } from '@devvit/web/server';
+import { curse } from './routes/curse';
+import { discovery } from './routes/discovery';
 import { forms } from './routes/forms';
 import { levels } from './routes/levels';
 import { menu } from './routes/menu';
+import { publish } from './routes/publish';
 import { runs } from './routes/runs';
 import { triggers } from './routes/triggers';
 
@@ -17,6 +20,9 @@ internal.route('/triggers', triggers);
 app.route('/internal', internal);
 app.route('/api/runs', runs);
 app.route('/api/levels', levels);
+app.route('/api/publish', publish);
+app.route('/api/curse', curse);
+app.route('/api/discovery', discovery);
 
 serve({
   fetch: app.fetch,

@@ -1,8 +1,12 @@
 import { Boot } from './game/scenes/Boot';
+import { CurseScene } from './game/scenes/CurseScene';
+import { EditorScene } from './game/scenes/EditorScene';
 import { GameScene } from './game/scenes/GameScene';
 import { MainMenu } from './game/scenes/MainMenu';
 import * as Phaser from 'phaser';
 import { AUTO, Game } from 'phaser';
+import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
+import FlashPlugin from 'phaser4-rex-plugins/plugins/flash-plugin.js';
 import { Preloader } from './game/scenes/Preloader';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../shared/constants';
 import { GRAVITY_Y } from './game/constants';
@@ -13,6 +17,19 @@ const config: Phaser.Types.Core.GameConfig = {
   type: AUTO,
   parent: 'game-container',
   backgroundColor: '#028af8',
+  // Without this, every textured Game Object (the player, ground tiles,
+  // hazards...) draws at whatever sub-pixel position the camera's scroll
+  // math lands on. GameScene's camera zoom is `scale.height / 540`
+  // (see `applyResponsiveZoom`), which is essentially never a whole
+  // number on a real device viewport, and `scrollX` tracks the player's
+  // continuously-moving float `x` every frame — the combination reads as
+  // a constant shimmer/shake on anything on screen, worst on the player
+  // since it's the highest-contrast, most-scrutinized sprite. Snapping
+  // every textured object to whole-integer device pixels each frame
+  // removes that sub-pixel shimmer entirely.
+  render: {
+    roundPixels: true,
+  },
   scale: {
     // RESIZE fills the full device viewport edge-to-edge — no letterbox
     // bars — which is what "full screen" on mobile requires. Fairness
@@ -32,11 +49,45 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [Boot, Preloader, MainMenu, GameScene],
+  // rexBoard (phaser4-rex-plugins) owns the editor's grid math and tile-tap
+  // gesture detection (EditorScene) instead of hand-rolled tile<->world
+  // conversion and pointer drag-threshold heuristics — a maintained,
+  // widely-used library for exactly this job rather than reinventing it.
+  // rexFlash is a base plugin, installed globally and looked up per-scene
+  // via `this.plugins.get(key)`. The finish/power-up glow previously used
+  // a third rex-plugins module (rexOutlinePipeline) — swapped for Phaser
+  // 4's own built-in Filters.Glow (see Juice.ts's `applyOutlineGlow`),
+  // which needs no plugin registration at all. rexUI (~50 components, only
+  // one of which — GridTable — this app uses) is NOT registered here
+  // either: it's dynamically imported and installed only when
+  // DiscoveryScene is actually opened (see MainMenu's BROWSE handler),
+  // keeping it out of the main bundle entirely.
+  plugins: {
+    global: [{ key: 'rexFlash', plugin: FlashPlugin, start: true }],
+    scene: [{ key: 'rexBoard', plugin: BoardPlugin, mapping: 'rexBoard' }],
+  },
+  // DiscoveryScene is deliberately absent from this static list — it's
+  // added on demand (`this.scene.add(...)`) the first time the player
+  // opens it, so its rexUI dependency loads in its own chunk instead of
+  // bloating every player's initial download.
+  scene: [Boot, Preloader, MainMenu, GameScene, EditorScene, CurseScene],
 };
 
+// Lets the headless Playwright playtest harness (and manual devtools
+// poking) reach the live Phaser.Game instance — a declaration merge
+// rather than a cast, per house style. The devvit Vite plugin only
+// supports `vite build` (no dev server), so there's no separate dev/prod
+// bundle here to gate this behind.
+declare global {
+  interface Window {
+    __PHASER_GAME__?: Phaser.Game;
+  }
+}
+
 const StartGame = (parent: string) => {
-  return new Game({ ...config, parent });
+  const game = new Game({ ...config, parent });
+  window.__PHASER_GAME__ = game;
+  return game;
 };
 
 document.addEventListener('DOMContentLoaded', () => {

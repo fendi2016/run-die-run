@@ -13,7 +13,7 @@
     "login": "devvit login",
     "prettier": "prettier --write .",
     "test:types": "tsc --build",
-    "test:unit": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test \"src/**/*.test.ts\""
+    "test:unit": "node --experimental-strip-types --experimental-test-module-mocks --no-warnings=ExperimentalWarning --import ./tools/test-loader.mjs --test \"src/**/*.test.ts\""
   },
   "engines": {
     "node": ">=24.0.0"
@@ -24,13 +24,15 @@
     "@hono/node-server": "2.1.1",
     "devvit": "0.14.4",
     "hono": "4.13.7",
-    "phaser": "4.2.1"
+    "phaser": "4.2.1",
+    "phaser4-rex-plugins": "^4.2.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "^24.13.3",
     "eslint": "10.10.0",
     "globals": "17.12.0",
+    "playwright": "^1.63.0",
     "prettier": "3.9.6",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.0",

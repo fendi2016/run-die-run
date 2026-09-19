@@ -20,3 +20,22 @@ export const FINISH_RESTART_DELAY_MS = 2500;
 // How far from the left edge of the screen the player sits while running,
 // so there's always more upcoming level geometry visible than trailing.
 export const PLAYER_SCREEN_ANCHOR = 0.35;
+
+// Power-up tuning (spec section 21). All auto-activate on pickup, all
+// deterministic (no randomness), none add a new input.
+export const SPEED_BOOST_MULTIPLIER = 1.6;
+export const SPEED_BOOST_DURATION_MS = 1400;
+// Dash is "an automatic effect when collected" (spec), not a button — an
+// immediate, short, stronger burst than Speed Boost rather than a sustained
+// buff, reusing the same timed-multiplier mechanism under the hood.
+export const DASH_BURST_MULTIPLIER = 2.4;
+export const DASH_BURST_DURATION_MS = 220;
+export const SLOW_TIME_HAZARD_SCALE = 0.35;
+export const SLOW_TIME_DURATION_MS = 3000;
+// Amplitude/period of a Moving Saw's deterministic back-and-forth path.
+export const MOVING_SAW_AMPLITUDE_PX = 90;
+export const MOVING_SAW_PERIOD_MS = 900;
+// A Moving Platform travels farther and slower than a Moving Saw — it
+// needs to be rideable/predictable, not a fast-twitch hazard.
+export const MOVING_PLATFORM_AMPLITUDE_PX = 160;
+export const MOVING_PLATFORM_PERIOD_MS = 2200;
