@@ -26,7 +26,7 @@
     "@phaser-game-engines/toolkit": "^0.2.0",
     "command-history": "^1.0.0",
     "devvit": "0.14.4",
-    "hono": "4.13.7",
+    "hono": "4.13.8",
     "nanoid": "^6.0.1",
     "phaser": "4.2.1",
     "phaser4-rex-plugins": "^4.2.0",
