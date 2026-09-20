@@ -1,7 +1,12 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
-import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
+import {
+  EDITOR_MAX_COLUMNS,
+  EDITOR_MAX_ROWS,
+  GRID_CELL_SIZE,
+  GROUND_TOP_Y,
+} from '../../../shared/constants';
 import {
   isProposeCurseResponse,
   type CurseCategory,
@@ -22,6 +27,8 @@ import {
   EDITOR_BOARD_ROWS,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
+import { PLAYER_SIZE } from '../constants';
+import { PLAYER_IDLE_KEY } from '../entities/Player';
 import { renderLevelObject } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
@@ -58,6 +65,19 @@ export class CurseScene extends Scene {
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
   private baseImages: Phaser.GameObjects.Image[] = [];
+  // Placement uses rexBoard's own tile math (Board.worldXYToTileXY /
+  // tileXYToWorldXY — the same calls tap-to-place already used) for
+  // snapping, and Phaser's native GameObject drag for the pointer gesture.
+  // rexBoard also ships a higher-level MiniBoard ("palette piece" that
+  // drags onto a board and snaps itself) that looked like an even better
+  // fit — but its own drag detection (isInTouching -> GetPointerWorldXY)
+  // resolves the pointer against the wrong camera in a scene with a
+  // resized viewport (confirmed by reading its source and tracing actual
+  // pointer.camera values at runtime: it never matched this scene's own
+  // camera, even though the Board's tap detection — the same mechanism a
+  // plain draggable GameObject also uses — resolves correctly). That's a
+  // real bug in that specific sub-feature, not something fixable from
+  // here, so the drag gesture itself is native Phaser instead.
   private pendingImage: Phaser.GameObjects.Image | undefined;
 
   private panZoom!: PanZoomCamera;
@@ -138,7 +158,16 @@ export class CurseScene extends Scene {
       }
       this.baseLevel = body;
       this.redrawBase();
-      this.redrawPending();
+      // A type picked before the base level finished loading (selectType
+      // couldn't place it yet without knowing where the level currently
+      // ends) gets placed now instead of leaving the player with a type
+      // selected but nothing on the board. A preselected object already
+      // has a real position, so it's just (re)rendered as-is.
+      if (this.selectedType && !this.pending) {
+        this.placePendingAtEndOfLevel();
+      } else {
+        this.redrawPending();
+      }
       this.updateProveEnabled();
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');
@@ -161,8 +190,48 @@ export class CurseScene extends Scene {
     if (this.proposalRequest) return;
     this.selectedType = type;
     this.pending = undefined;
-    this.toolbar.setClearEnabled(false);
     this.toolbar.hideMessage();
+    // Drop the new object right at the end of the level instead of making
+    // the player hunt for an empty tile first — they can then drag it
+    // anywhere else they'd rather have it (including further right, to
+    // extend how far the level reaches).
+    if (this.baseLevel) {
+      this.placePendingAtEndOfLevel();
+    } else {
+      this.toolbar.setClearEnabled(false);
+      this.redrawPending();
+      this.updateProveEnabled();
+    }
+  }
+
+  // Snaps to the same board math tile taps use (Board.worldXYToTileXY /
+  // tileXYToWorldXY), one column past whatever currently reaches furthest
+  // right (spawn included, so an empty level still gets a sane starting
+  // column instead of x=0).
+  private placePendingAtEndOfLevel(): void {
+    if (!this.selectedType) return;
+    const maxX = Math.max(
+      0,
+      ...(this.baseLevel?.objects ?? []).map((o) => o.x)
+    );
+    const targetTile = this.board.worldXYToTileXY(
+      maxX + GRID_CELL_SIZE,
+      GROUND_TOP_Y
+    );
+    const col = Math.max(0, Math.min(EDITOR_MAX_COLUMNS - 1, targetTile.x));
+    const row = normalizeBoardRow(targetTile.y);
+    const world = this.board.tileXYToWorldXY(col, row);
+    this.setPendingAt(world.x, world.y);
+    this.panZoom.focusOn(world.x);
+  }
+
+  // Shared by the initial end-of-level placement, tap-to-place/move, and
+  // drag-to-reposition — one place that keeps `pending`, the toolbar's
+  // Clear button, and the preview render all in sync with each other.
+  private setPendingAt(x: number, y: number): void {
+    if (!this.selectedType) return;
+    this.pending = { id: 'pending', type: this.selectedType, x, y };
+    this.toolbar.setClearEnabled(true);
     this.redrawPending();
     this.updateProveEnabled();
   }
@@ -195,15 +264,7 @@ export class CurseScene extends Scene {
     }
 
     this.toolbar.hideMessage();
-    this.pending = {
-      id: 'pending',
-      type: this.selectedType,
-      x: world.x,
-      y: world.y,
-    };
-    this.toolbar.setClearEnabled(true);
-    this.redrawPending();
-    this.updateProveEnabled();
+    this.setPendingAt(world.x, world.y);
   }
 
   private isOccupiedByBase(x: number, y: number): boolean {
@@ -228,9 +289,10 @@ export class CurseScene extends Scene {
       const image =
         object.type === 'spawn'
           ? this.add
-              .image(object.x, object.y, 'player')
+              .image(object.x, object.y, PLAYER_IDLE_KEY)
               .setOrigin(0.5, 1)
               .setAlpha(0.6)
+              .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE)
           : renderLevelObject(this, object);
       if (image) {
         image.disableInteractive();
@@ -258,16 +320,68 @@ export class CurseScene extends Scene {
     const image = renderLevelObject(this, previewObject);
     if (image) {
       image.setAlpha(0.85);
-      image.disableInteractive();
+      image.setInteractive();
+      this.input.setDraggable(image);
+      image.on('pointerdown', () => this.panZoom.setSuspended(true));
+      image.on('drag', (_p: unknown, dragX: number, dragY: number) =>
+        this.onPendingDrag(dragX, dragY)
+      );
+      // Deliberately ignores the dragend event's own (dragX, dragY)
+      // payload — Phaser 4.2.1's processDragUpEvent recomputes
+      // input.dragX/dragY from local (object-relative) coordinates instead
+      // of world coordinates when the pointer's internal per-object
+      // dragState still reads 2 at release, which happens here despite
+      // real 'drag' moves already having fired (confirmed by tracing
+      // actual values at runtime — a real engine quirk, not a mistake in
+      // this file). The image's own x/y, kept correct every tick by
+      // onPendingDrag's setPosition() call below, isn't affected by that
+      // and is what's used instead.
+      image.on('dragend', () => this.onPendingDragEnd());
       this.pendingImage = image;
     }
+    this.drawPendingOutline(this.pending.x, this.pending.y);
+  }
+
+  private drawPendingOutline(x: number, y: number): void {
+    this.pendingGraphics.clear();
     this.pendingGraphics.lineStyle(3, 0xff3966, 1);
-    this.pendingGraphics.strokeRect(
-      this.pending.x - 30,
-      this.pending.y - 60,
-      60,
-      60
+    this.pendingGraphics.strokeRect(x - 30, y - 60, 60, 60);
+  }
+
+  // Live-follows the pointer during the drag itself — snapping only
+  // happens once on release (onPendingDragEnd), same as picking up a real
+  // object and setting it down, rather than jittering between tiles while
+  // still mid-drag.
+  private onPendingDrag(dragX: number, dragY: number): void {
+    if (this.proposalRequest || !this.pendingImage) return;
+    this.pendingImage.setPosition(dragX, dragY);
+    this.drawPendingOutline(dragX, dragY);
+  }
+
+  private onPendingDragEnd(): void {
+    this.panZoom.setSuspended(false);
+    if (this.proposalRequest || !this.selectedType || !this.pendingImage) return;
+
+    const droppedTile = this.board.worldXYToTileXY(
+      this.pendingImage.x,
+      this.pendingImage.y
     );
+    const col = Math.max(0, Math.min(EDITOR_MAX_COLUMNS - 1, droppedTile.x));
+    const row = Math.max(0, Math.min(EDITOR_MAX_ROWS - 1, droppedTile.y));
+    const snapped = this.board.tileXYToWorldXY(col, row);
+
+    if (this.isOccupiedByBase(snapped.x, snapped.y)) {
+      this.toolbar.showMessage(
+        'Something is already there — try another spot.'
+      );
+      // Snap the visual back to the last confirmed position rather than
+      // leaving it hovering wherever the drop was rejected.
+      this.redrawPending();
+      return;
+    }
+
+    this.toolbar.hideMessage();
+    this.setPendingAt(snapped.x, snapped.y);
   }
 
   private redrawGrid(): void {

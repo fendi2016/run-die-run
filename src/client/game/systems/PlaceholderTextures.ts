@@ -5,19 +5,14 @@ import { GRID_CELL_SIZE } from '../../../shared/constants';
 // asset pipeline (spec section 32: "do not spend excessive time on art
 // before gameplay works"). Swap for real sprites in the polish phase.
 export function ensurePlaceholderTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists('player')) {
+  // The player textures are real art loaded by Preloader (not placeholders),
+  // so they can't be the guard here — use 'ground' to detect "already
+  // generated".
+  if (scene.textures.exists('ground')) {
     return;
   }
 
   const graphics = scene.add.graphics();
-
-  graphics.clear();
-  graphics.fillStyle(0xff4d6d, 1);
-  graphics.fillRoundedRect(0, 0, 40, 40, 10);
-  graphics.fillStyle(0x1a1a2e, 1);
-  graphics.fillCircle(13, 16, 4);
-  graphics.fillCircle(27, 16, 4);
-  graphics.generateTexture('player', 40, 40);
 
   // Ground/platform are sized to the grid cell so per-tile placement
   // (ObjectRegistry) lines up cleanly with no gaps or overlap.

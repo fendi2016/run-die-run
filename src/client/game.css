@@ -78,6 +78,48 @@ body {
   font-weight: 600;
 }
 
+/* Tap-to-start prompt: shown at spawn until the player's first jump input
+   (spec: the level shouldn't just start moving under them) — GameScene
+   holds the player still and the run timer unstarted until then.
+   pointer-events: none, same as #run-result/#death-toast, so the tap that
+   dismisses it also reaches the canvas and registers as InputSystem's
+   jumpdown signal, not a separate/extra tap. */
+#tap-to-start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 120ms ease-out;
+}
+
+#tap-to-start.hidden {
+  opacity: 0;
+}
+
+#tap-to-start-label {
+  font-family: 'Arial Black', sans-serif;
+  font-size: clamp(20px, 6vw, 32px);
+  color: rgba(255, 255, 255, 0.87);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  padding: 10px 22px;
+  border-radius: 10px;
+  background: rgba(15, 15, 15, 0.55);
+  animation: tap-to-start-pulse 1100ms ease-in-out infinite;
+}
+
+@keyframes tap-to-start-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /* Death attribution toast (spec section 23): "Killed by u/X's Saw — this
    trap has N kills". Independent of #run-result and the death/restart
    timer entirely — it must never gate the instant respawn (spec section

@@ -6,7 +6,7 @@ export const JUMP_VELOCITY = 620; // px/s, initial upward velocity on jump
 export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released early
 export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
-export const PLAYER_SIZE = 40;
+export const PLAYER_SIZE = 80;
 
 // Total budget for the death→retry loop must land inside the spec's
 // ~0.3–0.6s target (section 6); this is the animation portion of that.

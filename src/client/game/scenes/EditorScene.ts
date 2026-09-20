@@ -23,6 +23,8 @@ import {
   type EditorTool,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
+import { PLAYER_SIZE } from '../constants';
+import { PLAYER_IDLE_KEY } from '../entities/Player';
 import { renderLevelObject } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
@@ -218,9 +220,10 @@ export class EditorScene extends Scene {
       const image =
         object.type === 'spawn'
           ? this.add
-              .image(object.x, object.y, 'player')
+              .image(object.x, object.y, PLAYER_IDLE_KEY)
               .setOrigin(0.5, 1)
               .setAlpha(0.6)
+              .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE)
           : renderLevelObject(this, {
               ...object,
               properties: {},

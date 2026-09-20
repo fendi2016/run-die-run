@@ -17,6 +17,12 @@ export class PanZoomCamera {
   private pointerDownAt: { x: number; y: number } | undefined;
   private dragStartScrollX = 0;
   private isDragging = false;
+  // Set while a draggable placed object (CurseScene's pending preview) owns
+  // the pointer — without this, dragging that object also reads as a
+  // camera-pan drag on the same pointer, fighting it frame to frame since
+  // one moves the object in world space while the other changes what world
+  // space maps to which screen pixel.
+  private suspended = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -77,14 +83,43 @@ export class PanZoomCamera {
     this.onChange();
   }
 
+  // Scrolls just enough to bring `worldX` into view (near the right side of
+  // the viewport, since callers use this for "reveal something just placed
+  // past the current edge") rather than re-centering every time.
+  focusOn(worldX: number): void {
+    const visibleWorldWidth =
+      this.scene.scale.width / this.scene.cameras.main.zoom;
+    const target = worldX - visibleWorldWidth * 0.7;
+    this.scene.cameras.main.scrollX = Phaser.Math.Clamp(
+      target,
+      0,
+      this.maxScrollX()
+    );
+    this.onChange();
+  }
+
+  // Called by a scene while it's dragging a placed object itself, so this
+  // class's own drag-to-pan gesture recognition doesn't run against the
+  // same pointer at the same time.
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    if (suspended) {
+      this.pointerDownAt = undefined;
+      this.isDragging = false;
+    }
+  }
+
   private onPointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (this.suspended) {
+      return;
+    }
     this.pointerDownAt = { x: pointer.x, y: pointer.y };
     this.dragStartScrollX = this.scene.cameras.main.scrollX;
     this.isDragging = false;
   };
 
   private onPointerMove = (pointer: Phaser.Input.Pointer): void => {
-    if (!pointer.isDown || !this.pointerDownAt) {
+    if (this.suspended || !pointer.isDown || !this.pointerDownAt) {
       return;
     }
     const dx = pointer.x - this.pointerDownAt.x;
