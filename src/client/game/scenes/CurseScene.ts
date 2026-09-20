@@ -3,7 +3,6 @@ import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
 import {
   EDITOR_MAX_COLUMNS,
-  EDITOR_MAX_ROWS,
   GRID_CELL_SIZE,
   GROUND_TOP_Y,
 } from '../../../shared/constants';
@@ -22,14 +21,13 @@ import {
 import { CurseToolbar } from '../../ui/CurseToolbar';
 import {
   boardGridConfig,
+  clampBoardColumn,
   drawGrid,
   normalizeBoardRow,
   EDITOR_BOARD_ROWS,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
-import { PLAYER_SIZE } from '../constants';
-import { PLAYER_IDLE_KEY } from '../entities/Player';
-import { renderLevelObject } from '../objects/ObjectRegistry';
+import { renderLevelObject, renderSpawnMarker } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
 type CursePreselect = {
@@ -218,9 +216,18 @@ export class CurseScene extends Scene {
       maxX + GRID_CELL_SIZE,
       GROUND_TOP_Y
     );
-    const col = Math.max(0, Math.min(EDITOR_MAX_COLUMNS - 1, targetTile.x));
+    const col = clampBoardColumn(targetTile.x);
     const row = normalizeBoardRow(targetTile.y);
     const world = this.board.tileXYToWorldXY(col, row);
+    // The column clamp above can land back on an already-occupied tile
+    // once the level is full out to EDITOR_MAX_COLUMNS — same conflict
+    // check tap/drag placement use, so Prove's silent "why won't this
+    // enable" doesn't come as a surprise.
+    if (this.isOccupiedByBase(world.x, world.y)) {
+      this.toolbar.showMessage(
+        'Level is full — drag the new object to an empty spot.'
+      );
+    }
     this.setPendingAt(world.x, world.y);
     this.panZoom.focusOn(world.x);
   }
@@ -288,11 +295,7 @@ export class CurseScene extends Scene {
     for (const object of this.baseLevel?.objects ?? []) {
       const image =
         object.type === 'spawn'
-          ? this.add
-              .image(object.x, object.y, PLAYER_IDLE_KEY)
-              .setOrigin(0.5, 1)
-              .setAlpha(0.6)
-              .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE)
+          ? renderSpawnMarker(this, object.x, object.y)
           : renderLevelObject(this, object);
       if (image) {
         image.disableInteractive();
@@ -366,8 +369,8 @@ export class CurseScene extends Scene {
       this.pendingImage.x,
       this.pendingImage.y
     );
-    const col = Math.max(0, Math.min(EDITOR_MAX_COLUMNS - 1, droppedTile.x));
-    const row = Math.max(0, Math.min(EDITOR_MAX_ROWS - 1, droppedTile.y));
+    const col = clampBoardColumn(droppedTile.x);
+    const row = normalizeBoardRow(droppedTile.y);
     const snapped = this.board.tileXYToWorldXY(col, row);
 
     if (this.isOccupiedByBase(snapped.x, snapped.y)) {

@@ -550,8 +550,16 @@ export class GameScene extends Scene {
   }
 
   private cleanup(): void {
-    // The scene can be entered again after leaving before the first tap.
-    this.physics.resume();
+    // No physics.resume() needed here: ArcadePhysics's own 'shutdown'
+    // listener (registered during the scene's start(), before create()'s
+    // this.events.once('shutdown', this.cleanup) below) already runs first
+    // in Phaser's registration-order event dispatch and nulls out
+    // this.physics.world — calling resume() after that throws
+    // ("Cannot read properties of null (reading 'resume')"), aborting
+    // whatever scene.start() transition triggered this shutdown (this is
+    // what made "Curse This Level" freeze the game). A re-entered scene
+    // gets a brand new, unpaused World instance anyway, so there was
+    // never anything here that needed resuming.
     this.resultOverlay.hide();
     this.deathToast.hide();
     this.tapToStartPrompt.hide();

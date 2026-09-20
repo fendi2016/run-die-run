@@ -1,3 +1,5 @@
+import { GRID_CELL_SIZE } from '../../shared/constants';
+
 // Gameplay tuning values (spec section 3). Client-only — the server never
 // needs to know jump physics, only final validated positions/times.
 export const RUN_SPEED = 260; // px/s, constant auto-run speed
@@ -7,6 +9,11 @@ export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released e
 export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
 export const PLAYER_SIZE = 80;
+// The editor/curse spawn-marker icon reuses the player idle texture but
+// must fit inside one grid tile (unlike the real player, which is allowed
+// to overhang neighboring tiles while running) — otherwise it visually
+// overlaps whatever's placed in the next column over.
+export const SPAWN_ICON_SIZE = Math.min(PLAYER_SIZE, GRID_CELL_SIZE);
 
 // Total budget for the death→retry loop must land inside the spec's
 // ~0.3–0.6s target (section 6); this is the animation portion of that.

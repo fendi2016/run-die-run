@@ -38,6 +38,13 @@ export class PanZoomCamera {
     this.scene.input.on('pointerdown', this.onPointerDown, this);
     this.scene.input.on('pointermove', this.onPointerMove, this);
     this.scene.input.on('pointerup', this.onPointerUp, this);
+    // Safety net for a lost dragend on whatever set suspended=true (the
+    // dragged object got destroyed by a redraw mid-drag, or its dragend
+    // just never fires) — these fire on the pointer itself, independent of
+    // whichever GameObject it was interacting with, so they still catch a
+    // release even once that object is gone.
+    this.scene.input.on('pointerup', this.clearSuspended, this);
+    this.scene.input.on('gameout', this.clearSuspended, this);
   }
 
   detach(): void {
@@ -45,6 +52,8 @@ export class PanZoomCamera {
     this.scene.input.off('pointerdown', this.onPointerDown, this);
     this.scene.input.off('pointermove', this.onPointerMove, this);
     this.scene.input.off('pointerup', this.onPointerUp, this);
+    this.scene.input.off('pointerup', this.clearSuspended, this);
+    this.scene.input.off('gameout', this.clearSuspended, this);
   }
 
   applyResponsiveZoom = (): void => {
@@ -108,6 +117,10 @@ export class PanZoomCamera {
       this.isDragging = false;
     }
   }
+
+  private clearSuspended = (): void => {
+    this.suspended = false;
+  };
 
   private onPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (this.suspended) {

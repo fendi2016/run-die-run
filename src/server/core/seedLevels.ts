@@ -64,17 +64,11 @@ function level(
 
 // The default level: two gaps, two spikes.
 //
-// Ground/spike/saw are bottom-anchored objects that SIT ON the surface at
-// GROUND_TOP_Y (ObjectRegistry.originFor: 'hazard'/'finish' → origin 0.5,1),
-// so they're placed AT GROUND_TOP_Y. Spawn is placed slightly above it
-// (GROUND_TOP_Y - 60) so the player has a short, natural fall onto the
-// ground at the start of a run. The finish portal previously copied that
-// same "- 60" hover offset — wrong for finish, since it's a tall (120px)
-// bottom-anchored object: hovering it 60px above the surface left it
-// floating entirely above the player's on-ground hitbox, so a normal run
-// passed underneath it without ever overlapping (the player ran off the
-// end of the level instead of finishing). Finish must sit flush at
-// GROUND_TOP_Y like the hazards, not hover like spawn.
+// Ground/spike/saw/spawn/finish are all bottom-anchored objects that SIT ON
+// the surface at GROUND_TOP_Y (ObjectRegistry.originFor: everything but
+// 'solid' → origin 0.5,1), so they're all placed flush AT GROUND_TOP_Y —
+// spawn included, so the run starts with the player already standing on
+// the ground instead of hovering a tile above it and dropping into frame.
 const meatGrinder = level(
   'meat-grinder',
   [
@@ -82,7 +76,7 @@ const meatGrinder = level(
     ...groundStrip(820, 580),
     ...groundStrip(1500, 500),
     ...groundStrip(2110, 1090),
-    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
+    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
     placed('spike-1', 'spike', 1100, GROUND_TOP_Y),
     placed('spike-2', 'spike', 1850, GROUND_TOP_Y),
     placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
@@ -106,7 +100,7 @@ const gapGauntlet = level(
     // right edge.
     ...groundStrip(2680, 700),
     placed('moving-platform-1', 'movingPlatform', 2420, GROUND_TOP_Y),
-    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
+    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
     placed('double-jump-1', 'doubleJump', 300, GROUND_TOP_Y - 60),
     placed('finish-1', 'finish', 3280, GROUND_TOP_Y),
   ],
@@ -123,7 +117,7 @@ const sawAlley = level(
     placed('platform-1', 'platform', 1050, GROUND_TOP_Y - 90),
     placed('platform-2', 'platform', 1170, GROUND_TOP_Y - 90),
     ...groundStrip(1300, 1900),
-    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y - 60),
+    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
     placed('auto-dash-1', 'autoDash', 500, GROUND_TOP_Y - 60),
     placed('saw-1', 'saw', 1900, GROUND_TOP_Y),
     placed('moving-saw-1', 'movingSaw', 2250, GROUND_TOP_Y),

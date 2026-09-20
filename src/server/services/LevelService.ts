@@ -64,3 +64,19 @@ export async function getCurrentLevelVersion(
   }
   return parsed;
 }
+
+// Overwrites every built-in level's *own* seed version blob (never the
+// current-version pointer, and never any id outside SEED_LEVELS) with
+// whatever seedLevels.ts currently says. `getCurrentLevelVersion`'s
+// seed-only-if-missing rule means a source edit to a seed's LevelVersion
+// (e.g. tuning a spawn/hazard position) never reaches an environment where
+// that level was already requested at least once — this is the manual
+// escape hatch for that, meant to be run from a moderator menu action
+// during pre-launch tuning. Safe even after real publishes exist on top of
+// a seed id: it only touches level:<id>:version:<seed.version>, which a
+// later real publish's current-version pointer has already moved past.
+export async function reseedBuiltInLevels(): Promise<string[]> {
+  const seeds = Object.entries(SEED_LEVELS);
+  await Promise.all(seeds.map(([levelId, seed]) => persistSeedVersion(levelId, seed)));
+  return seeds.map(([levelId]) => levelId);
+}

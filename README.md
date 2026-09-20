@@ -28,5 +28,4 @@ A starter to build web applications on Reddit's developer platform
 ## Credits
 
 Thanks to the Phaser team for [providing a great template](https://github.com/phaserjs/template-vite-ts)!
-# run-die-run
-# run-die-run
+# cursed

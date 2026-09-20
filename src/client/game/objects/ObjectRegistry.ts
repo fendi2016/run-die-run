@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
 import type { LevelObject, ObjectType } from '../../../shared/types';
+import { SPAWN_ICON_SIZE } from '../constants';
+import { PLAYER_IDLE_KEY } from '../entities/Player';
 
 export type ObjectCategory =
   'solid' | 'hazard' | 'finish' | 'spawn' | 'powerup' | 'unsupported';
@@ -91,4 +93,21 @@ export function renderLevelObject(
     .setOrigin(originX, originY);
   scene.physics.add.existing(image, !DYNAMIC_BODY_TYPES.has(object.type));
   return image;
+}
+
+// Editor/curse-preview-only marker for a spawn point — renderLevelObject
+// deliberately renders nothing for 'spawn' at runtime (LevelLoader reads
+// its position directly), but the editors still need *some* visual so
+// placing one doesn't look like the tap did nothing. Sized to fit inside
+// one grid tile (SPAWN_ICON_SIZE), unlike the real in-run player sprite.
+export function renderSpawnMarker(
+  scene: Phaser.Scene,
+  x: number,
+  y: number
+): Phaser.GameObjects.Image {
+  return scene.add
+    .image(x, y, PLAYER_IDLE_KEY)
+    .setOrigin(0.5, 1)
+    .setAlpha(0.6)
+    .setDisplaySize(SPAWN_ICON_SIZE, SPAWN_ICON_SIZE);
 }

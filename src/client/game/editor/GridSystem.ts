@@ -60,7 +60,11 @@ export function boardGridConfig(): {
 export const EDITOR_BOARD_ROWS = EDITOR_MAX_ROWS + 1;
 
 export function normalizeBoardRow(row: number): number {
-  return row === EDITOR_MAX_ROWS ? EDITOR_MAX_ROWS - 1 : row;
+  return Math.max(0, Math.min(EDITOR_MAX_ROWS - 1, row));
+}
+
+export function clampBoardColumn(col: number): number {
+  return Math.max(0, Math.min(EDITOR_MAX_COLUMNS - 1, col));
 }
 
 export function levelWidthPx(): number {
