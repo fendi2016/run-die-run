@@ -108,8 +108,6 @@ export class Player {
   private speedMultiplier = 1;
   private speedBoostTimer: Phaser.Time.TimerEvent | undefined;
 
-  private wasGrounded = true;
-
   // Tap-to-start (spec: don't auto-run the instant a level loads) — while
   // true, update() skips the auto-run velocity and jump handling entirely
   // and holds the idle pose, regardless of `alive`. Only the very first
@@ -190,20 +188,18 @@ export class Player {
   // velocity direction — the run cycle only plays while grounded, so it
   // never fights either airborne frame for control of the sprite.
   private updateAnimation(): void {
-    const grounded = this.body.blocked.down;
-    if (grounded) {
+    if (this.body.blocked.down) {
       if (!this.sprite.anims.isPlaying) {
         this.sprite.play(RUN_ANIM_KEY);
       }
     } else {
-      if (this.wasGrounded) {
-        this.sprite.anims.stop();
-      }
+      // stop() no-ops if nothing's playing, so no need to track whether
+      // this is the first airborne frame before calling it.
+      this.sprite.anims.stop();
       this.sprite.setTexture(
         this.body.velocity.y < 0 ? RISE_KEY : FALL_KEY
       );
     }
-    this.wasGrounded = grounded;
   }
 
   // Shield (spec section 21): absorbs the next fatal hit, then disappears.
@@ -319,7 +315,6 @@ export class Player {
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     this.alive = true;
-    this.wasGrounded = true;
     this.waitingToStart = waiting;
     if (waiting) {
       this.sprite.anims.stop();
@@ -362,6 +357,14 @@ export class Player {
       // jump from yet, and buffering one here would just fire the instant
       // they touch ground).
       this.waitingToStart = false;
+      // GameScene.update() calls player.update() (and thus
+      // updateAnimation()) before it resumes physics for this same
+      // transition frame, so body.blocked.down still reads stale-false —
+      // updateAnimation would otherwise read that as airborne and flash
+      // the fall pose for one frame. The player is guaranteed grounded
+      // here (tap-to-start only ever holds at a real spawn/landing spot),
+      // so force it rather than trusting the not-yet-stepped physics body.
+      this.body.blocked.down = true;
       this.sprite.play(RUN_ANIM_KEY);
       return;
     }

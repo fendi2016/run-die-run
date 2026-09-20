@@ -23,9 +23,7 @@ import {
   type EditorTool,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
-import { PLAYER_SIZE } from '../constants';
-import { PLAYER_IDLE_KEY } from '../entities/Player';
-import { renderLevelObject } from '../objects/ObjectRegistry';
+import { renderLevelObject, renderSpawnMarker } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
 type EditorSceneData = {
@@ -219,11 +217,7 @@ export class EditorScene extends Scene {
       // at all — indistinguishable from the tap having done nothing.
       const image =
         object.type === 'spawn'
-          ? this.add
-              .image(object.x, object.y, PLAYER_IDLE_KEY)
-              .setOrigin(0.5, 1)
-              .setAlpha(0.6)
-              .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE)
+          ? renderSpawnMarker(this, object.x, object.y)
           : renderLevelObject(this, {
               ...object,
               properties: {},

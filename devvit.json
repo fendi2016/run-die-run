@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "run-die-run",
+  "name": "cursed-game",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -21,7 +21,7 @@
     "items": [
       {
         "label": "Create a new post",
-        "description": "run-die-run",
+        "description": "cursed",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
@@ -32,6 +32,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/example-form"
+      },
+      {
+        "label": "Reseed built-in levels",
+        "description": "Sync meat-grinder/gap-gauntlet/saw-alley with seedLevels.ts",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reseed-levels"
       }
     ]
   },
@@ -46,6 +53,6 @@
     "dev": "vite build --watch"
   },
   "dev": {
-    "subreddit": "run_die_run_dev"
+    "subreddit": "cursed_game_dev"
   }
 }
