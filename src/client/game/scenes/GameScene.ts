@@ -24,6 +24,7 @@ import {
 import { DeathAttributionToast } from '../../ui/DeathAttributionToast';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
+import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import {
   DEATH_RESTART_DELAY_MS,
   FINISH_RESTART_DELAY_MS,
@@ -74,11 +75,18 @@ export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
   private deathToast!: DeathAttributionToast;
+  private tapToStartPrompt!: TapToStartPrompt;
   private levelVersion: LevelVersion | undefined;
   private levelWidth = 0;
   private spawn = FALLBACK_SPAWN;
   private runEnded = false;
   private runStartTime = 0;
+  // Set the moment the tap-to-start gate lifts (see update()) — false for
+  // the entire tap-to-start hold, forever true afterward for the rest of
+  // this scene instance's life (a death-restart's own runStartTime
+  // assignment in restartRun() runs unconditionally, so this flag staying
+  // true just means that block is correctly skipped for every restart).
+  private runStarted = false;
 
   // Slow Time (spec section 21) scales only these tweens' playback speed —
   // never the run timer above, which is what `runStartTime` alone drives.
@@ -107,6 +115,7 @@ export class GameScene extends Scene {
     this.spawn = FALLBACK_SPAWN;
     this.runEnded = false;
     this.runStartTime = 0;
+    this.runStarted = false;
     this.movingObjectTweens = [];
     this.powerUpImages = [];
     this.slowTimeTimer = undefined;
@@ -120,6 +129,7 @@ export class GameScene extends Scene {
 
     this.resultOverlay = new RunResultOverlay();
     this.deathToast = new DeathAttributionToast();
+    this.tapToStartPrompt = new TapToStartPrompt();
     this.events.once('shutdown', this.cleanup, this);
 
     void this.loadAndStart();
@@ -130,6 +140,20 @@ export class GameScene extends Scene {
       return;
     }
     this.player.update(deltaMs);
+
+    // The tap-to-start gate lifts the instant Player's own jump-input
+    // listener flips `isWaitingToStart` off (see Player.onJumpPressed) —
+    // polled here rather than a duplicate event listener, since Player
+    // already owns deciding what counts as "the start tap".
+    if (!this.runStarted && !this.player.isWaitingToStart) {
+      this.runStarted = true;
+      this.tapToStartPrompt.hide();
+      this.runStartTime = this.time.now;
+      this.physics.resume();
+      for (const tween of this.movingObjectTweens) {
+        tween.resume();
+      }
+    }
 
     // Vertical zoom is locked to LOGICAL_HEIGHT (see applyResponsiveZoom),
     // so the world-space width actually on screen varies with device
@@ -143,7 +167,7 @@ export class GameScene extends Scene {
       Math.max(0, this.levelWidth - visibleWorldWidth)
     );
 
-    if (!this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
+    if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
       this.onPlayerDied();
     }
   }
@@ -222,8 +246,17 @@ export class GameScene extends Scene {
     this.powerUpImages = loaded.powerUpImages;
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
-    player.reset(this.spawn.x, this.spawn.y);
-    this.runStartTime = this.time.now;
+    // waiting=true: hold at spawn (idle, no auto-run) until the first tap
+    // — update() starts the timer and hides the prompt once Player itself
+    // reports the wait is over.
+    player.reset(this.spawn.x, this.spawn.y, true);
+    // Keep gravity, collision callbacks, and moving objects idle together.
+    // Scene input remains active so the first tap can release the gate.
+    this.physics.pause();
+    for (const tween of this.movingObjectTweens) {
+      tween.pause();
+    }
+    this.tapToStartPrompt.show();
   }
 
   private onFinishReached(): void {
@@ -517,8 +550,11 @@ export class GameScene extends Scene {
   }
 
   private cleanup(): void {
+    // The scene can be entered again after leaving before the first tap.
+    this.physics.resume();
     this.resultOverlay.hide();
     this.deathToast.hide();
+    this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
     PreviewBackButton.instance().hide();

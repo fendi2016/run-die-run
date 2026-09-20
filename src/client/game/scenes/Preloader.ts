@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
 
 const BAR_WIDTH = 460;
 
@@ -41,6 +42,13 @@ export class Preloader extends Scene {
     this.load.setPath('../assets');
 
     this.load.image('logo', 'logo.png');
+
+    // Each player pose is its own named image (see Player.ts for how
+    // they're strung into animations/states) rather than one spritesheet —
+    // easier to see and swap individual poses than indices into a grid.
+    for (const key of PLAYER_TEXTURE_KEYS) {
+      this.load.image(key, `player/${key}.png`);
+    }
   }
 
   create() {
