@@ -1,5 +1,12 @@
+import { showToast } from '@devvit/web/client';
+import { parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
 import { PLACEABLE_TYPES, type EditorTool } from '../game/editor/GridSystem';
-import { requireButton, requireElement, requireInput } from './domUtils';
+import {
+  requireButton,
+  requireElement,
+  requireInput,
+  requireTextArea,
+} from './domUtils';
 
 const TOOL_IDS: EditorTool[] = ['select', ...PLACEABLE_TYPES];
 
@@ -14,6 +21,8 @@ export type EditorToolbarHandlers = {
   onPublishRequested: () => void;
   onPublishConfirm: (title: string) => void;
   onPublishCancel: () => void;
+  onJsonRequested: () => void;
+  onJsonLoad: (objects: DraftObject[]) => void;
   onExit: () => void;
 };
 
@@ -43,6 +52,9 @@ export class EditorToolbar {
   private readonly publishBtn = requireButton('editor-publish');
   private readonly publishDialog = requireElement('editor-publish-dialog');
   private readonly titleInput = requireInput('editor-title-input');
+  private readonly jsonDialog = requireElement('editor-json-dialog');
+  private readonly jsonTextArea = requireTextArea('editor-json-textarea');
+  private readonly jsonErrorEl = requireElement('editor-json-error');
   private readonly toolButtons = new Map<EditorTool, HTMLButtonElement>();
 
   private constructor() {
@@ -80,6 +92,39 @@ export class EditorToolbar {
     requireButton('editor-publish-cancel').addEventListener('click', () => {
       this.handlers?.onPublishCancel();
     });
+    requireButton('editor-json').addEventListener('click', () =>
+      this.handlers?.onJsonRequested()
+    );
+    requireButton('editor-json-cancel').addEventListener('click', () =>
+      this.hideJsonDialog()
+    );
+    requireButton('editor-json-copy').addEventListener('click', () => {
+      void this.copyJson();
+    });
+    requireButton('editor-json-load').addEventListener('click', () => {
+      const objects = parseDraftObjectsJson(this.jsonTextArea.value);
+      if (!objects) {
+        this.showJsonError(
+          "That's not valid level JSON — expected an array of objects with id/type/x/y."
+        );
+        return;
+      }
+      this.handlers?.onJsonLoad(objects);
+    });
+  }
+
+  private async copyJson(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.jsonTextArea.value);
+      showToast('Copied level JSON to clipboard.');
+    } catch {
+      this.showJsonError('Could not copy — your browser blocked clipboard access.');
+    }
+  }
+
+  private showJsonError(message: string): void {
+    this.jsonErrorEl.textContent = message;
+    this.jsonErrorEl.classList.remove('hidden');
   }
 
   setHandlers(handlers: EditorToolbarHandlers): void {
@@ -93,6 +138,7 @@ export class EditorToolbar {
   hide(): void {
     this.root.classList.add('hidden');
     this.hidePublishDialog();
+    this.hideJsonDialog();
     this.hideMessage();
   }
 
@@ -133,5 +179,19 @@ export class EditorToolbar {
 
   hidePublishDialog(): void {
     this.publishDialog.classList.add('hidden');
+  }
+
+  // `objects` is always the editor's live state at the moment JSON is
+  // requested — the textarea is prefilled from it, but from then on it's
+  // just text the player can freely edit before Copy or Load.
+  showJsonDialog(objects: DraftObject[]): void {
+    this.jsonTextArea.value = JSON.stringify(objects, null, 2);
+    this.jsonErrorEl.classList.add('hidden');
+    this.jsonDialog.classList.remove('hidden');
+    this.jsonTextArea.focus();
+  }
+
+  hideJsonDialog(): void {
+    this.jsonDialog.classList.add('hidden');
   }
 }

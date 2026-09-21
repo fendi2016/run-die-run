@@ -71,6 +71,25 @@ export function isDraftObject(value: unknown): value is DraftObject {
   );
 }
 
+// Parses the editor's "Load from JSON" textarea (spec: HONK-style JSON
+// import, reshaped to CURSED's own editor rather than copied wholesale —
+// see docs/plans). Returns null on anything that isn't exactly a
+// DraftObject[] — invalid JSON, a non-array, or an array with a malformed
+// element — so the caller can show one generic "that's not valid level
+// JSON" message instead of surfacing a raw parser exception.
+export function parseDraftObjectsJson(json: string): DraftObject[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || !parsed.every(isDraftObject)) {
+    return null;
+  }
+  return parsed;
+}
+
 export function isValidateLevelResponse(
   value: unknown
 ): value is ValidateLevelResponse {

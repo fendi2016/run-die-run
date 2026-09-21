@@ -25,3 +25,11 @@ export function requireInput(id: string): HTMLInputElement {
   }
   return el;
 }
+
+export function requireTextArea(id: string): HTMLTextAreaElement {
+  const el = requireElement(id);
+  if (!(el instanceof HTMLTextAreaElement)) {
+    throw new Error(`#${id} is not a textarea element`);
+  }
+  return el;
+}

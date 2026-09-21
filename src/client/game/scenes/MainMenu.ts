@@ -1,12 +1,26 @@
 import { Scene, GameObjects } from 'phaser';
+import { SPLASH_AUTOSTART_KEY } from '../../../shared/constants';
+import { ensureHazardAnims } from '../objects/ObjectRegistry';
+
+const FLOOR_HEIGHT = 60;
+const SPIKE_ROW_HEIGHT = 34;
 
 // Under Phaser's RESIZE scale mode the canvas fills the real device
 // viewport edge-to-edge (no letterboxing), so `this.scale` reports actual,
 // live dimensions that change on rotation/resize — layout is recomputed
 // from scratch on every resize rather than assuming a fixed canvas size.
 export class MainMenu extends Scene {
-  private background: GameObjects.Image | null = null;
-  private logo: GameObjects.Image | null = null;
+  // A hazard-course backdrop built from the same tile/hazard art the real
+  // levels use, instead of a generic stock background image — this scene
+  // and the splash screen (plain HTML/CSS, can't share Phaser objects) are
+  // deliberately styled from the same handful of ideas: dark gradient,
+  // ground+spike floor, a spinning saw or two.
+  private floor: GameObjects.TileSprite | null = null;
+  private spikeRow: GameObjects.TileSprite | null = null;
+  private sawA: GameObjects.Sprite | null = null;
+  private sawB: GameObjects.Sprite | null = null;
+  private titleShadow: GameObjects.Text | null = null;
+  private title: GameObjects.Text | null = null;
   private playButton: GameObjects.Text | null = null;
   private createButton: GameObjects.Text | null = null;
 
@@ -17,14 +31,42 @@ export class MainMenu extends Scene {
   }
 
   init(): void {
-    this.background = null;
-    this.logo = null;
+    this.floor = null;
+    this.spikeRow = null;
+    this.sawA = null;
+    this.sawB = null;
+    this.titleShadow = null;
+    this.title = null;
     this.playButton = null;
     this.createButton = null;
     this.browseButton = null;
   }
 
   create(): void {
+    // The splash screen's Play/Build/Browse each expand into this same
+    // 'game' entrypoint (requestExpandedMode has no way to target a scene
+    // directly) and leave their intent here — honor it once, then get out
+    // of the way, instead of always landing on the menu they already
+    // bypassed by tapping a specific button.
+    const autostart = localStorage.getItem(SPLASH_AUTOSTART_KEY);
+    if (autostart) {
+      localStorage.removeItem(SPLASH_AUTOSTART_KEY);
+      if (autostart === 'game') {
+        this.scene.start('GameScene');
+        return;
+      }
+      if (autostart === 'editor') {
+        this.scene.start('EditorScene');
+        return;
+      }
+      if (autostart === 'browse') {
+        void this.openDiscoveryScene();
+        return;
+      }
+    }
+
+    this.cameras.main.setBackgroundColor(0x14141f);
+    ensureHazardAnims(this);
     this.refreshLayout();
     this.scale.on('resize', this.refreshLayout, this);
     this.events.once('shutdown', () =>
@@ -34,16 +76,58 @@ export class MainMenu extends Scene {
 
   private refreshLayout(): void {
     const { width, height } = this.scale;
+    const floorTop = height - FLOOR_HEIGHT;
+    const spikeTop = floorTop - SPIKE_ROW_HEIGHT;
 
-    if (!this.background) {
-      this.background = this.add.image(0, 0, 'background').setOrigin(0);
+    if (!this.floor) {
+      this.floor = this.add.tileSprite(0, 0, 0, FLOOR_HEIGHT, 'ground');
+      this.floor.setOrigin(0, 0);
     }
-    this.background.setPosition(0, 0).setDisplaySize(width, height);
+    this.floor.setPosition(0, floorTop).setSize(width, FLOOR_HEIGHT);
 
-    if (!this.logo) {
-      this.logo = this.add.image(0, 0, 'logo');
+    if (!this.spikeRow) {
+      this.spikeRow = this.add.tileSprite(0, 0, 0, SPIKE_ROW_HEIGHT, 'spike');
+      this.spikeRow.setOrigin(0, 0);
     }
-    this.logo.setPosition(width / 2, height * 0.32);
+    this.spikeRow.setPosition(0, spikeTop).setSize(width, SPIKE_ROW_HEIGHT);
+
+    if (!this.sawA) {
+      this.sawA = this.add.sprite(0, 0, 'saw-spin').setScale(1.1);
+      this.sawA.play('saw-spin');
+    }
+    this.sawA.setPosition(width * 0.16, spikeTop - 60);
+
+    if (!this.sawB) {
+      this.sawB = this.add.sprite(0, 0, 'saw-spin').setScale(0.85);
+      this.sawB.play('saw-spin');
+    }
+    this.sawB.setPosition(width * 0.85, spikeTop - 90);
+
+    if (!this.titleShadow) {
+      this.titleShadow = this.add
+        .text(0, 0, 'CURSED', {
+          fontFamily: 'Arial Black',
+          fontSize: '64px',
+          color: '#ff4d6d',
+          align: 'center',
+        })
+        .setOrigin(0.5);
+    }
+    this.titleShadow.setPosition(width / 2 + 5, height * 0.22 + 5);
+
+    if (!this.title) {
+      this.title = this.add
+        .text(0, 0, 'CURSED', {
+          fontFamily: 'Arial Black',
+          fontSize: '64px',
+          color: '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 10,
+          align: 'center',
+        })
+        .setOrigin(0.5);
+    }
+    this.title.setPosition(width / 2, height * 0.22);
 
     if (!this.playButton) {
       this.playButton = this.add
@@ -59,7 +143,7 @@ export class MainMenu extends Scene {
         .setInteractive({ useHandCursor: true });
       this.playButton.on('pointerup', () => this.scene.start('GameScene'));
     }
-    this.playButton.setPosition(width / 2, height * 0.52);
+    this.playButton.setPosition(width / 2, height * 0.48);
 
     if (!this.createButton) {
       this.createButton = this.add
@@ -75,7 +159,7 @@ export class MainMenu extends Scene {
         .setInteractive({ useHandCursor: true });
       this.createButton.on('pointerup', () => this.scene.start('EditorScene'));
     }
-    this.createButton.setPosition(width / 2, height * 0.64);
+    this.createButton.setPosition(width / 2, height * 0.6);
     if (!this.browseButton) {
       this.browseButton = this.add
         .text(0, 0, 'BROWSE', {
@@ -90,7 +174,7 @@ export class MainMenu extends Scene {
         .setInteractive({ useHandCursor: true });
       this.browseButton.on('pointerup', () => void this.openDiscoveryScene());
     }
-    this.browseButton.setPosition(width / 2, height * 0.76);
+    this.browseButton.setPosition(width / 2, height * 0.7);
   }
 
   // DiscoveryScene and its rexUI dependency (~50 components for one

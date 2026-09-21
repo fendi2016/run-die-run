@@ -14,8 +14,7 @@ export class Preloader extends Scene {
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
 
-    //  We loaded this image in our Boot Scene, so we can display it here
-    this.add.image(centerX, centerY, 'background');
+    this.cameras.main.setBackgroundColor(0x14141f);
 
     //  A simple progress bar. This is the outline of the bar.
     this.add
@@ -41,14 +40,32 @@ export class Preloader extends Scene {
     //  Load the assets for the game - Replace with your own assets
     this.load.setPath('../assets');
 
-    this.load.image('logo', 'logo.png');
-
     // Each player pose is its own named image (see Player.ts for how
     // they're strung into animations/states) rather than one spritesheet —
     // easier to see and swap individual poses than indices into a grid.
     for (const key of PLAYER_TEXTURE_KEYS) {
       this.load.image(key, `player/${key}.png`);
     }
+
+    // Level object art (see ObjectRegistry for how each ObjectType maps to
+    // one of these keys). Sourced from the open-source sprite pack in
+    // /sprites, pre-cropped/scaled to the game's tile and hazard sizes.
+    this.load.image('ground', 'tiles/ground.png');
+    this.load.image('platform', 'tiles/platform.png');
+    this.load.image('spike', 'hazards/spike.png');
+    // 8-frame spin animation (see ObjectRegistry.ensureHazardAnims), not a
+    // static image, unlike every other level-object texture here.
+    this.load.spritesheet('saw-spin', 'hazards/saw-spin.png', {
+      frameWidth: 40,
+      frameHeight: 40,
+    });
+    this.load.image('finish', 'markers/finish.png');
+    this.load.image('spawn-marker', 'markers/spawn.png');
+    this.load.image('doubleJump', 'powerups/doubleJump.png');
+    this.load.image('shield', 'powerups/shield.png');
+    this.load.image('speedBoost', 'powerups/speedBoost.png');
+    this.load.image('slowTime', 'powerups/slowTime.png');
+    this.load.image('autoDash', 'powerups/autoDash.png');
   }
 
   create() {

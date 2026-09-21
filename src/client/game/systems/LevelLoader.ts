@@ -21,7 +21,7 @@ export type LoadedLevel = {
   // same-scene restart (spec section 30 reuses the scene/world, it doesn't
   // reload the level) — a power-up collected once shouldn't be gone for
   // every subsequent attempt at the same run.
-  powerUpImages: Phaser.GameObjects.Image[];
+  powerUpImages: Phaser.GameObjects.Sprite[];
 };
 
 export type LevelLoaderCallbacks = {
@@ -37,17 +37,17 @@ const LEVEL_WIDTH_MARGIN = 200;
 
 // A power-up is a one-shot pickup per attempt, not a one-shot pickup ever —
 // `setPowerUpAvailable(false)` hides it and disables its body on collect,
-// `setPowerUpAvailable(true)` restores both for the next attempt. A plain
-// `Phaser.GameObjects.Image` with a bolted-on static body (via
-// `physics.add.existing`) doesn't get the Arcade Sprite/Image mixin's
-// `disableBody`/`enableBody` helpers, so this does the same thing by hand.
+// `setPowerUpAvailable(true)` restores both for the next attempt. The body
+// was attached via `physics.add.existing` rather than `physics.add.sprite`,
+// so it doesn't get Arcade's own `disableBody`/`enableBody` helpers — this
+// does the same thing by hand.
 export function setPowerUpAvailable(
-  image: Phaser.GameObjects.Image,
+  sprite: Phaser.GameObjects.Sprite,
   available: boolean
 ): void {
-  image.setVisible(available);
-  if (image.body instanceof Phaser.Physics.Arcade.StaticBody) {
-    image.body.enable = available;
+  sprite.setVisible(available);
+  if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    sprite.body.enable = available;
   }
 }
 
@@ -64,7 +64,7 @@ export function loadLevel(
   let spawn = DEFAULT_SPAWN;
   let maxX = 0;
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
-  const powerUpImages: Phaser.GameObjects.Image[] = [];
+  const powerUpImages: Phaser.GameObjects.Sprite[] = [];
 
   for (const object of levelVersion.objects) {
     maxX = Math.max(maxX, object.x);

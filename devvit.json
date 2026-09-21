@@ -48,6 +48,11 @@
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install"
   },
+  "permissions": {
+    "reddit": {
+      "asUser": ["SUBSCRIBE_TO_SUBREDDIT"]
+    }
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch"

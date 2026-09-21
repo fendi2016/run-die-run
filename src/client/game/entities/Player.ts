@@ -68,6 +68,23 @@ const DEATH_KEY = 'player-death';
 // through the floor. Sizing off the source image instead scales down
 // correctly alongside the sprite.
 const PLAYER_FRAME_SIZE = 362;
+// Per-frame hold times (ms) for the run cycle, in place of a flat frameRate.
+// run-1/4 are the contact poses (foot planted) and read best with a beat of
+// hang time; run-2/5 are the fast mid-stride recoil; run-3/6 are the
+// high-point passing poses. Holding contact longer than passing is the same
+// asymmetric timing classic hand-drawn walk/run cycles use to sell weight
+// and stride rather than a mechanical, evenly-spaced frame flip.
+const RUN_FRAME_DURATIONS_MS: readonly number[] = [70, 38, 52, 70, 38, 52];
+// Squash on contact, stretch through the passing/high point — synced to the
+// same six frames via ANIMATION_UPDATE (see onRunFrameUpdate). Multiplied
+// against the base PLAYER_SIZE scale, not set absolutely.
+const RUN_SCALE_X_FACTORS: readonly number[] = [
+  1.05, 0.99, 0.96, 1.05, 0.99, 0.96,
+];
+const RUN_SCALE_Y_FACTORS: readonly number[] = [
+  0.94, 1.02, 1.06, 0.94, 1.02, 1.06,
+];
+const PLAYER_BASE_SCALE = PLAYER_SIZE / PLAYER_FRAME_SIZE;
 
 function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (scene.anims.exists(RUN_ANIM_KEY)) {
@@ -75,7 +92,12 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   }
   scene.anims.create({
     key: RUN_ANIM_KEY,
-    frames: RUN_KEYS.map((key) => ({ key })),
+    frames: RUN_KEYS.map((key, i) => ({
+      key,
+      duration: RUN_FRAME_DURATIONS_MS[i] ?? 45,
+    })),
+    // frameRate is ignored once every frame has an explicit duration, but
+    // Phaser's AnimationConfig requires one to be set.
     frameRate: 22,
     repeat: -1,
   });
@@ -145,6 +167,30 @@ export class Player {
     this.inputSystem = new InputSystem(scene);
     scene.events.on(JUMP_DOWN_EVENT, this.onJumpPressed, this);
     scene.events.on(JUMP_UP_EVENT, this.onJumpReleased, this);
+    this.sprite.on(
+      Phaser.Animations.Events.ANIMATION_UPDATE,
+      this.onRunFrameUpdate,
+      this
+    );
+  }
+
+  // Drives the run cycle's squash/stretch bounce frame-by-frame instead of a
+  // tween — a tween racing the animation's own frame timing would drift out
+  // of sync as soon as RUN_FRAME_DURATIONS_MS's asymmetric holds kick in.
+  // Keyed off the sprite's current texture rather than AnimationFrame.index
+  // since each run pose is its own texture, not a spritesheet index.
+  private onRunFrameUpdate(anim: Phaser.Animations.Animation): void {
+    if (anim.key !== RUN_ANIM_KEY) {
+      return;
+    }
+    const poseIndex = RUN_KEYS.indexOf(this.sprite.texture.key);
+    if (poseIndex === -1) {
+      return;
+    }
+    this.sprite.setScale(
+      PLAYER_BASE_SCALE * (RUN_SCALE_X_FACTORS[poseIndex] ?? 1),
+      PLAYER_BASE_SCALE * (RUN_SCALE_Y_FACTORS[poseIndex] ?? 1)
+    );
   }
 
   update(deltaMs: number): void {
@@ -199,6 +245,10 @@ export class Player {
       this.sprite.setTexture(
         this.body.velocity.y < 0 ? RISE_KEY : FALL_KEY
       );
+      // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
+      // whichever pose was mid-bounce when the player left the ground
+      // stays stretched/squashed for the entire jump.
+      this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
     }
   }
 
@@ -265,7 +315,11 @@ export class Player {
     });
   }
 
-  die(onDeathAnimationComplete: () => void): void {
+  // No completion callback: death used to auto-restart after this
+  // animation finished, but that's now gated on an explicit Retry tap
+  // (DeathPanel) instead, so nothing needs to know when the squash tween
+  // ends.
+  die(): void {
     if (!this.alive) {
       return;
     }
@@ -274,6 +328,10 @@ export class Player {
     this.body.setAllowGravity(false);
     this.sprite.anims.stop();
     this.sprite.setTexture(DEATH_KEY);
+    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — dying
+    // mid-bounce would otherwise compound that frame's scale into the death
+    // squash tween below instead of squashing from a neutral pose.
+    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
 
     burstParticles(this.scene, this.sprite.x, this.sprite.y, 0xff4d6d);
     this.scene.cameras.main.shake(120, 0.006);
@@ -289,7 +347,6 @@ export class Player {
       angle: 25,
       duration: 180,
       ease: 'Quad.easeOut',
-      onComplete: onDeathAnimationComplete,
     });
   }
 
@@ -340,6 +397,11 @@ export class Player {
     this.inputSystem.destroy();
     this.scene.events.off(JUMP_DOWN_EVENT, this.onJumpPressed, this);
     this.scene.events.off(JUMP_UP_EVENT, this.onJumpReleased, this);
+    this.sprite.off(
+      Phaser.Animations.Events.ANIMATION_UPDATE,
+      this.onRunFrameUpdate,
+      this
+    );
   }
 
   // Exposed so GameScene can tell whether the very first tap has already

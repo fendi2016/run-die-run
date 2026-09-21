@@ -13,9 +13,17 @@
       <div id="tap-to-start" class="hidden" aria-live="polite">
         <div id="tap-to-start-label">Tap to Start</div>
       </div>
-      <div id="death-toast" class="hidden" aria-live="polite">
-        <div id="death-toast-attribution"></div>
-        <div id="death-toast-kills"></div>
+      <div id="death-panel" class="hidden" aria-live="polite">
+        <div id="death-panel-attribution" class="hidden"></div>
+        <div id="death-panel-kills"></div>
+        <div id="death-panel-actions">
+          <button type="button" id="death-panel-retry-btn" class="editor-btn editor-btn-primary">
+            Retry
+          </button>
+          <button type="button" id="death-panel-follow-btn" class="editor-btn editor-btn-follow">
+            Follow
+          </button>
+        </div>
       </div>
       <div id="run-result" class="hidden" aria-live="polite">
         <div id="run-result-title">CLEAR!</div>
@@ -157,6 +165,15 @@
             <span class="editor-divider"></span>
             <button
               type="button"
+              id="editor-json"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">{ }</span>
+              <span class="editor-btn-label">JSON</span>
+            </button>
+            <span class="editor-divider"></span>
+            <button
+              type="button"
               id="editor-test"
               class="editor-btn editor-btn-compact"
             >
@@ -182,8 +199,8 @@
           </div>
         </div>
       </div>
-      <div id="editor-publish-dialog" class="hidden">
-        <div id="editor-publish-panel">
+      <div id="editor-publish-dialog" class="editor-dialog hidden">
+        <div class="editor-dialog-panel">
           <label for="editor-title-input">Level title</label>
           <input
             id="editor-title-input"
@@ -191,7 +208,7 @@
             maxlength="60"
             placeholder="My Level"
           />
-          <div id="editor-publish-dialog-actions">
+          <div class="editor-dialog-actions">
             <button type="button" id="editor-publish-cancel" class="editor-btn">
               Cancel
             </button>
@@ -201,6 +218,32 @@
               class="editor-btn editor-btn-primary"
             >
               Publish
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="editor-json-dialog" class="editor-dialog hidden">
+        <div class="editor-dialog-panel">
+          <label for="editor-json-textarea">Level JSON</label>
+          <textarea
+            id="editor-json-textarea"
+            spellcheck="false"
+            placeholder="[]"
+          ></textarea>
+          <div id="editor-json-error" class="hidden"></div>
+          <div class="editor-dialog-actions">
+            <button type="button" id="editor-json-cancel" class="editor-btn">
+              Close
+            </button>
+            <button type="button" id="editor-json-copy" class="editor-btn">
+              Copy
+            </button>
+            <button
+              type="button"
+              id="editor-json-load"
+              class="editor-btn editor-btn-primary"
+            >
+              Load
             </button>
           </div>
         </div>

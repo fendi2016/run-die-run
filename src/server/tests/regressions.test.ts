@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { DraftObject } from '../../shared/editorApi';
+import { parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
 // write occurs. Commits are synchronous to model Redis's atomic EXEC.
@@ -874,4 +874,22 @@ await test('curse preview contains the latest parent and exactly the objects tha
   assert.equal((await publishCurse('bob', second.body.candidateToken)).body.status, 'ok');
   const published = await getCurrentLevelVersion(initial.levelId);
   assert.deepEqual(published?.objects, preview.objects);
+});
+
+await test('parseDraftObjectsJson accepts a valid round-trip and rejects everything else', () => {
+  const objects: DraftObject[] = [
+    { id: 'spawn-1', type: 'spawn', x: 80, y: 480 },
+    { id: 'spike-1', type: 'spike', x: 500, y: 480 },
+  ];
+  assert.deepEqual(
+    parseDraftObjectsJson(JSON.stringify(objects)),
+    objects
+  );
+  assert.equal(parseDraftObjectsJson('not json'), null);
+  assert.equal(parseDraftObjectsJson('{"not": "an array"}'), null);
+  assert.equal(
+    parseDraftObjectsJson('[{"id": "x", "type": "spike"}]'),
+    null,
+    'an element missing x/y must be rejected'
+  );
 });

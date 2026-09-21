@@ -120,12 +120,14 @@ body {
   }
 }
 
-/* Death attribution toast (spec section 23): "Killed by u/X's Saw — this
-   trap has N kills". Independent of #run-result and the death/restart
-   timer entirely — it must never gate the instant respawn (spec section
-   30), so it just floats near the top of the screen and fades on its own
-   schedule instead of blocking anything. */
-#death-toast {
+/* Death panel: replaces the old auto-restart toast. Death now stops the
+   run and waits on an explicit Retry tap instead of a timer, with
+   attribution ("Killed by u/X's Saw — this trap has N kills") shown above
+   it when a hazard is to blame, and a Follow-the-subreddit button
+   alongside Retry. Same floating-near-top placement/style the old
+   attribution toast used, just persistent until Retry is tapped instead
+   of auto-fading. */
+#death-panel {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
   left: 50%;
@@ -133,9 +135,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 16px;
-  border-radius: 10px;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 14px;
   background: rgba(15, 15, 15, 0.75);
   backdrop-filter: blur(6px);
   text-align: center;
@@ -144,19 +146,53 @@ body {
   transition: opacity 200ms ease-out;
 }
 
-#death-toast.hidden {
+#death-panel.hidden {
   opacity: 0;
+  pointer-events: none;
 }
 
-#death-toast-attribution {
+#death-panel-attribution {
   font-size: 14px;
   font-weight: 700;
   color: #ff6b6b;
 }
 
-#death-toast-kills {
+#death-panel-attribution.hidden {
+  display: none;
+}
+
+#death-panel-kills {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+#death-panel-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  pointer-events: auto;
+}
+
+#death-panel-actions .editor-btn {
+  min-width: 96px;
+  flex-direction: row;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Reddit-orange accent — distinct from the green/red/yellow already used
+   elsewhere, since this is specifically a "follow us on Reddit" CTA. */
+.editor-btn-follow {
+  background: rgba(255, 69, 0, 0.14);
+  border-color: #ff4500;
+  color: #ff8b5e;
+}
+
+.editor-btn-follow:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 /* Editor UI (spec section 12): DOM overlay over the Phaser canvas, same
@@ -323,7 +359,7 @@ body {
   color: rgba(255, 255, 255, 0.55);
 }
 
-#editor-publish-dialog {
+.editor-dialog {
   position: absolute;
   inset: 0;
   display: flex;
@@ -333,11 +369,11 @@ body {
   backdrop-filter: blur(4px);
 }
 
-#editor-publish-dialog.hidden {
+.editor-dialog.hidden {
   display: none;
 }
 
-#editor-publish-panel {
+.editor-dialog-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -349,7 +385,7 @@ body {
   min-width: 260px;
 }
 
-#editor-publish-panel label {
+.editor-dialog-panel label {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -371,13 +407,44 @@ body {
   border-color: #39ff88;
 }
 
-#editor-publish-dialog-actions {
+#editor-json-dialog .editor-dialog-panel {
+  width: min(420px, 90vw);
+}
+
+#editor-json-textarea {
+  min-height: 220px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+#editor-json-textarea:focus {
+  outline: none;
+  border-color: #39ff88;
+}
+
+#editor-json-error {
+  font-size: 13px;
+  color: #ff4d6d;
+}
+
+#editor-json-error.hidden {
+  display: none;
+}
+
+.editor-dialog-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
 }
 
-#editor-publish-dialog-actions .editor-btn {
+.editor-dialog-actions .editor-btn {
   min-width: 72px;
   flex-direction: row;
   padding: 10px 18px;

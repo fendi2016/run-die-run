@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
+import { context, showToast } from '@devvit/web/client';
 import {
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
@@ -10,6 +11,7 @@ import {
   isPublishCurseResponse,
   isVerifyLevelResponse,
 } from '../../../shared/editorApi';
+import { isFollowSubredditResponse } from '../../../shared/followApi';
 import {
   isSubmitRunResponse,
   isTrapKillResponse,
@@ -21,12 +23,11 @@ import {
   type LevelVersion,
   type ObjectType,
 } from '../../../shared/types';
-import { DeathAttributionToast } from '../../ui/DeathAttributionToast';
+import { DeathPanel } from '../../ui/DeathPanel';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import {
-  DEATH_RESTART_DELAY_MS,
   FINISH_RESTART_DELAY_MS,
   PLAYER_SCREEN_ANCHOR,
   SLOW_TIME_DURATION_MS,
@@ -74,7 +75,7 @@ type GameSceneData = {
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
-  private deathToast!: DeathAttributionToast;
+  private deathPanel!: DeathPanel;
   private tapToStartPrompt!: TapToStartPrompt;
   private levelVersion: LevelVersion | undefined;
   private levelWidth = 0;
@@ -91,7 +92,7 @@ export class GameScene extends Scene {
   // Slow Time (spec section 21) scales only these tweens' playback speed —
   // never the run timer above, which is what `runStartTime` alone drives.
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
-  private powerUpImages: Phaser.GameObjects.Image[] = [];
+  private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
 
   private previewLevel: LevelVersion | undefined;
@@ -128,7 +129,9 @@ export class GameScene extends Scene {
     this.scale.on('resize', this.applyResponsiveZoom, this);
 
     this.resultOverlay = new RunResultOverlay();
-    this.deathToast = new DeathAttributionToast();
+    this.deathPanel = new DeathPanel();
+    this.deathPanel.setRetryHandler(() => this.restartRun());
+    this.deathPanel.setFollowHandler(() => this.handleFollowClick());
     this.tapToStartPrompt = new TapToStartPrompt();
     this.events.once('shutdown', this.cleanup, this);
 
@@ -469,7 +472,9 @@ export class GameScene extends Scene {
   }
 
   // `objectId` is absent for a fall-death (running off the level, not a
-  // placed hazard) — there's nothing to attribute in that case.
+  // placed hazard) — there's nothing to attribute in that case, but the
+  // death panel (and its Retry button, the only way to restart now) still
+  // needs to show either way.
   private onPlayerDied(objectId?: string): void {
     if (this.runEnded || !this.player) {
       return;
@@ -477,25 +482,29 @@ export class GameScene extends Scene {
     this.runEnded = true;
     if (objectId) {
       this.reportHazardDeath(objectId);
+    } else {
+      this.deathPanel.show(context.subredditName);
     }
-    this.player.die(() =>
-      this.time.delayedCall(DEATH_RESTART_DELAY_MS, () => this.restartRun())
-    );
+    this.player.die();
   }
 
   // Attribution (spec section 23) is shown instantly from data already on
   // the client — the network call only grows the server-authoritative kill
-  // counters in the background and must never gate the respawn (spec
-  // section 30), so this is deliberately fire-and-forget.
+  // counters in the background, fire-and-forget.
   private reportHazardDeath(objectId: string): void {
     const object = this.levelVersion?.objects.find((o) => o.id === objectId);
     if (!object) {
+      this.deathPanel.show(context.subredditName);
       return;
     }
 
-    const shownToken = object.addedBy === SEED_AUTHOR
-      ? undefined
-      : this.deathToast.showAttribution(object.addedBy, object.type);
+    const attributedAuthor =
+      object.addedBy === SEED_AUTHOR ? undefined : object.addedBy;
+    const shownToken = this.deathPanel.show(
+      context.subredditName,
+      attributedAuthor,
+      attributedAuthor ? object.type : undefined
+    );
 
     if (this.previewLevel) {
       // A preview/curse-test run's objects may not exist in Redis yet —
@@ -516,12 +525,28 @@ export class GameScene extends Scene {
     })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((json: unknown) => {
-        if (shownToken !== undefined && isTrapKillResponse(json)) {
-          this.deathToast.setKillCount(shownToken, json.kills);
+        if (attributedAuthor !== undefined && isTrapKillResponse(json)) {
+          this.deathPanel.setKillCount(shownToken, json.kills);
         }
       })
       .catch(() => {
         // Best-effort only — the instant attribution line already showed.
+      });
+  }
+
+  private handleFollowClick(): void {
+    fetch('/api/follow', { method: 'POST' })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((json: unknown) => {
+        if (isFollowSubredditResponse(json)) {
+          this.deathPanel.markFollowed();
+          showToast(`Followed r/${json.subredditName}!`);
+        } else {
+          showToast('Could not follow — try again.');
+        }
+      })
+      .catch(() => {
+        showToast('Could not follow — try again.');
       });
   }
 
@@ -530,6 +555,7 @@ export class GameScene extends Scene {
       return;
     }
     this.resultOverlay.hide();
+    this.deathPanel.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
     this.cameras.main.scrollX = 0;
     this.runStartTime = this.time.now;
@@ -561,7 +587,7 @@ export class GameScene extends Scene {
     // gets a brand new, unpaused World instance anyway, so there was
     // never anything here that needed resuming.
     this.resultOverlay.hide();
-    this.deathToast.hide();
+    this.deathPanel.hide();
     this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
