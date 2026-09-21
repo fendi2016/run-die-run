@@ -1,11 +1,7 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
-import {
-  EDITOR_MAX_COLUMNS,
-  GRID_CELL_SIZE,
-  GROUND_TOP_Y,
-} from '../../../shared/constants';
+import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
   isProposeCurseResponse,
   type CurseCategory,
@@ -27,7 +23,10 @@ import {
   EDITOR_BOARD_ROWS,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
-import { renderLevelObject, renderSpawnMarker } from '../objects/ObjectRegistry';
+import {
+  renderLevelObject,
+  renderSpawnMarker,
+} from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
 type CursePreselect = {
@@ -62,7 +61,7 @@ export class CurseScene extends Scene {
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
-  private baseImages: Phaser.GameObjects.Image[] = [];
+  private baseImages: Phaser.GameObjects.Sprite[] = [];
   // Placement uses rexBoard's own tile math (Board.worldXYToTileXY /
   // tileXYToWorldXY — the same calls tap-to-place already used) for
   // snapping, and Phaser's native GameObject drag for the pointer gesture.
@@ -76,7 +75,7 @@ export class CurseScene extends Scene {
   // plain draggable GameObject also uses — resolves correctly). That's a
   // real bug in that specific sub-feature, not something fixable from
   // here, so the drag gesture itself is native Phaser instead.
-  private pendingImage: Phaser.GameObjects.Image | undefined;
+  private pendingImage: Phaser.GameObjects.Sprite | undefined;
 
   private panZoom!: PanZoomCamera;
 
@@ -156,16 +155,7 @@ export class CurseScene extends Scene {
       }
       this.baseLevel = body;
       this.redrawBase();
-      // A type picked before the base level finished loading (selectType
-      // couldn't place it yet without knowing where the level currently
-      // ends) gets placed now instead of leaving the player with a type
-      // selected but nothing on the board. A preselected object already
-      // has a real position, so it's just (re)rendered as-is.
-      if (this.selectedType && !this.pending) {
-        this.placePendingAtEndOfLevel();
-      } else {
-        this.redrawPending();
-      }
+      this.redrawPending();
       this.updateProveEnabled();
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');
@@ -189,52 +179,13 @@ export class CurseScene extends Scene {
     this.selectedType = type;
     this.pending = undefined;
     this.toolbar.hideMessage();
-    // Drop the new object right at the end of the level instead of making
-    // the player hunt for an empty tile first — they can then drag it
-    // anywhere else they'd rather have it (including further right, to
-    // extend how far the level reaches).
-    if (this.baseLevel) {
-      this.placePendingAtEndOfLevel();
-    } else {
-      this.toolbar.setClearEnabled(false);
-      this.redrawPending();
-      this.updateProveEnabled();
-    }
+    this.toolbar.setClearEnabled(false);
+    this.redrawPending();
+    this.updateProveEnabled();
+    this.toolbar.showMessage('Tap an empty spot to place your curse.');
   }
 
-  // Snaps to the same board math tile taps use (Board.worldXYToTileXY /
-  // tileXYToWorldXY), one column past whatever currently reaches furthest
-  // right (spawn included, so an empty level still gets a sane starting
-  // column instead of x=0).
-  private placePendingAtEndOfLevel(): void {
-    if (!this.selectedType) return;
-    const maxX = Math.max(
-      0,
-      ...(this.baseLevel?.objects ?? []).map((o) => o.x)
-    );
-    const targetTile = this.board.worldXYToTileXY(
-      maxX + GRID_CELL_SIZE,
-      GROUND_TOP_Y
-    );
-    const col = clampBoardColumn(targetTile.x);
-    const row = normalizeBoardRow(targetTile.y);
-    const world = this.board.tileXYToWorldXY(col, row);
-    // The column clamp above can land back on an already-occupied tile
-    // once the level is full out to EDITOR_MAX_COLUMNS — same conflict
-    // check tap/drag placement use, so Prove's silent "why won't this
-    // enable" doesn't come as a surprise.
-    if (this.isOccupiedByBase(world.x, world.y)) {
-      this.toolbar.showMessage(
-        'Level is full — drag the new object to an empty spot.'
-      );
-    }
-    this.setPendingAt(world.x, world.y);
-    this.panZoom.focusOn(world.x);
-  }
-
-  // Shared by the initial end-of-level placement, tap-to-place/move, and
-  // drag-to-reposition — one place that keeps `pending`, the toolbar's
-  // Clear button, and the preview render all in sync with each other.
+  // Keep tap placement and drag repositioning in sync with the toolbar.
   private setPendingAt(x: number, y: number): void {
     if (!this.selectedType) return;
     this.pending = { id: 'pending', type: this.selectedType, x, y };
@@ -255,7 +206,8 @@ export class CurseScene extends Scene {
     _tap: unknown,
     tileXY: { x: number; y: number }
   ): void {
-    if (this.proposalRequest) return;
+    if (this.panZoom.shouldIgnoreTap()) return;
+    if (this.proposalRequest || !this.baseLevel) return;
     if (!this.selectedType) {
       this.toolbar.showMessage('Choose a curse type first.');
       return;
@@ -275,7 +227,9 @@ export class CurseScene extends Scene {
   }
 
   private isOccupiedByBase(x: number, y: number): boolean {
-    return (this.baseLevel?.objects ?? []).some((o) => o.type !== 'ground' && o.x === x && o.y === y);
+    return (this.baseLevel?.objects ?? []).some(
+      (o) => o.type !== 'ground' && o.x === x && o.y === y
+    );
   }
 
   private updateProveEnabled(): void {
@@ -363,7 +317,8 @@ export class CurseScene extends Scene {
 
   private onPendingDragEnd(): void {
     this.panZoom.setSuspended(false);
-    if (this.proposalRequest || !this.selectedType || !this.pendingImage) return;
+    if (this.proposalRequest || !this.selectedType || !this.pendingImage)
+      return;
 
     const droppedTile = this.board.worldXYToTileXY(
       this.pendingImage.x,

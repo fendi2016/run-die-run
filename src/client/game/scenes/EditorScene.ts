@@ -23,7 +23,10 @@ import {
   type EditorTool,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
-import { renderLevelObject, renderSpawnMarker } from '../objects/ObjectRegistry';
+import {
+  renderLevelObject,
+  renderSpawnMarker,
+} from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
 type EditorSceneData = {
@@ -57,7 +60,7 @@ export class EditorScene extends Scene {
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private selectionGraphics!: Phaser.GameObjects.Graphics;
-  private renderedObjects = new Map<string, Phaser.GameObjects.Image>();
+  private renderedObjects = new Map<string, Phaser.GameObjects.Sprite>();
 
   private panZoom!: PanZoomCamera;
 
@@ -125,6 +128,9 @@ export class EditorScene extends Scene {
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),
       onPublishCancel: () => this.toolbar.hidePublishDialog(),
+      onJsonRequested: () =>
+        this.toolbar.showJsonDialog(this.controller.getObjects()),
+      onJsonLoad: (objects) => this.scene.start('EditorScene', { objects }),
       onExit: () => this.scene.start('MainMenu'),
     });
     this.toolbar.setActiveTool('select');
@@ -151,6 +157,7 @@ export class EditorScene extends Scene {
     _tap: unknown,
     tileXY: { x: number; y: number }
   ): void {
+    if (this.panZoom.shouldIgnoreTap()) return;
     const row = normalizeBoardRow(tileXY.y);
     const world = this.board.tileXYToWorldXY(tileXY.x, row);
 

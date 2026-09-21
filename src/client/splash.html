@@ -7,26 +7,46 @@
       name="viewport"
       content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, width=device-width, height=device-height, user-scalable=0"
     />
-    <title>devvit</title>
+    <title>CURSED</title>
   </head>
-  <body class="app">
-    <img class="snoo" src="/snoo.png" alt="Snoo" />
-    <div class="content">
-      <h1 class="title" id="title"></h1>
-      <p class="description">
-        Edit <span class="code">src/client/splash.ts</span> to get started.
-      </p>
+  <body>
+    <div class="card">
+      <div class="badge">
+        <img class="badge-icon" src="/assets/hazards/saw-icon.png" alt="" />
+        <span class="badge-text">CURSED</span>
+      </div>
+
+      <div class="header">
+        <span class="chip stat">
+          <span id="stat-value">···</span>
+          <span class="stat-label">RUNS</span>
+        </span>
+      </div>
+
+      <div class="scene">
+        <div class="floor"></div>
+        <div class="spike-row"></div>
+        <div class="saw saw-a"></div>
+        <div class="saw saw-b"></div>
+
+        <div class="menu-stack">
+          <button type="button" class="play-button" id="play-button">
+            Play
+          </button>
+          <button type="button" class="secondary-button" id="build-button">
+            Build
+          </button>
+          <button type="button" class="secondary-button" id="browse-button">
+            Browse
+          </button>
+        </div>
+
+        <div class="attribution">
+          <span class="attribution-label">Made by</span>
+          <span class="attribution-name" id="creator-name">CURSED</span>
+        </div>
+      </div>
     </div>
-    <div>
-      <button class="start-button" id="start-button">Start</button>
-    </div>
-    <footer class="footer">
-      <div class="docs-link" tabindex="0" id="docs-link">Docs</div>
-      <span class="divider">|</span>
-      <div class="docs-link" tabindex="0" id="playtest-link">r/Devvit</div>
-      <span class="divider">|</span>
-      <div class="docs-link" tabindex="0" id="discord-link">Discord</div>
-    </footer>
     <script type="module" src="splash.ts" defer></script>
   </body>
 </html>

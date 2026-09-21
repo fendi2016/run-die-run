@@ -28,6 +28,16 @@ export const EDITOR_MAX_ROWS = 6;
 export const EDITOR_MAX_OBJECTS = 250;
 export const EDITOR_SPAWN_BUFFER_CELLS = 2;
 
+// The splash screen (plain HTML/CSS, a separate document from game.html)
+// can't tell `requestExpandedMode` which Phaser scene to land on — it only
+// takes a devvit.json entrypoint name, not a route. It writes one of these
+// into localStorage (same origin as game.html) right before expanding, and
+// MainMenu.create() reads/clears it to jump straight past itself instead of
+// always landing on the menu, so "Play" on the splash means "play", not
+// "open a menu that also has a Play button".
+export const SPLASH_AUTOSTART_KEY = 'cursed:splash-autostart';
+export type SplashAutostart = 'game' | 'editor' | 'browse';
+
 // The placeholder "creator" of the hand-authored seed levels (spec section
 // 38, Phase 3) — not a real Reddit account. Shared so the client's death
 // attribution UI (spec section 23) can recognize it and skip showing a

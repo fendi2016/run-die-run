@@ -1,7 +1,6 @@
 import * as Phaser from 'phaser';
 import type { LevelObject, ObjectType } from '../../../shared/types';
 import { SPAWN_ICON_SIZE } from '../constants';
-import { PLAYER_IDLE_KEY } from '../entities/Player';
 
 export type ObjectCategory =
   'solid' | 'hazard' | 'finish' | 'spawn' | 'powerup' | 'unsupported';
@@ -28,14 +27,14 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   ground: 'ground',
   platform: 'platform',
-  // Placeholder art is shared with the regular platform (spec section 32:
-  // art comes after gameplay) — LevelLoader is what gives it motion.
+  // Art is shared with the regular platform — LevelLoader is what gives
+  // the moving variant its motion, not a distinct texture.
   movingPlatform: 'platform',
   spike: 'spike',
-  saw: 'saw',
-  // Placeholder art is shared with the regular saw (spec section 32: art
-  // comes after gameplay) — LevelLoader is what gives it motion.
-  movingSaw: 'saw',
+  saw: 'saw-spin',
+  // Art is shared with the regular saw — LevelLoader is what gives the
+  // moving variant its motion, not a distinct texture.
+  movingSaw: 'saw-spin',
   finish: 'finish',
   doubleJump: 'doubleJump',
   shield: 'shield',
@@ -43,6 +42,28 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   slowTime: 'slowTime',
   autoDash: 'autoDash',
 };
+
+// Hazards whose art is an animated spritesheet rather than a static image —
+// renderLevelObject plays this looping animation once per instance instead
+// of leaving it parked on the sheet's first frame.
+const SPIN_ANIM_BY_TYPE: Partial<Record<ObjectType, string>> = {
+  saw: 'saw-spin',
+  movingSaw: 'saw-spin',
+};
+
+// Exported so decorative saws outside a level (MainMenu's backdrop) can
+// play the same animation without duplicating its frame/rate definition.
+export function ensureHazardAnims(scene: Phaser.Scene): void {
+  if (scene.anims.exists('saw-spin')) {
+    return;
+  }
+  scene.anims.create({
+    key: 'saw-spin',
+    frames: scene.anims.generateFrameNumbers('saw-spin'),
+    frameRate: 16,
+    repeat: -1,
+  });
+}
 
 // A moving platform needs a *dynamic* Arcade body — `Body.setDirectControl`
 // (used by LevelLoader to make the tween carry a standing player, instead
@@ -69,14 +90,16 @@ function originFor(category: ObjectCategory): [number, number] {
   return category === 'solid' ? [0.5, 0] : [0.5, 1];
 }
 
-// Renders a placed level object as a static Phaser image. Spawn markers
-// aren't rendered (LevelLoader reads their position directly) and types
-// with no registered texture yet (moving/falling/power-up variants land in
-// later phases) render nothing rather than crashing.
+// Renders a placed level object as a static Phaser sprite (a Sprite, not
+// just an Image, so hazards with an animated texture — see
+// SPIN_ANIM_BY_TYPE — can play it). Spawn markers aren't rendered
+// (LevelLoader reads their position directly) and types with no registered
+// texture yet (falling/power-up variants land in later phases) render
+// nothing rather than crashing.
 export function renderLevelObject(
   scene: Phaser.Scene,
   object: LevelObject
-): Phaser.GameObjects.Image | null {
+): Phaser.GameObjects.Sprite | null {
   const textureKey = TEXTURE_BY_TYPE[object.type];
   if (!textureKey) {
     if (object.type !== 'spawn') {
@@ -88,11 +111,18 @@ export function renderLevelObject(
   }
 
   const [originX, originY] = originFor(categoryOf(object.type));
-  const image = scene.add
-    .image(object.x, object.y, textureKey)
+  const sprite = scene.add
+    .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
-  scene.physics.add.existing(image, !DYNAMIC_BODY_TYPES.has(object.type));
-  return image;
+  scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
+
+  const spinAnim = SPIN_ANIM_BY_TYPE[object.type];
+  if (spinAnim) {
+    ensureHazardAnims(scene);
+    sprite.play(spinAnim);
+  }
+
+  return sprite;
 }
 
 // Editor/curse-preview-only marker for a spawn point — renderLevelObject
@@ -104,10 +134,10 @@ export function renderSpawnMarker(
   scene: Phaser.Scene,
   x: number,
   y: number
-): Phaser.GameObjects.Image {
+): Phaser.GameObjects.Sprite {
   return scene.add
-    .image(x, y, PLAYER_IDLE_KEY)
+    .sprite(x, y, 'spawn-marker')
     .setOrigin(0.5, 1)
-    .setAlpha(0.6)
+    .setAlpha(0.85)
     .setDisplaySize(SPAWN_ICON_SIZE, SPAWN_ICON_SIZE);
 }
