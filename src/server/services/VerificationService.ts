@@ -152,6 +152,14 @@ export function validatePlacement(objects: DraftObject[]): string[] {
     errors.push(`Level has too many objects (max ${EDITOR_MAX_OBJECTS}).`);
   }
 
+  const ids = new Set<string>();
+  for (const object of objects) {
+    if (!object.id.trim() || ids.has(object.id)) {
+      errors.push('Object IDs must be nonempty and unique.');
+    }
+    ids.add(object.id);
+  }
+
   const spawns = objects.filter((o) => o.type === 'spawn');
   const finishes = objects.filter((o) => o.type === 'finish');
   if (spawns.length !== 1) {

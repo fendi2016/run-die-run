@@ -9,7 +9,7 @@ import { isLevelVersion, type LevelVersion, type ObjectType } from './types';
 export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
-  hazard: ['spike', 'saw', 'movingSaw'],
+  hazard: ['spike', 'saw', 'movingSaw', 'candle', 'bat', 'ghost'],
   platform: ['platform', 'movingPlatform'],
   powerUp: ['doubleJump', 'shield', 'speedBoost', 'slowTime', 'autoDash'],
 };

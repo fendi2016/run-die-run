@@ -526,7 +526,7 @@ await test('difficulty uses spec boundaries and leaves unplayed levels unrated',
 });
 
 await test('discovery includes seeds and atomically indexed new publishes', async () => {
-  assert.equal((await browse()).length, 3);
+  assert.equal((await browse()).length, 1);
   const result = await publishAs('bob', await ready('bob'), 'A new level');
   assert.equal(result.body.status, 'ok');
   const first = (await browse('new'))[0];
@@ -624,10 +624,13 @@ await test('speedrun uses only current-version records and trending includes fre
     '/',
     post({ levelId: 'meat-grinder', version: 1, timeMs: 1000 })
   );
+  const second = await publishAs('bob', await ready('bob'), 'Second Level');
+  assert.equal(second.body.status, 'ok');
+  const secondLevelId = second.body.status === 'ok' ? second.body.levelId : '';
   await users.run('bob', () =>
     runs.request(
       '/',
-      post({ levelId: 'gap-gauntlet', version: 1, timeMs: 2000 })
+      post({ levelId: secondLevelId, version: 1, timeMs: 2000 })
     )
   );
   assert.equal((await browse('speedrun'))[0]?.levelId, 'meat-grinder');
@@ -636,21 +639,24 @@ await test('speedrun uses only current-version records and trending includes fre
     JSON.stringify({ ...base, version: 2, parentVersion: 1 })
   );
   set(levelCurrentVersionKey('meat-grinder'), '2');
-  assert.equal((await browse('speedrun'))[0]?.levelId, 'gap-gauntlet');
+  assert.equal((await browse('speedrun'))[0]?.levelId, secondLevelId);
   const trending = await browse();
   assert.equal(trending[0]?.levelId, 'meat-grinder');
   assert.equal(trending[0]?.trendingScore, 4);
   assert.equal(trending[0]?.creatorUsername, base.contributorUsername);
   assert.equal(trending[0]?.createdAt, base.createdAt);
   assert.equal(trending[0]?.worldRecordMs, null);
+  const third = await publishAs('alice', await ready('alice'), 'Third Level');
+  assert.equal(third.body.status, 'ok');
+  const thirdLevelId = third.body.status === 'ok' ? third.body.levelId : '';
   const yesterday = Math.floor(Date.now() / 86400000) - 1;
-  zAdd(levelDailyPlayersKey('saw-alley', yesterday), {
+  zAdd(levelDailyPlayersKey(thirdLevelId, yesterday), {
     member: 'old-player',
     score: 1000,
   });
-  set(levelDailyClearsKey('saw-alley', yesterday), '1000');
+  set(levelDailyClearsKey(thirdLevelId, yesterday), '1000');
   assert.equal(
-    (await browse()).find((level) => level.levelId === 'saw-alley')
+    (await browse()).find((level) => level.levelId === thirdLevelId)
       ?.trendingScore,
     0
   );
@@ -892,4 +898,144 @@ await test('parseDraftObjectsJson accepts a valid round-trip and rejects everyth
     null,
     'an element missing x/y must be rejected'
   );
+});
+
+// Root cause of "I beat the level, click Curse, pick a type, then click
+// where I want to place it and it glitches". #run-result and #death-panel
+// fade out via `opacity: 0` + `pointer-events: none`, but their button rows
+// (#run-result-actions / #death-panel-actions) opt themselves back in with
+// `pointer-events: auto` — and a descendant's explicit `auto` beats an
+// ancestor's `none`. So a "hidden" result overlay left an invisible but
+// fully hit-testable ~289x52px strip of Retry/Curse buttons parked
+// dead-centre of the screen, which is exactly where CurseScene's ground row
+// sits. Taps there never reached the rexBoard tile (no curse placed) and
+// instead fired the already-destroyed GameScene's restartRun(), throwing
+// `Cannot read properties of undefined (reading 'setVelocity')` from
+// Player.reset(). Confirmed live via a headless Playwright playtest
+// (document.elementFromPoint over the faded overlay returned
+// #run-result-retry-btn before the fix, CANVAS after). `visibility: hidden`
+// is inherited and cannot be opted out of, so it takes the whole subtree
+// out of hit testing; this guards both panels against the `pointer-events`
+// -only regression coming back.
+await test('faded-out DOM overlays are removed from hit testing, not just made invisible', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(
+    new URL('../../client/game.css', import.meta.url),
+    'utf8'
+  );
+  for (const selector of ['#run-result', '#death-panel']) {
+    const rule = css.match(
+      new RegExp(`\\${selector}\\.hidden\\s*\\{([^}]*)\\}`)
+    );
+    assert.ok(rule, `game.css is missing a ${selector}.hidden rule`);
+    if (!rule) continue;
+    assert.match(
+      rule[1] ?? '',
+      /visibility:\s*hidden/,
+      `${selector}.hidden must set \`visibility: hidden\` — \`opacity: 0\` ` +
+        'plus `pointer-events: none` is not enough, because its actions row ' +
+        'sets `pointer-events: auto` and a descendant wins over an ancestor. ' +
+        'Without it the invisible overlay swallows the taps meant for the ' +
+        'canvas underneath (CurseScene tile placement).'
+    );
+  }
+});
+
+// Second, independent cause of "placing a curse glitches", this one
+// specific to Moving Platform: it is the one type ObjectRegistry gives a
+// *dynamic* Arcade body (movingPlatform needs `setDirectControl` to carry a
+// standing player, which only exists on Body, not StaticBody). A dynamic
+// body inherits the game's world gravity the instant it is created, and
+// only LevelLoader turned that off — and only for the copy it loads into a
+// live GameScene run. Every other caller (EditorScene's board, CurseScene's
+// read-only base level and its pending preview) got a platform that
+// immediately free-fell off the bottom of the screen. Confirmed live by
+// sampling the preview sprite's y per frame after placement: 480 -> 728+
+// and still accelerating before the fix, flat at 480 after.
+await test('renderLevelObject disables gravity on the dynamic body it creates', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(
+    new URL('../../client/game/objects/ObjectRegistry.ts', import.meta.url),
+    'utf8'
+  );
+  assert.match(
+    source,
+    /setAllowGravity\(false\)/,
+    'ObjectRegistry.renderLevelObject must disable gravity on the dynamic ' +
+      'body it creates for DYNAMIC_BODY_TYPES — otherwise the object falls ' +
+      'off screen in every scene that renders it outside a live run ' +
+      '(EditorScene, CurseScene base level and pending preview)'
+  );
+});
+
+await test('concurrent identical run submissions count a single clear', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  const responses = await Promise.all([1, 2].map(() =>
+    runs.request('/', post({ levelId: 'meat-grinder', version: 1, timeMs: 1000 }))
+  ));
+  assert.ok(responses.every((response) => response.status === 200));
+  assert.equal(values.get('level:meat-grinder:clears'), '1');
+  assert.equal(values.get('level:meat-grinder:attempts'), '1');
+});
+
+await test('curse publish preserves a candidate replaced during commit', async () => {
+  const proposal = await proposeCurse('alice', 'meat-grinder', {
+    id: 'ignored', type: 'spike', x: 1500, y: 360,
+  });
+  assert.ok(proposal.body.status === 'ok');
+  const token = proposal.body.candidateToken;
+  await markCandidateVerified('alice', token, 1000);
+  let replacement = '';
+  beforeExec = async () => {
+    replacement = await createCandidate('alice', objects);
+  };
+  const result = await publishCurse('alice', token);
+  assert.equal(result.response.status, 409);
+  assert.equal((await getCandidate('alice'))?.token, replacement);
+  assert.equal((await getCurrentLevelVersion('meat-grinder'))?.version, 1);
+});
+
+await test('placement rejects duplicate and blank IDs through validation endpoint', async () => {
+  for (const id of ['same', '', '   ']) {
+    const response = await publish.request('/validate', post({
+      objects: objects.map((object) => ({ ...object, id })),
+    }));
+    const body = await response.json();
+    assert.equal(body.status, 'error');
+    assert.ok(body.errors.includes('Object IDs must be nonempty and unique.'));
+  }
+});
+
+await test('publishing the same imported draft assigns independent trap identities', async () => {
+  const first = await publishAs('alice', await ready('alice'), 'First import');
+  const second = await publishAs('bob', await ready('bob'), 'Second import');
+  assert.ok(first.body.status === 'ok');
+  assert.ok(second.body.status === 'ok');
+  const a = await getCurrentLevelVersion(first.body.levelId);
+  const b = await getCurrentLevelVersion(second.body.levelId);
+  assert.ok(a && b);
+  const ids = [...a.objects, ...b.objects].map((object) => object.id);
+  assert.equal(new Set(ids).size, objects.length * 2);
+  assert.ok(ids.every((id) => !objects.some((object) => object.id === id)));
+  assert.deepEqual(a.objects.map(({ type, x, y }) => ({ type, x, y })),
+    objects.map(({ type, x, y }) => ({ type, x, y })));
+});
+
+
+await test('editor move eligibility uses separate ground and surface slots', async () => {
+  const { EditorController } = await import(
+    new URL('../../client/game/editor/EditorController.ts', import.meta.url).href
+  );
+  const editor = new EditorController([
+    { id: 'hazard', type: 'spike', x: 330, y: 480 },
+    { id: 'floor', type: 'ground', x: 390, y: 480 },
+    { id: 'occupied', type: 'finish', x: 450, y: 480 },
+  ]);
+  editor.selectAt(330, 480);
+  assert.equal(editor.canMoveSelectedTo(390, 480), true);
+  assert.equal(editor.canMoveSelectedTo(450, 480), false);
+  editor.moveSelectedTo(390, 480);
+  assert.equal(editor.getObjects().filter((o: DraftObject) => o.x === 390).length, 2);
+  editor.undo();
+  assert.equal(editor.getObjects().find((o: DraftObject) => o.id === 'hazard')?.x, 330);
 });

@@ -11,11 +11,6 @@
   </head>
   <body>
     <div class="card">
-      <div class="badge">
-        <img class="badge-icon" src="/assets/hazards/saw-icon.png" alt="" />
-        <span class="badge-text">CURSED</span>
-      </div>
-
       <div class="header">
         <span class="chip stat">
           <span id="stat-value">···</span>
@@ -24,20 +19,16 @@
       </div>
 
       <div class="scene">
-        <div class="floor"></div>
-        <div class="spike-row"></div>
-        <div class="saw saw-a"></div>
-        <div class="saw saw-b"></div>
+        <button type="button" class="secondary-button corner-button browse-button" id="browse-button">
+          Browse
+        </button>
+        <button type="button" class="secondary-button corner-button build-button" id="build-button">
+          Build
+        </button>
 
         <div class="menu-stack">
           <button type="button" class="play-button" id="play-button">
             Play
-          </button>
-          <button type="button" class="secondary-button" id="build-button">
-            Build
-          </button>
-          <button type="button" class="secondary-button" id="browse-button">
-            Browse
           </button>
         </div>
 

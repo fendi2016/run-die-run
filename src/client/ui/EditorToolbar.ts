@@ -142,6 +142,13 @@ export class EditorToolbar {
     this.hideMessage();
   }
 
+  setEditingEnabled(enabled: boolean): void {
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('button')) {
+      if (button.id === 'editor-exit' || button.id.startsWith('editor-pan-')) continue;
+      button.disabled = !enabled;
+    }
+  }
+
   setActiveTool(tool: EditorTool): void {
     for (const [t, button] of this.toolButtons) {
       button.classList.toggle('active', t === tool);

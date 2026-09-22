@@ -35,7 +35,7 @@
       },
       {
         "label": "Reseed built-in levels",
-        "description": "Sync meat-grinder/gap-gauntlet/saw-alley with seedLevels.ts",
+        "description": "Sync meat-grinder with seedLevels.ts",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reseed-levels"

@@ -58,117 +58,31 @@ body {
   color: #39ff88;
 }
 
-/* Logo badge, deliberately overlapping the header/scene seam like a pinned
-   patch — the one bit of "chrome" that isn't a flat rectangle. */
-.badge {
-  position: absolute;
-  top: 28px;
-  left: 12px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px 5px 6px;
-  background: #1a1a2e;
-  border: 2px solid #000000;
-  border-radius: 8px;
-  box-shadow: 0 3px 0 #000000;
-}
-
-.badge-icon {
-  width: 20px;
-  height: 20px;
-  image-rendering: pixelated;
-}
-
-.badge-text {
-  color: #ffffff;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  text-shadow: 1px 1px 0 #000000;
-}
-
 .scene {
   position: relative;
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(#1a1a2e 0%, #191927 55%, #100f18 100%);
+  background-image: linear-gradient(
+      rgba(10, 8, 16, 0.35) 0%,
+      rgba(12, 10, 18, 0.55) 55%,
+      rgba(8, 7, 12, 0.85) 100%
+    ),
+    url('/assets/ui/menu-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   overflow: hidden;
 }
 
-.floor {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 22px;
-  background-image: url('/assets/tiles/ground.png');
-  background-repeat: repeat-x;
-  background-size: 34px 34px;
-  image-rendering: pixelated;
-  /* The source tile is a bright grass green — darkened/desaturated into a
-     mossy stone tone so it reads as "dungeon floor", not "platformer
-     meadow", against the rest of the dark/neon palette. */
-  filter: brightness(0.45) saturate(0.5);
-  box-shadow: 0 -2px 0 rgba(0, 0, 0, 0.4);
-}
-
-.spike-row {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 20px;
-  height: 18px;
-  background-image: url('/assets/hazards/spike.png');
-  background-repeat: repeat-x;
-  background-position: bottom;
-  background-size: 18px 18px;
-  image-rendering: pixelated;
-}
-
-/* Same spin sheet ObjectRegistry animates in-engine — CSS steps() plays it
-   here instead of a canvas, so the splash stays plain HTML/CSS. */
-.saw {
-  position: absolute;
-  width: 52px;
-  height: 52px;
-  background-image: url('/assets/hazards/saw-spin.png');
-  background-repeat: no-repeat;
-  background-size: 416px 52px;
-  image-rendering: pixelated;
-  animation: saw-spin 0.6s steps(8) infinite;
-  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5));
-}
-
-.saw-a {
-  left: 12%;
-  top: 24%;
-}
-
-.saw-b {
-  right: 14%;
-  top: 48%;
-  animation-duration: 0.5s;
-}
-
-@keyframes saw-spin {
-  from {
-    background-position-x: 0;
-  }
-  to {
-    background-position-x: -416px;
-  }
-}
-
 .menu-stack {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  transform: translateX(-50%);
 }
 
 .play-button {
@@ -233,6 +147,22 @@ body {
   transition:
     transform 0.08s ease,
     box-shadow 0.08s ease;
+}
+
+.corner-button {
+  position: absolute;
+  top: 14px;
+  z-index: 1;
+  padding: 7px 18px;
+  font-size: 13px;
+}
+
+.browse-button {
+  left: 12px;
+}
+
+.build-button {
+  right: 12px;
 }
 
 .secondary-button:active {

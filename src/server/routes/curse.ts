@@ -199,6 +199,13 @@ curse.post('/publish', async (c) => {
       editorCandidateKey(username),
     ],
     async (tx) => {
+      const currentCandidate = await getCandidate(username);
+      if (!isVerifiedCandidate(currentCandidate, 'curse', body.candidateToken)) {
+        return {
+          commit: false,
+          value: { status: 'error', message: 'Test session changed — press Test again.' },
+        };
+      }
       const storedVersionRaw = await redis.get(levelCurrentVersionKey(levelId));
       if (
         storedVersionRaw === undefined ||

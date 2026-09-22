@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { context, redis } from '@devvit/web/server';
 import {
@@ -245,7 +246,7 @@ publish.post('/publish', async (c) => {
   const slug = slugify(body.title);
   const createdAt = Date.now();
   const objects: LevelObject[] = body.objects.map((o) => ({
-    id: o.id,
+    id: randomUUID(),
     type: o.type,
     x: o.x,
     y: o.y,
