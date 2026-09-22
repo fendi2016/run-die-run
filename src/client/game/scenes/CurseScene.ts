@@ -343,10 +343,8 @@ export class CurseScene extends Scene {
   }
 
   private redrawGrid(): void {
-    const zoom = this.cameras.main.zoom;
-    const scrollX = this.cameras.main.scrollX;
-    const visibleWorldWidth = this.scale.width / zoom;
-    drawGrid(this.gridGraphics, scrollX, scrollX + visibleWorldWidth);
+    const { left, right } = this.panZoom.visibleWorldRangeX();
+    drawGrid(this.gridGraphics, left, right);
   }
 
   private async handleProve(): Promise<void> {

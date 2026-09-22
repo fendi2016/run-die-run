@@ -37,11 +37,10 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   autoDash: 'powerup',
 };
 
-// platform/movingPlatform are deliberately absent here — their texture
-// isn't a single fixed key, it's picked per-instance by
+// ground/platform/movingPlatform are deliberately absent here — their
+// texture isn't a single fixed key, it's picked per-instance by
 // pickPlatformTexture (edge vs. center variant) instead of a static lookup.
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
-  ground: 'ground',
   spike: 'spike',
   saw: 'saw-spin',
   // Art is shared with the regular saw — LevelLoader is what gives the
@@ -125,12 +124,16 @@ export function oscillationFor(type: ObjectType): OscillationConfig | undefined 
   return OSCILLATION_BY_TYPE[type];
 }
 
-const PLATFORM_TYPES = new Set<ObjectType>(['platform', 'movingPlatform']);
+// ground and platform/movingPlatform are both "solid terrain, placed in
+// horizontal runs" and share the same mossy-stone tileset art — ground
+// keeps its old 60x60 footprint (TILESET_DISPLAY_SIZE), platform/
+// movingPlatform use the thinner PLATFORM_DISPLAY_HEIGHT_PX.
+const TILESET_TYPES = new Set<ObjectType>(['ground', 'platform', 'movingPlatform']);
 
 // 7 interchangeable center-tile textures (art directly off the sheet, not
 // a generated variation) — picking between them by position instead of
-// always the same one keeps a long run of platform tiles from reading as
-// one texture obviously stamped over and over.
+// always the same one keeps a long run of tiles from reading as one
+// texture obviously stamped over and over.
 const PLATFORM_CENTER_KEYS = [
   'platform-top-center-1',
   'platform-top-center-2',
@@ -143,13 +146,13 @@ const PLATFORM_CENTER_KEYS = [
 
 export type PlatformNeighbors = { left: boolean; right: boolean };
 
-// Whichever side has no same-row platform tile next to it gets the
-// rounded end-cap texture instead of a center tile, so a run of platform
-// tiles reads as one continuous mossy block with capped ends rather than
-// the same tile stamped flat across every cell. `variantSeed` (LevelLoader
-// derives it from grid position) only affects which of the 7 interchangeable
-// center textures gets used when both sides are open — it has no bearing on
-// the edge cases.
+// Whichever side has no same-row same-type tile next to it gets the
+// rounded end-cap texture instead of a center tile, so a run of ground or
+// platform tiles reads as one continuous mossy block with capped ends
+// rather than the same tile stamped flat across every cell. `variantSeed`
+// (LevelLoader derives it from grid position) only affects which of the 7
+// interchangeable center textures gets used when both sides are open — it
+// has no bearing on the edge cases.
 export function pickPlatformTexture(
   neighbors: PlatformNeighbors,
   variantSeed: number
@@ -188,14 +191,14 @@ function originFor(category: ObjectCategory): [number, number] {
 export function renderLevelObject(
   scene: Phaser.Scene,
   object: LevelObject,
-  // Only meaningful for platform/movingPlatform — defaulting to "both
-  // sides occupied" picks a plain center tile for any caller that doesn't
-  // bother computing real adjacency (editor/curse previews render one
-  // object in isolation), rather than every un-adjacent-aware call site
-  // getting an end-cap that implies a run that isn't there.
+  // Only meaningful for ground/platform/movingPlatform — defaulting to
+  // "both sides occupied" picks a plain center tile for any caller that
+  // doesn't bother computing real adjacency (editor/curse previews render
+  // one object in isolation), rather than every un-adjacent-aware call
+  // site getting an end-cap that implies a run that isn't there.
   platformNeighbors: PlatformNeighbors = { left: true, right: true }
 ): Phaser.GameObjects.Sprite | null {
-  const textureKey = PLATFORM_TYPES.has(object.type)
+  const textureKey = TILESET_TYPES.has(object.type)
     ? pickPlatformTexture(platformNeighbors, Math.round(object.x / GRID_CELL_SIZE))
     : TEXTURE_BY_TYPE[object.type];
   if (!textureKey) {
@@ -211,10 +214,14 @@ export function renderLevelObject(
   const sprite = scene.add
     .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
-  if (PLATFORM_TYPES.has(object.type)) {
-    // Every variant is forced to one shared footprint (see
-    // PLATFORM_DISPLAY_HEIGHT_PX) so collision stays uniform regardless of
-    // which edge/center texture got picked.
+  if (object.type === 'ground') {
+    // Matches the old ground.png's native 60x60 footprint exactly, so
+    // ground collision is unchanged — only its art is now edge-aware.
+    sprite.setDisplaySize(GRID_CELL_SIZE, GRID_CELL_SIZE);
+  } else if (TILESET_TYPES.has(object.type)) {
+    // Every platform/movingPlatform variant is forced to one shared
+    // footprint (see PLATFORM_DISPLAY_HEIGHT_PX) so collision stays
+    // uniform regardless of which edge/center texture got picked.
     sprite.setDisplaySize(GRID_CELL_SIZE, PLATFORM_DISPLAY_HEIGHT_PX);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
