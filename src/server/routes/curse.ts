@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
-import { context, redis } from '@devvit/web/server';
+import { context, realtime, redis } from '@devvit/web/server';
 import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
@@ -8,6 +8,7 @@ import {
   type ProposeCurseResponse,
   type PublishCurseResponse,
 } from '../../shared/editorApi';
+import { levelRealtimeChannel, type VersionPublishedEvent } from '../../shared/realtimeApi';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
   editorCandidateKey,
@@ -257,6 +258,23 @@ curse.post('/publish', async (c) => {
       };
     }
   );
+
+  if (result.status === 'ok') {
+    // A curse always lands on an already-live level (unlike the base
+    // editor's first publish, which has no one subscribed yet) — this is
+    // the one place spec section 29's "new version published"/"new
+    // community addition" notice actually has a live audience to reach.
+    const event: VersionPublishedEvent = {
+      type: 'versionPublished',
+      levelId: result.levelId,
+      version: result.version,
+      authorUsername: username,
+      addedType: newObject.type,
+    };
+    await realtime
+      .send(levelRealtimeChannel(result.levelId), event)
+      .catch(() => undefined);
+  }
 
   return c.json<PublishCurseResponse>(
     result,

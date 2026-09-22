@@ -49,6 +49,7 @@
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "permissions": {
+    "realtime": true,
     "reddit": {
       "asUser": ["SUBSCRIBE_TO_SUBREDDIT"]
     }

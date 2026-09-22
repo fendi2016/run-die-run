@@ -7,6 +7,7 @@ import { parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi'
 // write occurs. Commits are synchronous to model Redis's atomic EXEC.
 const values = new Map<string, string>();
 const scores = new Map<string, Map<string, number>>();
+const hashes = new Map<string, Map<string, string>>();
 const revisions = new Map<string, number>();
 const users = new AsyncLocalStorage<string>();
 let beforeExec: (() => Promise<void>) | undefined;
@@ -34,6 +35,34 @@ function zIncrBy(key: string, member: string, increment: number) {
   zAdd(key, { member, score: value });
   return value;
 }
+function hSet(key: string, fieldValues: Record<string, string>) {
+  const fields = hashes.get(key) ?? new Map<string, string>();
+  let added = 0;
+  for (const [field, value] of Object.entries(fieldValues)) {
+    if (!fields.has(field)) added++;
+    fields.set(field, value);
+  }
+  hashes.set(key, fields);
+  bump(key);
+  return added;
+}
+function zRangeSorted(
+  key: string,
+  start: number,
+  end: number,
+  options?: { reverse?: boolean }
+) {
+  return [...(scores.get(key) ?? [])]
+    .sort((a, b) => (options?.reverse ? b[1] - a[1] : a[1] - b[1]))
+    .slice(start, end === -1 ? undefined : end + 1)
+    .map(([member, score]) => ({ member, score }));
+}
+const realtimeSent: { channel: string; message: unknown }[] = [];
+const realtime = {
+  send: async (channel: string, message: unknown) => {
+    realtimeSent.push({ channel, message });
+  },
+};
 const redis = {
   incrBy: async (key: string, increment: number) => incrBy(key, increment),
   zIncrBy: async (key: string, member: string, increment: number) =>
@@ -41,17 +70,21 @@ const redis = {
   get: async (key: string) => values.get(key),
   set: async (key: string, value: string) => set(key, value),
   exists: async (...keys: string[]) =>
-    keys.filter((key) => values.has(key) || scores.has(key)).length,
+    keys.filter((key) => values.has(key) || scores.has(key) || hashes.has(key))
+      .length,
   zScore: async (key: string, member: string) => scores.get(key)?.get(member),
   zRank: async (key: string, member: string) =>
     [...(scores.get(key) ?? [])]
       .sort((a, b) => a[1] - b[1])
       .findIndex(([name]) => name === member),
-  zRange: async (key: string, start: number, end: number) =>
-    [...(scores.get(key) ?? [])]
-      .sort((a, b) => a[1] - b[1])
-      .slice(start, end === -1 ? undefined : end + 1)
-      .map(([member, score]) => ({ member, score })),
+  zRange: async (
+    key: string,
+    start: number,
+    end: number,
+    options?: { reverse?: boolean }
+  ) => zRangeSorted(key, start, end, options),
+  hGet: async (key: string, field: string) => hashes.get(key)?.get(field),
+  hLen: async (key: string) => hashes.get(key)?.size ?? 0,
   watch: async (...keys: string[]) => {
     activeTransactions++;
     let closed = false;
@@ -81,6 +114,9 @@ const redis = {
       zAdd: async (key: string, member: { member: string; score: number }) => {
         commands.push(() => zAdd(key, member));
       },
+      hSet: async (key: string, fieldValues: Record<string, string>) => {
+        commands.push(() => hSet(key, fieldValues));
+      },
       del: async (key: string) => {
         commands.push(() => {
           values.delete(key);
@@ -108,6 +144,7 @@ const redis = {
 mock.module('@devvit/web/server', {
   namedExports: {
     redis,
+    realtime,
     context: {
       get username() {
         return users.getStore() ?? 'alice';
@@ -120,6 +157,8 @@ const { publish } = await import('../routes/publish');
 const { curse } = await import('../routes/curse');
 const { runs } = await import('../routes/runs');
 const { menu } = await import('../routes/menu');
+const { leaderboard } = await import('../routes/leaderboard');
+const { currency } = await import('../routes/currency');
 const { createCandidate, markCandidateVerified, getCandidate } =
   await import('../services/VerificationService');
 const { getCurrentLevelVersion } = await import('../services/LevelService');
@@ -128,19 +167,30 @@ const {
   versionLeaderboardKey,
   trapKillsKey,
   userContributionsKey,
+  clearedVersionsKey,
+  currencyKey,
+  streaksLeaderboardKey,
 } = await import('../core/redisKeys');
 const {
   isPublishLevelResponse,
   isProposeCurseResponse,
   isPublishCurseResponse,
 } = await import('../../shared/editorApi');
-const { isTrapKillResponse } = await import('../../shared/runsApi');
+const { isSubmitRunResponse, isTrapKillResponse } = await import(
+  '../../shared/runsApi'
+);
+const { isCursersLeaderboardResponse } = await import(
+  '../../shared/leaderboardApi'
+);
+const { isCurrencyBalanceResponse } = await import('../../shared/currencyApi');
 const { withTransaction } = await import('../core/transactions');
 
 beforeEach(() => {
   values.clear();
   scores.clear();
+  hashes.clear();
   revisions.clear();
+  realtimeSent.length = 0;
   beforeExec = undefined;
   assert.equal(activeTransactions, 0, 'transactions should always be released');
 });
@@ -1022,6 +1072,170 @@ await test('publishing the same imported draft assigns independent trap identiti
 });
 
 
+// Phase 11 (Clear Streaks + currency, spec sections 28/29 plus a new
+// earn-only reward currency): a streak never resets (spec section 28
+// explicitly forbids resetting on death, and there's no other reset
+// trigger), so it's just a lifetime count of unique (level, version) pairs
+// cleared — a replay of an already-cleared version must not grow it again,
+// but currency (flat per non-duplicate clear) is awarded either way.
+await test('clearing a version for the first time grows the streak and currency; a replay only grows currency', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  const first = await runs.request(
+    '/',
+    post({ levelId: 'meat-grinder', version: 1, timeMs: 5000 })
+  );
+  const firstBody: unknown = await first.json();
+  assert.ok(isSubmitRunResponse(firstBody));
+  if (!isSubmitRunResponse(firstBody)) return;
+  assert.equal(firstBody.streak, 1);
+  assert.equal(firstBody.isNewStreakIncrease, true);
+  assert.equal(firstBody.currencyAwarded, 10);
+  assert.equal(firstBody.currencyBalance, 10);
+  assert.equal(await redis.hLen(clearedVersionsKey('alice')), 1);
+  assert.equal(await redis.zScore(streaksLeaderboardKey(), 'alice'), 1);
+
+  const replay = await runs.request(
+    '/',
+    post({ levelId: 'meat-grinder', version: 1, timeMs: 6000 })
+  );
+  const replayBody: unknown = await replay.json();
+  assert.ok(isSubmitRunResponse(replayBody));
+  if (!isSubmitRunResponse(replayBody)) return;
+  assert.equal(replayBody.streak, 1, 'a replay must not grow the streak');
+  assert.equal(replayBody.isNewStreakIncrease, false);
+  assert.equal(replayBody.currencyAwarded, 10, 'currency is flat per clear');
+  assert.equal(replayBody.currencyBalance, 20);
+  assert.equal(await redis.get(currencyKey('alice')), '20');
+});
+
+await test('a new world record fires a Realtime event, a slower clear does not', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  await users.run('bob', () =>
+    runs.request(
+      '/',
+      post({ levelId: 'meat-grinder', version: 1, timeMs: 5000 })
+    )
+  );
+  assert.equal(realtimeSent.length, 1);
+  assert.equal(realtimeSent[0]?.channel, 'level_meat_grinder_events');
+  assert.deepEqual(realtimeSent[0]?.message, {
+    type: 'newWorldRecord',
+    levelId: 'meat-grinder',
+    username: 'bob',
+    timeMs: 5000,
+  });
+
+  await users.run('alice', () =>
+    runs.request(
+      '/',
+      post({ levelId: 'meat-grinder', version: 1, timeMs: 6000 })
+    )
+  );
+  assert.equal(realtimeSent.length, 1, 'a slower clear is not a new record');
+
+  await users.run('alice', () =>
+    runs.request(
+      '/',
+      post({ levelId: 'meat-grinder', version: 1, timeMs: 2000 })
+    )
+  );
+  assert.equal(realtimeSent.length, 2);
+  assert.equal(
+    (realtimeSent[1]?.message as { username?: string }).username,
+    'alice'
+  );
+});
+
+await test('curse publish fires a versionPublished Realtime event on the level channel', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
+    id: 'ignored', type: 'spike', x: 700, y: 480,
+  });
+  assert.ok(proposeBody.status === 'ok');
+  if (proposeBody.status !== 'ok') return;
+  await markCandidateVerified('bob', proposeBody.candidateToken, 2000);
+  await publishCurse('bob', proposeBody.candidateToken);
+
+  const event = realtimeSent.find((e) => e.channel === 'level_meat_grinder_events');
+  assert.ok(event);
+  assert.deepEqual(event?.message, {
+    type: 'versionPublished',
+    levelId: 'meat-grinder',
+    version: 2,
+    authorUsername: 'bob',
+    addedType: 'spike',
+  });
+});
+
+await test('the global TOP CURSERS leaderboard ranks by trap kills, and currency reads back what runs.ts wrote', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  await runs.request(
+    '/',
+    post({ levelId: 'meat-grinder', version: 1, timeMs: 3000 })
+  );
+
+  const base = await getCurrentLevelVersion('meat-grinder');
+  const spikeId = base?.objects.find((o) => o.type === 'spike')?.id;
+  assert.ok(spikeId);
+  if (!spikeId) return;
+  // Two kills attributed to the seed author, one to bob, via separate
+  // players dying to spikes placed by each.
+  for (const killer of ['alice', 'alice']) {
+    await users.run(killer, () =>
+      runs.request(
+        '/trap-kill',
+        post({ levelId: 'meat-grinder', version: 1, objectId: spikeId })
+      )
+    );
+  }
+  const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
+    id: 'ignored', type: 'spike', x: 700, y: 480,
+  });
+  assert.ok(proposeBody.status === 'ok');
+  if (proposeBody.status !== 'ok') return;
+  await markCandidateVerified('bob', proposeBody.candidateToken, 2000);
+  await publishCurse('bob', proposeBody.candidateToken);
+  await users.run('carol', () =>
+    runs.request(
+      '/trap-kill',
+      post({ levelId: 'meat-grinder', version: 2, objectId: proposeBody.objectId })
+    )
+  );
+
+  const leaderboardResponse = await leaderboard.request('/');
+  assert.equal(leaderboardResponse.status, 200);
+  const leaderboardBody: unknown = await leaderboardResponse.json();
+  assert.ok(isCursersLeaderboardResponse(leaderboardBody));
+  if (!isCursersLeaderboardResponse(leaderboardBody)) return;
+  // cursed_seed (the spike's placeholder author) has 2 kills, bob's new
+  // saw has 1 — highest kills first.
+  assert.equal(leaderboardBody.topTen[0]?.username, 'cursed_seed');
+  assert.equal(leaderboardBody.topTen[0]?.kills, 2);
+  assert.equal(leaderboardBody.topTen[1]?.username, 'bob');
+  assert.equal(leaderboardBody.topTen[1]?.kills, 1);
+
+  const currencyResponse = await currency.request('/');
+  const currencyBody: unknown = await currencyResponse.json();
+  assert.ok(isCurrencyBalanceResponse(currencyBody));
+  if (!isCurrencyBalanceResponse(currencyBody)) return;
+  assert.equal(currencyBody.balance, 10);
+});
+
+// Root cause of "blank screen on Play": `@devvit/realtime`'s connectRealtime
+// throws synchronously for any channel name outside [a-zA-Z0-9_], and
+// levelRealtimeChannel was building one straight from a level id (slugified
+// titles like "meat-grinder" contain hyphens, plus the old format's own
+// colons) — GameScene called it unguarded in the middle of loading a level,
+// so every single Play attempt threw before the level ever got built. This
+// guards the sanitization rather than the specific old bug, so any future
+// change to level id formats can't reintroduce it.
+await test('levelRealtimeChannel always produces a channel connectRealtime accepts', async () => {
+  const { levelRealtimeChannel } = await import('../../shared/realtimeApi');
+  for (const levelId of ['meat-grinder', 'gap-gauntlet', 'a-b-c-123', 'x']) {
+    assert.match(levelRealtimeChannel(levelId), /^[a-zA-Z0-9_]+$/);
+  }
+});
+
 await test('editor move eligibility uses separate ground and surface slots', async () => {
   const { EditorController } = await import(
     new URL('../../client/game/editor/EditorController.ts', import.meta.url).href
@@ -1038,4 +1252,28 @@ await test('editor move eligibility uses separate ground and surface slots', asy
   assert.equal(editor.getObjects().filter((o: DraftObject) => o.x === 390).length, 2);
   editor.undo();
   assert.equal(editor.getObjects().find((o: DraftObject) => o.id === 'hazard')?.x, 330);
+});
+
+await test('menu stats reads only its level counters and metadata without scanning discovery', async () => {
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  const { levelAttemptsKey, levelMetaKey } = await import('../core/redisKeys');
+  const scan = mock.method(redis, 'zRange', async () => {
+    throw new Error('Menu stats must not scan sorted sets');
+  });
+  try {
+    values.set(levelAttemptsKey('stats-fixture'), '123');
+    values.set(levelMetaKey('stats-fixture'), JSON.stringify({
+      title: 'Fixture', creatorUsername: 'builder', createdAt: 1,
+    }));
+    assert.deepEqual(await getLevelStats('stats-fixture'), {
+      attempts: 123, creatorUsername: 'builder',
+    });
+    const response = await discovery.request('/stats/stats-fixture');
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { attempts: 123, creatorUsername: 'builder' });
+    assert.equal((await discovery.request('/stats/not-a-level')).status, 404);
+    assert.equal(scan.mock.callCount(), 0);
+  } finally {
+    scan.mock.restore();
+  }
 });

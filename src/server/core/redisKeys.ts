@@ -67,3 +67,30 @@ export const runDedupeKey = (
   username: string,
   timeMs: number
 ): string => `run:dedupe:${levelId}:${version}:${username}:${timeMs}`;
+
+// Clear Streaks (spec section 28): a Hash of every "{levelId}:{version}"
+// the user has ever cleared -> '1'. There's no native Redis Set in this
+// Devvit runtime, so a Hash stands in for one — `hSetNX` gives the same
+// "was this newly added" signal a Set's membership-before-add check would,
+// and `hLen` gives the same cardinality a Set's SCARD would. The streak
+// count is this hash's length, never reset (never a separate counter to
+// drift out of sync with it).
+export const clearedVersionsKey = (username: string): string =>
+  `user:${username}:clearedVersions`;
+
+// Global (not per-level) sorted set of username -> streak count. Still
+// maintained (feeds the result overlay's "CURRENT SURVIVAL STREAK" line)
+// even though nothing exposes it as its own leaderboard view right now.
+export const streaksLeaderboardKey = (): string => 'streaks:leaderboard';
+
+// Global (not per-level) sorted set of username -> total trap kills their
+// added objects have scored across every level (spec section 24's "TOP
+// CURSERS", generalized from per-level to the one global leaderboard the
+// UI actually shows) — a ranking companion to `userContributionsKey`'s
+// plain counter, same relationship `levelContributorKillsKey` already has
+// to that counter at the per-level scope.
+export const topCursersKey = (): string => 'topCursers:leaderboard';
+
+// Earn-only reward currency balance (no shop yet — see shared/constants.ts).
+export const currencyKey = (username: string): string =>
+  `user:${username}:currency`;
