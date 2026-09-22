@@ -20,9 +20,9 @@ import {
 } from '../constants';
 
 // Each player pose is its own named image (extracted from the old
-// player-sprites-2.png grid) rather than indices into a shared spritesheet
+// player-sprites-2.webp grid) rather than indices into a shared spritesheet
 // — easier to tell which pose is which at a glance, and to swap one out
-// without recomputing a grid offset. See player/*.png in public/assets.
+// without recomputing a grid offset. See player/*.webp in public/assets.
 //
 // player-run-1..6 is a genuine six-pose run cycle (drawn with alternating
 // leg/arm contact poses, not near-duplicates — unlike the original 4x2

@@ -1,3 +1,16 @@
+html, body {
+  overscroll-behavior: none;
+}
+
+#game-container canvas {
+  display: block;
+  touch-action: none;
+}
+
+button {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -78,6 +91,26 @@ body {
   color: rgba(255, 255, 255, 0.87);
 }
 
+#run-result-streak {
+  font-size: clamp(12px, 3.2vw, 15px);
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Only applied on the run that actually grew the streak (spec section 28
+   never resets it, so most clears just repeat the same count) — a plain
+   emphasis instead of an animation, matching this overlay's existing
+   text-only style. */
+#run-result-streak.run-result-streak-increased {
+  color: #39ff88;
+  font-weight: 700;
+}
+
+#run-result-currency {
+  font-size: clamp(12px, 3.2vw, 15px);
+  color: #ffd166;
+}
+
 /* Post-clear prompt (spec section 14): "CURSE THIS LEVEL?" alongside a
    plain retry, both real buttons rather than an auto-restart timer, since
    the curse offer has to stay up until the player actually decides. */
@@ -149,13 +182,10 @@ body {
 /* Death panel: replaces the old auto-restart toast. Death now stops the
    run and waits on an explicit Retry tap instead of a timer, with
    attribution ("Killed by u/X's Saw — this trap has N kills") shown above
-   it when a hazard is to blame, and a Follow-the-subreddit button
-   alongside Retry. Centered like #run-result rather than pinned near the
-   top, so Retry/Follow land under the thumb on mobile instead of up by
-   the status bar. `max-width` + `box-sizing` keep it clear of the screen
-   edges — without them a long "Follow r/<subreddit>" label could widen
-   the panel past the viewport and, since #app clips overflow, get its
-   edges sheared off symmetrically instead of wrapping. */
+   it when a hazard is to blame. Centered like #run-result rather than
+   pinned near the top, so Retry lands under the thumb on mobile instead
+   of up by the status bar. `max-width` + `box-sizing` keep it clear of
+   the screen edges on narrow viewports. */
 #death-panel {
   position: absolute;
   top: 50%;
@@ -182,7 +212,7 @@ body {
 
 /* Same hit-test leak as #run-result above: #death-panel-actions opts back
    into `pointer-events: auto`, so a faded-out death panel would keep its
-   Retry/Follow buttons live and intercept taps meant for the canvas. */
+   Retry button live and intercept taps meant for the canvas. */
 #death-panel.hidden {
   opacity: 0;
   visibility: hidden;
@@ -209,39 +239,17 @@ body {
 
 #death-panel-actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
   margin-top: 4px;
   pointer-events: auto;
 }
 
-/* `flex-wrap` above lets Follow drop to its own line on narrow screens
-   instead of forcing the row wider than the panel; `max-width` on the
-   button itself keeps a long subreddit name wrapping inside the button
-   rather than stretching it (or the panel) past the viewport. */
 #death-panel-actions .editor-btn {
   min-width: 96px;
-  max-width: 100%;
   flex-direction: row;
   padding: 9px 16px;
   font-size: 14px;
   font-weight: 600;
-  white-space: normal;
-}
-
-/* Reddit-orange accent — distinct from the green/red/yellow already used
-   elsewhere, since this is specifically a "follow us on Reddit" CTA. */
-.editor-btn-follow {
-  background: rgba(255, 69, 0, 0.14);
-  border-color: #ff4500;
-  color: #ff8b5e;
-}
-
-.editor-btn-follow:disabled {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.55);
 }
 
 /* Editor UI (spec section 12): DOM overlay over the Phaser canvas, same
@@ -508,6 +516,71 @@ body {
   font-weight: 600;
 }
 
+/* Leaderboard overlay: reuses .editor-dialog/.editor-dialog-panel (same
+   modal chrome as the publish/JSON dialogs) plus its own title and table. */
+#leaderboard-title {
+  font-family: 'Arial Black', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: #ffd166;
+  text-align: center;
+}
+
+#leaderboard-table {
+  min-width: 260px;
+  max-height: 50vh;
+  border-collapse: collapse;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+#leaderboard-table thead th {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#leaderboard-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#leaderboard-table tbody tr:first-child td {
+  color: #39ff88;
+  font-weight: 700;
+}
+
+/* Realtime toast (spec section 29): a version-published/new-world-record
+   notice, only ever shown after a run has already ended (GameScene only
+   enqueues from its own shutdown) — never mid-run. */
+#realtime-toast {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(92vw, 420px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(15, 15, 20, 0.88);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+#realtime-toast.hidden {
+  opacity: 0;
+}
+
 #editor-preview-back {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
@@ -559,7 +632,7 @@ body {
 #game-menu-header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   height: 44px;
   padding: 0 14px;
@@ -569,7 +642,14 @@ body {
   flex-shrink: 0;
 }
 
-#game-menu-chip {
+#game-menu-chips {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#game-menu-chip,
+#game-menu-currency-chip {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -583,6 +663,10 @@ body {
   color: #39ff88;
 }
 
+#game-menu-currency-value {
+  color: #ffd166;
+}
+
 #game-menu-scene {
   position: relative;
   flex: 1;
@@ -591,7 +675,7 @@ body {
       rgba(12, 10, 18, 0.55) 55%,
       rgba(8, 7, 12, 0.85) 100%
     ),
-    url('/assets/ui/menu-background.png');
+    url('/assets/ui/menu-background.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -654,6 +738,39 @@ body {
   box-shadow: 0 0 0 #000000;
 }
 
+/* Reddit-orange accent — distinct from the green secondary buttons,
+   since this is specifically a "follow us on Reddit" CTA. Mirrors
+   splash.css's .follow-button, sized for the 44px header. */
+.game-menu-follow-btn {
+  padding: 6px 14px;
+  background: #ff4500;
+  color: #ffffff;
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  box-shadow: 0 3px 0 #000000;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+
+.game-menu-follow-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #000000;
+}
+
+.game-menu-follow-btn:disabled {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: default;
+  transform: none;
+  box-shadow: 0 3px 0 #000000;
+}
+
 .game-menu-corner {
   position: absolute;
   top: 14px;
@@ -668,6 +785,11 @@ body {
 
 .game-menu-build {
   right: 12px;
+}
+
+.game-menu-leaderboard {
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 #game-menu-attribution {

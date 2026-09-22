@@ -1,12 +1,18 @@
 import { Hono } from 'hono';
-import { context, redis } from '@devvit/web/server';
+import { context, realtime, redis } from '@devvit/web/server';
+import { CURRENCY_PER_CLEAR, LEADERBOARD_TOP_N } from '../../shared/constants';
+import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
 import { queueDiscoveryActivity } from '../services/DiscoveryService';
 import { withTransaction } from '../core/transactions';
 import {
+  clearedVersionsKey,
+  currencyKey,
   levelAttemptsKey,
   levelContributorKillsKey,
   levelVersionKey,
   runDedupeKey,
+  streaksLeaderboardKey,
+  topCursersKey,
   trapKillsKey,
   userContributionsKey,
   versionLeaderboardKey,
@@ -119,39 +125,103 @@ runs.post('/', async (c) => {
   // `queueDiscoveryActivity`'s attempt/clear counters aren't — a retried
   // POST for a run that already succeeded would otherwise double-count.
   const dedupeKey = runDedupeKey(levelId, version, username, timeMs);
-  const { personalBestMs, isNewPersonalBest } = await withTransaction(
-    [leaderboardKey, dedupeKey],
+  const clearedKey = clearedVersionsKey(username);
+  const clearField = `${levelId}:${version}`;
+  const currencyBalanceKey = currencyKey(username);
+  const streaksKey = streaksLeaderboardKey();
+
+  const {
+    personalBestMs,
+    isNewPersonalBest,
+    isNewWorldRecord,
+    streak,
+    isNewStreakIncrease,
+    currencyAwarded,
+    currencyBalance,
+  } = await withTransaction(
+    [leaderboardKey, dedupeKey, clearedKey, currencyBalanceKey, streaksKey],
     async (tx) => {
-      // Two independent reads against unrelated keys — read both up front
-      // instead of one after the other, saving a Redis round-trip on every
+      // Independent reads against unrelated keys — read them all up front
+      // instead of one after the other, saving Redis round-trips on every
       // run submission.
-      const [isDuplicate, existingScore] = await Promise.all([
+      const [
+        isDuplicate,
+        existingScore,
+        previousWorldRecordTop,
+        alreadyCleared,
+        currentStreak,
+        currentCurrency,
+      ] = await Promise.all([
         redis.exists(dedupeKey).then(Boolean),
         redis.zScore(leaderboardKey, username),
+        redis.zRange(leaderboardKey, 0, 0, { by: 'rank' }),
+        redis.hGet(clearedKey, clearField).then((value) => value !== undefined),
+        redis.hLen(clearedKey),
+        redis.get(currencyBalanceKey),
       ]);
+      const previousWorldRecordMs = previousWorldRecordTop[0]?.score;
+
       if (!isDuplicate) {
         await queueDiscoveryActivity(tx, levelId, username, true);
         await tx.set(dedupeKey, '1', {
           expiration: new Date(Date.now() + RUN_DEDUPE_TTL_MS),
         });
       }
+
+      // Flat currency per non-duplicate clear (no shop to balance a curve
+      // against yet — see shared/constants.ts), regardless of whether this
+      // version was already cleared before or beats a personal best.
+      const currencyAwarded = isDuplicate ? 0 : CURRENCY_PER_CLEAR;
+      if (currencyAwarded > 0) {
+        await tx.incrBy(currencyBalanceKey, currencyAwarded);
+      }
+      const currencyBalance = Number(currentCurrency ?? 0) + currencyAwarded;
+
+      // Clear Streaks (spec section 28): a lifetime count of unique
+      // (levelId, version) pairs cleared, never reset — only grows the
+      // first time a given version is cleared, a replay is a no-op.
+      const isNewStreakIncrease = !isDuplicate && !alreadyCleared;
+      const streak = currentStreak + (isNewStreakIncrease ? 1 : 0);
+      if (isNewStreakIncrease) {
+        await tx.hSet(clearedKey, { [clearField]: '1' });
+        await tx.zAdd(streaksKey, { member: username, score: streak });
+      }
+
       if (existingScore !== undefined && timeMs >= existingScore) {
         return {
           commit: !isDuplicate,
-          value: { personalBestMs: existingScore, isNewPersonalBest: false },
+          value: {
+            personalBestMs: existingScore,
+            isNewPersonalBest: false,
+            isNewWorldRecord: false,
+            streak,
+            isNewStreakIncrease,
+            currencyAwarded,
+            currencyBalance,
+          },
         };
       }
       await tx.zAdd(leaderboardKey, { member: username, score: timeMs });
       return {
         commit: true,
-        value: { personalBestMs: timeMs, isNewPersonalBest: true },
+        value: {
+          personalBestMs: timeMs,
+          isNewPersonalBest: true,
+          isNewWorldRecord:
+            !isDuplicate &&
+            (previousWorldRecordMs === undefined || timeMs < previousWorldRecordMs),
+          streak,
+          isNewStreakIncrease,
+          currencyAwarded,
+          currencyBalance,
+        },
       };
     }
   );
 
   const [rankIndex, topTenRaw] = await Promise.all([
     redis.zRank(leaderboardKey, username),
-    redis.zRange(leaderboardKey, 0, 9, { by: 'rank' }),
+    redis.zRange(leaderboardKey, 0, LEADERBOARD_TOP_N - 1, { by: 'rank' }),
   ]);
   const rank = (rankIndex ?? 0) + 1;
   const topTen: LeaderboardEntry[] = topTenRaw.map((entry) => ({
@@ -160,6 +230,18 @@ runs.post('/', async (c) => {
   }));
   const worldRecordMs = topTen[0]?.timeMs ?? personalBestMs;
 
+  if (isNewWorldRecord) {
+    const event: NewWorldRecordEvent = {
+      type: 'newWorldRecord',
+      levelId,
+      username,
+      timeMs,
+    };
+    // Best-effort: a dropped realtime notice never invalidates a real,
+    // already-committed run submission.
+    await realtime.send(levelRealtimeChannel(levelId), event).catch(() => undefined);
+  }
+
   return c.json<SubmitRunResponse>({
     timeMs,
     rank,
@@ -167,6 +249,10 @@ runs.post('/', async (c) => {
     isNewPersonalBest,
     worldRecordMs,
     topTen,
+    streak,
+    isNewStreakIncrease,
+    currencyAwarded,
+    currencyBalance,
   });
 });
 
@@ -228,6 +314,7 @@ runs.post('/trap-kill', async (c) => {
       trapKey,
       contributorKey,
       levelContributorKillsKey(body.levelId),
+      topCursersKey(),
     ],
     async (tx) => {
       await queueDiscoveryActivity(tx, body.levelId, username, false);
@@ -240,6 +327,7 @@ runs.post('/trap-kill', async (c) => {
       await tx.incrBy(trapKey, 1);
       await tx.incrBy(contributorKey, 1);
       await tx.zIncrBy(levelContributorKillsKey(body.levelId), object.addedBy, 1);
+      await tx.zIncrBy(topCursersKey(), object.addedBy, 1);
       return { commit: true, value: { kills, contributorTotalKills } };
     }
   );

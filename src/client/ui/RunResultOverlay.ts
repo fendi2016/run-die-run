@@ -1,3 +1,4 @@
+import { CURRENCY_NAME } from '../../shared/constants';
 import type { SubmitRunResponse } from '../../shared/runsApi';
 import { requireButton, requireElement } from './domUtils';
 
@@ -19,8 +20,11 @@ export class RunResultOverlay {
   private readonly rankEl = requireElement('run-result-rank');
   private readonly pbEl = requireElement('run-result-pb');
   private readonly wrEl = requireElement('run-result-wr');
+  private readonly streakEl = requireElement('run-result-streak');
+  private readonly currencyEl = requireElement('run-result-currency');
   private readonly retryBtn = requireButton('run-result-retry-btn');
   private readonly curseBtn = requireButton('run-result-curse-btn');
+  private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
 
   // Shown immediately on finish, before the server round-trip resolves, so
   // the player sees their time instantly rather than waiting on network.
@@ -29,10 +33,14 @@ export class RunResultOverlay {
     this.rankEl.textContent = '';
     this.pbEl.textContent = '';
     this.wrEl.textContent = '';
+    this.streakEl.textContent = '';
+    this.currencyEl.textContent = '';
     this.retryBtn.classList.add('hidden');
     this.curseBtn.classList.add('hidden');
+    this.leaderboardBtn.classList.add('hidden');
     this.retryBtn.onclick = null;
     this.curseBtn.onclick = null;
+    this.leaderboardBtn.onclick = null;
     this.root.classList.remove('hidden');
   }
 
@@ -40,6 +48,12 @@ export class RunResultOverlay {
     this.rankEl.textContent = `#${result.rank} on this version`;
     this.pbEl.textContent = `Personal Best: ${formatSeconds(result.personalBestMs)}`;
     this.wrEl.textContent = `World Record: ${formatSeconds(result.worldRecordMs)}`;
+    this.streakEl.textContent = `CURRENT SURVIVAL STREAK: ${result.streak} VERSION${result.streak === 1 ? '' : 'S'}`;
+    this.streakEl.classList.toggle('run-result-streak-increased', result.isNewStreakIncrease);
+    this.currencyEl.textContent =
+      result.currencyAwarded > 0
+        ? `+${result.currencyAwarded} ${CURRENCY_NAME} (${result.currencyBalance} total)`
+        : '';
   }
 
   setRetryHandler(handler: () => void): void {
@@ -52,6 +66,11 @@ export class RunResultOverlay {
     this.curseBtn.onclick = handler;
   }
 
+  setLeaderboardHandler(handler: () => void): void {
+    this.leaderboardBtn.classList.remove('hidden');
+    this.leaderboardBtn.onclick = handler;
+  }
+
   // Drops the button handlers as well as showing the hidden state. They
   // close over the GameScene that set them, and `hide()` runs from that
   // scene's own `shutdown` cleanup — leaving them bound means a stray tap
@@ -60,6 +79,7 @@ export class RunResultOverlay {
   hide(): void {
     this.retryBtn.onclick = null;
     this.curseBtn.onclick = null;
+    this.leaderboardBtn.onclick = null;
     this.root.classList.add('hidden');
   }
 }

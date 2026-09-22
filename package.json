@@ -6,14 +6,17 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "deploy": "npm run test:types && npm run lint && devvit upload",
+    "deploy": "npm run check:production && devvit upload",
     "dev": "devvit playtest",
     "launch": "npm run deploy && devvit publish",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "login": "devvit login",
     "prettier": "prettier --write .",
     "test:types": "tsc --build",
-    "test:unit": "node --experimental-strip-types --experimental-test-module-mocks --no-warnings=ExperimentalWarning --import ./tools/test-loader.mjs --test \"src/**/*.test.ts\""
+    "test:unit": "node --experimental-strip-types --experimental-test-module-mocks --no-warnings=ExperimentalWarning --import ./tools/test-loader.mjs --test \"src/**/*.test.ts\"",
+    "check:production": "npm run test:types && npm run lint && npm run test:unit && npm run build && node tools/check-client-build.mjs",
+    "test:browser": "node tools/game-regressions.mjs",
+    "type-check": "npm run test:types"
   },
   "engines": {
     "node": ">=24.0.0"

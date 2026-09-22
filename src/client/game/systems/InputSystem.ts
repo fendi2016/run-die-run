@@ -33,6 +33,7 @@ export class InputSystem {
     // this single listener covers desktop click and mobile tap.
     scene.input.on('pointerdown', this.emitJumpDown, this);
     scene.input.on('pointerup', this.emitJumpUp, this);
+    scene.input.on('pointerupoutside', this.emitJumpUp, this);
   }
 
   destroy(): void {
@@ -42,6 +43,7 @@ export class InputSystem {
     }
     this.scene.input.off('pointerdown', this.emitJumpDown, this);
     this.scene.input.off('pointerup', this.emitJumpUp, this);
+    this.scene.input.off('pointerupoutside', this.emitJumpUp, this);
   }
 
   private emitJumpDown(): void {

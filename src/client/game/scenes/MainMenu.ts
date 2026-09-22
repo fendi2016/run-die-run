@@ -17,9 +17,14 @@ export class MainMenu extends Scene {
     // directly) and leave their intent here — honor it once, then get out
     // of the way, instead of always landing on the menu they already
     // bypassed by tapping a specific button.
-    const autostart = localStorage.getItem(SPLASH_AUTOSTART_KEY);
-    if (autostart) {
+    let autostart: string | null = null;
+    try {
+      autostart = localStorage.getItem(SPLASH_AUTOSTART_KEY);
       localStorage.removeItem(SPLASH_AUTOSTART_KEY);
+    } catch {
+      // The menu remains usable when embedded storage is unavailable.
+    }
+    if (autostart) {
       if (autostart === 'game') {
         this.scene.start('GameScene');
         return;

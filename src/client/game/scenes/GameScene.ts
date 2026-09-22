@@ -1,6 +1,10 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
-import { context, showToast } from '@devvit/web/client';
+import {
+  connectRealtime,
+  disconnectRealtime,
+  showToast,
+} from '@devvit/web/client';
 import {
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
@@ -11,7 +15,12 @@ import {
   isPublishCurseResponse,
   isVerifyLevelResponse,
 } from '../../../shared/editorApi';
-import { isFollowSubredditResponse } from '../../../shared/followApi';
+import {
+  isRealtimeEvent,
+  levelRealtimeChannel,
+  type NewWorldRecordEvent,
+  type VersionPublishedEvent,
+} from '../../../shared/realtimeApi';
 import {
   isSubmitRunResponse,
   isTrapKillResponse,
@@ -24,7 +33,10 @@ import {
   type ObjectType,
 } from '../../../shared/types';
 import { DeathPanel } from '../../ui/DeathPanel';
+import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
+import { labelFor } from '../../ui/objectLabels';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
+import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import {
@@ -82,6 +94,7 @@ export class GameScene extends Scene {
   private spawn = FALLBACK_SPAWN;
   private runEnded = false;
   private runStartTime = 0;
+  private levelRequest: AbortController | undefined;
   // Set the moment the tap-to-start gate lifts (see update()) — false for
   // the entire tap-to-start hold, forever true afterward for the rest of
   // this scene instance's life (a death-restart's own runStartTime
@@ -100,6 +113,14 @@ export class GameScene extends Scene {
   private candidateToken: string | undefined;
   private previewReturn: PreviewReturn | undefined;
   private explicitLevelId: string | undefined;
+
+  // Realtime (spec section 29): subscribed only for a real (non-preview)
+  // level, since a preview isn't published and has no live channel. Events
+  // are buffered here rather than shown immediately — the "don't interrupt
+  // a run" rule (spec section 29) is enforced by only ever flushing this
+  // buffer from `cleanup()`, never from `onMessage` directly.
+  private pendingVersionPublished: VersionPublishedEvent | undefined;
+  private pendingWorldRecord: NewWorldRecordEvent | undefined;
 
   constructor() {
     super('GameScene');
@@ -122,6 +143,8 @@ export class GameScene extends Scene {
     this.resetMovingObjects = undefined;
     this.powerUpImages = [];
     this.slowTimeTimer = undefined;
+    this.pendingVersionPublished = undefined;
+    this.pendingWorldRecord = undefined;
   }
 
   create(): void {
@@ -133,7 +156,6 @@ export class GameScene extends Scene {
     this.resultOverlay = new RunResultOverlay();
     this.deathPanel = new DeathPanel();
     this.deathPanel.setRetryHandler(() => this.restartRun());
-    this.deathPanel.setFollowHandler(() => this.handleFollowClick());
     this.tapToStartPrompt = new TapToStartPrompt();
     this.events.once('shutdown', this.cleanup, this);
 
@@ -207,32 +229,80 @@ export class GameScene extends Scene {
     }
 
     const levelId = this.explicitLevelId ?? getRequestedLevelId();
+    const request = new AbortController();
+    this.levelRequest = request;
 
     let levelVersion: LevelVersion;
     try {
       const response = await fetch(
-        `/api/levels/${encodeURIComponent(levelId)}`
+        `/api/levels/${encodeURIComponent(levelId)}`,
+        { signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]) }
       );
       if (!response.ok) {
-        console.error(`Failed to load level "${levelId}": ${response.status}`);
-        return;
+        throw new Error(`Level request failed: ${response.status}`);
       }
       const body: unknown = await response.json();
       if (!isLevelVersion(body)) {
-        console.error(
-          `Unexpected /api/levels response shape for "${levelId}"`,
-          body
-        );
-        return;
+        throw new Error(`Unexpected level response for "${levelId}"`);
       }
       levelVersion = body;
     } catch (error) {
+      if (request.signal.aborted) return;
       console.error(`Failed to load level "${levelId}":`, error);
+      showToast('Could not load this level. Please try again.');
+      this.scene.start('MainMenu');
       return;
     }
 
+    if (request.signal.aborted) return;
+    this.levelRequest = undefined;
     this.levelVersion = levelVersion;
+    this.subscribeRealtime(levelVersion.levelId);
     this.startRun(levelVersion);
+  }
+
+  // A live version-published/world-record toast is strictly cosmetic — it
+  // must never be able to stop a level from actually loading, so a failure
+  // here (a bad channel name, the realtime plugin unavailable, whatever)
+  // only logs, exactly like every other non-critical network call in this
+  // scene (trap-kill reporting, follow).
+  private subscribeRealtime(levelId: string): void {
+    try {
+      connectRealtime({
+        channel: levelRealtimeChannel(levelId),
+        onMessage: (data) => {
+          if (!isRealtimeEvent(data)) {
+            return;
+          }
+          if (data.type === 'versionPublished') {
+            this.pendingVersionPublished = data;
+          } else {
+            this.pendingWorldRecord = data;
+          }
+        },
+      });
+    } catch (error) {
+      console.error(`Failed to subscribe to realtime updates for "${levelId}":`, error);
+    }
+  }
+
+  // Flushes whatever Realtime events arrived while this scene was up, now
+  // that the run they must not interrupt (spec section 29) has ended one
+  // way or another (finish, or backing out to menu) — shown on whatever
+  // screen comes next via RealtimeToast, not here.
+  private flushRealtimeEvents(): void {
+    if (this.pendingVersionPublished) {
+      const { authorUsername, addedType } = this.pendingVersionPublished;
+      RealtimeToast.instance().enqueue(
+        `VERSION LIVE — u/${authorUsername} added a ${labelFor(addedType)}`
+      );
+    }
+    if (this.pendingWorldRecord) {
+      const { username, timeMs } = this.pendingWorldRecord;
+      RealtimeToast.instance().enqueue(
+        `NEW WORLD RECORD — u/${username}: ${(timeMs / 1000).toFixed(3)}s`
+      );
+    }
   }
 
   private startRun(levelVersion: LevelVersion): void {
@@ -311,6 +381,9 @@ export class GameScene extends Scene {
     } else {
       const levelVersion = this.levelVersion;
       this.resultOverlay.setRetryHandler(() => this.restartRun());
+      this.resultOverlay.setLeaderboardHandler(() =>
+        LeaderboardOverlay.instance().show()
+      );
       void this.submitRun(levelVersion, timeMs);
     }
   }
@@ -507,7 +580,7 @@ export class GameScene extends Scene {
     if (objectId) {
       this.reportHazardDeath(objectId);
     } else {
-      this.deathPanel.show(context.subredditName);
+      this.deathPanel.show();
     }
     this.player.die();
   }
@@ -518,14 +591,13 @@ export class GameScene extends Scene {
   private reportHazardDeath(objectId: string): void {
     const object = this.levelVersion?.objects.find((o) => o.id === objectId);
     if (!object) {
-      this.deathPanel.show(context.subredditName);
+      this.deathPanel.show();
       return;
     }
 
     const attributedAuthor =
       object.addedBy === SEED_AUTHOR ? undefined : object.addedBy;
     const shownToken = this.deathPanel.show(
-      context.subredditName,
       attributedAuthor,
       attributedAuthor ? object.type : undefined
     );
@@ -558,22 +630,6 @@ export class GameScene extends Scene {
       });
   }
 
-  private handleFollowClick(): void {
-    fetch('/api/follow', { method: 'POST' })
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((json: unknown) => {
-        if (isFollowSubredditResponse(json)) {
-          this.deathPanel.markFollowed();
-          showToast(`Followed r/${json.subredditName}!`);
-        } else {
-          showToast('Could not follow — try again.');
-        }
-      })
-      .catch(() => {
-        showToast('Could not follow — try again.');
-      });
-  }
-
   private restartRun(): void {
     if (!this.player) {
       return;
@@ -598,6 +654,8 @@ export class GameScene extends Scene {
   }
 
   private cleanup(): void {
+    this.levelRequest?.abort();
+    this.levelRequest = undefined;
     // No physics.resume() needed here: ArcadePhysics's own 'shutdown'
     // listener (registered during the scene's start(), before create()'s
     // this.events.once('shutdown', this.cleanup) below) already runs first
@@ -614,5 +672,9 @@ export class GameScene extends Scene {
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
     PreviewBackButton.instance().hide();
+    if (this.levelVersion) {
+      disconnectRealtime(levelRealtimeChannel(this.levelVersion.levelId));
+    }
+    this.flushRealtimeEvents();
   }
 }

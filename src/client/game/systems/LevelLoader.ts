@@ -5,8 +5,16 @@ import {
   MOVING_PLATFORM_AMPLITUDE_PX,
   MOVING_PLATFORM_PERIOD_MS,
 } from '../constants';
-import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/types';
-import { categoryOf, oscillationFor, renderLevelObject } from '../objects/ObjectRegistry';
+import type {
+  LevelObject,
+  LevelVersion,
+  ObjectType,
+} from '../../../shared/types';
+import {
+  categoryOf,
+  oscillationFor,
+  renderLevelObject,
+} from '../objects/ObjectRegistry';
 import { applyOutlineGlow } from './Juice';
 
 export type LoadedLevel = {
@@ -67,6 +75,27 @@ export function loadLevel(
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
   const movementResets: (() => void)[] = [];
+  // Static groups query Arcade's spatial index instead of testing every
+  // tile/hazard with a separate collider on every physics step.
+  const solids = scene.physics.add.staticGroup();
+  const hazards = scene.physics.add.staticGroup();
+  const pickups = scene.physics.add.staticGroup();
+  const finishes = scene.physics.add.staticGroup();
+  const sourceObjects = new Map<Phaser.GameObjects.Sprite, LevelObject>();
+  scene.physics.add.collider(player, solids);
+  scene.physics.add.overlap(player, hazards, (_player, target) => {
+    if (!(target instanceof Phaser.GameObjects.Sprite)) return;
+    const object = sourceObjects.get(target);
+    if (object) callbacks.onHazardHit(object.id);
+  });
+  scene.physics.add.overlap(player, pickups, (_player, target) => {
+    if (!(target instanceof Phaser.GameObjects.Sprite)) return;
+    const object = sourceObjects.get(target);
+    if (!object) return;
+    setPowerUpAvailable(target, false);
+    callbacks.onPowerUpCollected(object.type);
+  });
+  scene.physics.add.overlap(player, finishes, callbacks.onFinishReached);
 
   // Ground and platform tiles auto-tile within their own type only (a
   // ground tile sitting beside a platform tile doesn't cap either one) —
@@ -139,10 +168,15 @@ export function loadLevel(
     if (!rendered) {
       continue;
     }
+    sourceObjects.set(rendered, object);
 
     switch (categoryOf(object.type)) {
       case 'solid':
-        scene.physics.add.collider(player, rendered);
+        if (object.type === 'movingPlatform') {
+          scene.physics.add.collider(player, rendered);
+        } else {
+          solids.add(rendered);
+        }
         if (object.type === 'movingPlatform') {
           // Unlike movingSaw's static body (fine for overlap-only hazard
           // detection), a rideable collider needs a *dynamic* body so
@@ -200,9 +234,7 @@ export function loadLevel(
             object
           );
         }
-        scene.physics.add.overlap(player, rendered, () =>
-          callbacks.onHazardHit(object.id)
-        );
+        hazards.add(rendered);
         break;
       }
       case 'finish': {
@@ -219,16 +251,13 @@ export function loadLevel(
           FINISH_TRIGGER_HEIGHT_PX
         );
         scene.physics.add.existing(sensor, true);
-        scene.physics.add.overlap(player, sensor, callbacks.onFinishReached);
+        finishes.add(sensor);
         applyOutlineGlow(rendered, 0x39ff88, 6);
         break;
       }
       case 'powerup':
         powerUpImages.push(rendered);
-        scene.physics.add.overlap(player, rendered, () => {
-          setPowerUpAvailable(rendered, false);
-          callbacks.onPowerUpCollected(object.type);
-        });
+        pickups.add(rendered);
         applyOutlineGlow(rendered, 0xffffff, 4);
         break;
       default:

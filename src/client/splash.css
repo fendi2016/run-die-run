@@ -66,7 +66,7 @@ body {
       rgba(12, 10, 18, 0.55) 55%,
       rgba(8, 7, 12, 0.85) 100%
     ),
-    url('/assets/ui/menu-background.png');
+    url('/assets/ui/menu-background.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -168,4 +168,37 @@ body {
 .secondary-button:active {
   transform: translateY(4px);
   box-shadow: 0 0 0 #000000;
+}
+
+/* Reddit-orange accent — distinct from the green secondary buttons,
+   since this is specifically a "follow us on Reddit" CTA. Sized down to
+   fit the 44px header instead of the full-scene button dimensions. */
+.follow-button {
+  padding: 6px 14px;
+  background: #ff4500;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  box-shadow: 0 3px 0 #000000;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+
+.follow-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #000000;
+}
+
+.follow-button:disabled {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: default;
+  transform: none;
+  box-shadow: 0 3px 0 #000000;
 }

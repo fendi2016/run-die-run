@@ -13,7 +13,7 @@ const server = createServer(async (req, res) => {
   if (!file.startsWith(`${root}/`)) { res.writeHead(403).end(); return; }
   try {
     const body = await readFile(file);
-    const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' };
+    const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp' };
     res.setHeader('Content-Type', mime[extname(file)] ?? 'application/octet-stream');
     res.end(body);
   } catch { res.writeHead(404).end(); }
@@ -104,8 +104,66 @@ try {
   await page.waitForFunction(() => document.querySelector('#editor-message').textContent === 'Invalid fixture');
   assert.equal(await page.isDisabled('#editor-test'), false);
   assert.equal(await page.isDisabled('#editor-tool-spike'), false);
+  // A dense level still has a fixed number of static collision handlers.
+  // Exercise actual overlap callbacks at a narrow mobile viewport.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await page.evaluate(async () => {
+    const game = window.__PHASER_GAME__;
+    const objects = [
+      { id: 'spawn', type: 'spawn', x: 90, y: 480 },
+      { id: 'finish', type: 'finish', x: 30000, y: 480 },
+      { id: 'pickup', type: 'doubleJump', x: 300, y: 420 },
+      { id: 'trap', type: 'spike', x: 600, y: 420 },
+      ...Array.from({ length: 500 }, (_, i) => ({ id: `tile-${i}`, type: 'ground', x: 30 + i * 60, y: 480 })),
+    ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 }));
+    game.scene.start('GameScene', { previewLevel: {
+      levelId: 'mobile', version: 1, parentVersion: null, objects,
+      contributorUsername: 'test', verificationTimeMs: 0, createdAt: 0,
+    }});
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const scene = game.scene.getScene('GameScene');
+    game.loop.sleep();
+    const colliders = scene.physics.world.colliders.update();
+    const check = () => colliders.forEach((collider) => collider.update());
+    const pickup = scene.powerUpImages[0];
+    scene.player.body.reset(300, 410);
+    check();
+    const collected = !pickup.body.enable && scene.player.hasDoubleJump;
+    scene.restartRun();
+    const restored = pickup.body.enable && !scene.player.hasDoubleJump;
+    scene.player.body.reset(600, 410);
+    check();
+    const result = { colliders: colliders.length, collected, restored,
+      died: scene.runEnded, width: game.scale.width, height: game.scale.height };
+    game.loop.wake();
+    return result;
+  });
+  assert.equal(mobile.colliders, 4);
+  assert.equal(mobile.collected, true);
+  assert.equal(mobile.restored, true);
+  assert.equal(mobile.died, true);
+  assert.equal(mobile.width, 390);
+  assert.equal(mobile.height, 844);
+  const phone = await browser.newPage({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+  });
+  phone.on('pageerror', (error) => errors.push(error.message));
+  let failAsset = true;
+  await phone.route('**/assets/player/player-idle.webp', (route) =>
+    failAsset ? route.fulfill({ status: 503, body: '' }) : route.continue());
+  await phone.goto(`http://127.0.0.1:${server.address().port}/game.html`);
+  await phone.waitForFunction(() => {
+    const scene = window.__PHASER_GAME__?.scene.getScene('Preloader');
+    return scene?.failed && !scene.load.isLoading();
+  });
+  assert.equal(await phone.evaluate(() => window.__PHASER_GAME__.scene.isActive('MainMenu')), false);
+  failAsset = false;
+  await phone.touchscreen.tap(195, 470);
+  await phone.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
+  assert.equal(await phone.evaluate(() => window.__PHASER_GAME__.textures.exists('player-idle')), true);
+  await phone.close();
   assert.deepEqual(errors, []);
-  console.log('Passed: movement retry determinism and physics reset; editor request locking, cancellation, and recovery.');
+  console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, and touch retry after an asset failure.');
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));

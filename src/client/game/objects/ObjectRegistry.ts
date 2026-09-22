@@ -215,7 +215,7 @@ export function renderLevelObject(
     .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
   if (object.type === 'ground') {
-    // Matches the old ground.png's native 60x60 footprint exactly, so
+    // Matches the old ground.webp's native 60x60 footprint exactly, so
     // ground collision is unchanged — only its art is now edge-aware.
     sprite.setDisplaySize(GRID_CELL_SIZE, GRID_CELL_SIZE);
   } else if (TILESET_TYPES.has(object.type)) {

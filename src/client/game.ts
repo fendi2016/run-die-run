@@ -16,7 +16,9 @@ import { GRAVITY_Y } from './game/constants';
 const config: Phaser.Types.Core.GameConfig = {
   type: AUTO,
   parent: 'game-container',
-  backgroundColor: '#028af8',
+  backgroundColor: '#14141f',
+  // Avoid rendering at 90/120 Hz on phones while physics runs at 60 Hz.
+  fps: { target: 60, limit: 60 },
   // Without this, every textured Game Object (the player, ground tiles,
   // hazards...) draws at whatever sub-pixel position the camera's scroll
   // math lands on. GameScene's camera zoom is `scale.height / 540`

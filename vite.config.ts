@@ -6,6 +6,8 @@ export default defineConfig({
     devvit({
       client: {
         build: {
+          sourcemap: false,
+          manifest: true,
           chunkSizeWarningLimit: 2000,
         },
       },

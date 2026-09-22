@@ -3,6 +3,7 @@ import type {
   Difficulty,
   DiscoverySort,
   LevelSummary,
+  LevelStats,
 } from '../../shared/discoveryApi';
 import {
   allLevelsByDateKey,
@@ -78,6 +79,24 @@ function metadata(
   return undefined;
 }
 
+// Feed impressions need only two small keys, never every level's objects,
+// daily players, and leaderboards.
+export async function getLevelStats(
+  levelId: string
+): Promise<LevelStats | undefined> {
+  const [rawMeta, rawAttempts] = await Promise.all([
+    redis.get(levelMetaKey(levelId)),
+    redis.get(levelAttemptsKey(levelId)),
+  ]);
+  const meta = metadata(rawMeta);
+  const seed = SEED_LEVELS[levelId];
+  if (!meta && !seed) return undefined;
+  return {
+    attempts: Number(rawAttempts ?? 0),
+    creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
+  };
+}
+
 export async function discoverLevels(
   sort: DiscoverySort
 ): Promise<LevelSummary[]> {
@@ -89,52 +108,56 @@ export async function discoverLevels(
     ...indexed.map((entry) => entry.member),
   ]);
   const day = Math.floor(Date.now() / DAY_MS);
-  // Every level's data is independent, so all of them are fetched
-  // concurrently instead of one at a time — a sequential `for` loop here
-  // turned a browse-page request into N back-to-back round trips, growing
-  // linearly worse as more levels get published.
-  const perLevel = await Promise.all(
-    [...ids].map(async (levelId): Promise<LevelSummary | undefined> => {
-      const level = await getCurrentLevelVersion(levelId);
-      if (!level) return undefined;
-      const [rawMeta, rawAttempts, rawClears, players, dailyClears, records] =
-        await Promise.all([
-          redis.get(levelMetaKey(levelId)),
-          redis.get(levelAttemptsKey(levelId)),
-          redis.get(levelClearsKey(levelId)),
-          redis.zRange(levelDailyPlayersKey(levelId, day), 0, -1, {
-            by: 'rank',
-          }),
-          redis.get(levelDailyClearsKey(levelId, day)),
-          redis.zRange(versionLeaderboardKey(levelId, level.version), 0, 0, {
-            by: 'rank',
-          }),
-        ]);
-      const meta = metadata(rawMeta);
-      const seed = SEED_LEVELS[levelId];
-      if (!meta && !seed) return undefined;
-      const attempts = Number(rawAttempts ?? 0);
-      const clears = Number(rawClears ?? 0);
-      return {
-        levelId,
-        title: meta?.title ?? levelId.replaceAll('-', ' '),
-        creatorUsername:
-          meta?.creatorUsername ?? seed?.contributorUsername ?? '',
-        createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
-        version: level.version,
-        attempts,
-        clears,
-        difficulty: difficultyFor(attempts, clears),
-        completionRate: attempts === 0 ? 0 : clears / attempts,
-        worldRecordMs: records[0]?.score ?? null,
-        // Reading the current version here includes curses without adding a second publish-time write.
-        trendingScore:
-          players.length +
-          players.reduce((total, entry) => total + entry.score, 0) +
-          Number(dailyClears ?? 0) +
-          level.version -
-          1,
-      };
+  // Bound fan-out as the catalog grows; each worker issues at most six
+  // independent Redis reads at once. Preserve global sorting below.
+  const pending = [...ids].values();
+  const perLevel: (LevelSummary | undefined)[] = [];
+  const summarize = async (
+    levelId: string
+  ): Promise<LevelSummary | undefined> => {
+    const level = await getCurrentLevelVersion(levelId);
+    if (!level) return undefined;
+    const [rawMeta, rawAttempts, rawClears, players, dailyClears, records] =
+      await Promise.all([
+        redis.get(levelMetaKey(levelId)),
+        redis.get(levelAttemptsKey(levelId)),
+        redis.get(levelClearsKey(levelId)),
+        redis.zRange(levelDailyPlayersKey(levelId, day), 0, -1, {
+          by: 'rank',
+        }),
+        redis.get(levelDailyClearsKey(levelId, day)),
+        redis.zRange(versionLeaderboardKey(levelId, level.version), 0, 0, {
+          by: 'rank',
+        }),
+      ]);
+    const meta = metadata(rawMeta);
+    const seed = SEED_LEVELS[levelId];
+    if (!meta && !seed) return undefined;
+    const attempts = Number(rawAttempts ?? 0);
+    const clears = Number(rawClears ?? 0);
+    return {
+      levelId,
+      title: meta?.title ?? levelId.replaceAll('-', ' '),
+      creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
+      createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
+      version: level.version,
+      attempts,
+      clears,
+      difficulty: difficultyFor(attempts, clears),
+      completionRate: attempts === 0 ? 0 : clears / attempts,
+      worldRecordMs: records[0]?.score ?? null,
+      // Reading the current version here includes curses without adding a second publish-time write.
+      trendingScore:
+        players.length +
+        players.reduce((total, entry) => total + entry.score, 0) +
+        Number(dailyClears ?? 0) +
+        level.version -
+        1,
+    };
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(6, ids.size) }, async () => {
+      for (const levelId of pending) perLevel.push(await summarize(levelId));
     })
   );
   const summaries = perLevel.filter((summary) => summary !== undefined);

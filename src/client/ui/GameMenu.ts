@@ -1,6 +1,9 @@
 import { DEFAULT_LEVEL_ID } from '../../shared/constants';
-import { isDiscoveryResponse } from '../../shared/discoveryApi';
+import { isCurrencyBalanceResponse } from '../../shared/currencyApi';
+import { isLevelStats } from '../../shared/discoveryApi';
 import { requireButton, requireElement } from './domUtils';
+import { initFollowButton } from './followButton';
+import { LeaderboardOverlay } from './LeaderboardOverlay';
 
 export type GameMenuHandlers = {
   onPlay: () => void;
@@ -25,6 +28,7 @@ export class GameMenu {
   private readonly root = requireElement('game-menu');
   private readonly statValueEl = requireElement('game-menu-stat-value');
   private readonly creatorNameEl = requireElement('game-menu-creator-name');
+  private readonly currencyValueEl = requireElement('game-menu-currency-value');
 
   private constructor() {
     requireButton('game-menu-play').addEventListener('click', () =>
@@ -36,6 +40,10 @@ export class GameMenu {
     requireButton('game-menu-browse').addEventListener('click', () =>
       this.handlers?.onBrowse()
     );
+    requireButton('game-menu-leaderboard').addEventListener('click', () =>
+      LeaderboardOverlay.instance().show()
+    );
+    initFollowButton(requireButton('game-menu-follow-btn'));
   }
 
   setHandlers(handlers: GameMenuHandlers): void {
@@ -45,6 +53,7 @@ export class GameMenu {
   show(): void {
     this.root.classList.remove('hidden');
     void this.refreshStats();
+    void this.refreshCurrency();
   }
 
   hide(): void {
@@ -56,19 +65,29 @@ export class GameMenu {
   // so a slow/failed request never blocks Play/Build/Browse.
   private async refreshStats(): Promise<void> {
     try {
-      const response = await fetch('/api/discovery/levels?sort=new');
+      const response = await fetch(`/api/discovery/stats/${encodeURIComponent(DEFAULT_LEVEL_ID)}`, { signal: AbortSignal.timeout(8000) });
       const body: unknown = await response.json();
-      if (!response.ok || !isDiscoveryResponse(body)) {
+      if (!response.ok || !isLevelStats(body)) {
         return;
       }
-      const level = body.levels.find((l) => l.levelId === DEFAULT_LEVEL_ID);
-      if (!level) {
-        return;
-      }
-      this.statValueEl.textContent = level.attempts.toLocaleString();
-      this.creatorNameEl.textContent = `u/${level.creatorUsername}`;
+
+      this.statValueEl.textContent = body.attempts.toLocaleString();
+      this.creatorNameEl.textContent = `u/${body.creatorUsername}`;
     } catch {
       // Leave the placeholder dashes — the menu already works either way.
+    }
+  }
+
+  private async refreshCurrency(): Promise<void> {
+    try {
+      const response = await fetch('/api/currency');
+      const body: unknown = await response.json();
+      if (!response.ok || !isCurrencyBalanceResponse(body)) {
+        return;
+      }
+      this.currencyValueEl.textContent = body.balance.toLocaleString();
+    } catch {
+      // Leave the placeholder dash — the menu already works either way.
     }
   }
 }

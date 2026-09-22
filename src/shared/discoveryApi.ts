@@ -16,6 +16,19 @@ export type LevelSummary = {
 };
 export type DiscoveryResponse = { levels: LevelSummary[] };
 
+export type LevelStats = { attempts: number; creatorUsername: string };
+
+export function isLevelStats(value: unknown): value is LevelStats {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'attempts' in value &&
+    isCount(value.attempts) &&
+    'creatorUsername' in value &&
+    typeof value.creatorUsername === 'string'
+  );
+}
+
 export function isDiscoverySort(value: unknown): value is DiscoverySort {
   return (
     value === 'new' ||
