@@ -68,24 +68,36 @@ export function loadLevel(
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
   const movementResets: (() => void)[] = [];
 
-  // Static platform tiles only — a movingPlatform tweens away from wherever
-  // it's authored, so treating its start position as a fixed neighbor would
-  // pick an end-cap texture that stops matching the moment it moves.
+  // Ground and platform tiles auto-tile within their own type only (a
+  // ground tile sitting beside a platform tile doesn't cap either one) —
+  // and only against other *static* tiles of that type. A movingPlatform
+  // tweens away from wherever it's authored, so treating its start
+  // position as a fixed neighbor would pick an end-cap texture that stops
+  // matching the moment it moves.
+  const groundPositions = new Set<string>();
   const platformPositions = new Set<string>();
   for (const object of levelVersion.objects) {
-    if (object.type === 'platform') {
+    if (object.type === 'ground') {
+      groundPositions.add(`${Math.round(object.x)}:${Math.round(object.y)}`);
+    } else if (object.type === 'platform') {
       platformPositions.add(`${Math.round(object.x)}:${Math.round(object.y)}`);
     }
   }
-  function platformNeighborsOf(object: LevelObject) {
+  function neighborsWithin(positions: Set<string>, object: LevelObject) {
     return {
-      left: platformPositions.has(
+      left: positions.has(
         `${Math.round(object.x - GRID_CELL_SIZE)}:${Math.round(object.y)}`
       ),
-      right: platformPositions.has(
+      right: positions.has(
         `${Math.round(object.x + GRID_CELL_SIZE)}:${Math.round(object.y)}`
       ),
     };
+  }
+  function tilesetNeighborsOf(object: LevelObject) {
+    return neighborsWithin(
+      object.type === 'ground' ? groundPositions : platformPositions,
+      object
+    );
   }
 
   // Registers both halves of a moving object at once — the tween itself and
@@ -121,8 +133,8 @@ export function loadLevel(
     }
 
     const rendered =
-      object.type === 'platform'
-        ? renderLevelObject(scene, object, platformNeighborsOf(object))
+      object.type === 'ground' || object.type === 'platform'
+        ? renderLevelObject(scene, object, tilesetNeighborsOf(object))
         : renderLevelObject(scene, object);
     if (!rendered) {
       continue;

@@ -150,18 +150,23 @@ body {
    run and waits on an explicit Retry tap instead of a timer, with
    attribution ("Killed by u/X's Saw — this trap has N kills") shown above
    it when a hazard is to blame, and a Follow-the-subreddit button
-   alongside Retry. Same floating-near-top placement/style the old
-   attribution toast used, just persistent until Retry is tapped instead
-   of auto-fading. */
+   alongside Retry. Centered like #run-result rather than pinned near the
+   top, so Retry/Follow land under the thumb on mobile instead of up by
+   the status bar. `max-width` + `box-sizing` keep it clear of the screen
+   edges — without them a long "Follow r/<subreddit>" label could widen
+   the panel past the viewport and, since #app clips overflow, get its
+   edges sheared off symmetrically instead of wrapping. */
 #death-panel {
   position: absolute;
-  top: max(16px, env(safe-area-inset-top));
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  max-width: min(92vw, 380px);
+  box-sizing: border-box;
   padding: 10px 16px;
   border-radius: 14px;
   background: rgba(15, 15, 15, 0.75);
@@ -204,17 +209,25 @@ body {
 
 #death-panel-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   margin-top: 4px;
   pointer-events: auto;
 }
 
+/* `flex-wrap` above lets Follow drop to its own line on narrow screens
+   instead of forcing the row wider than the panel; `max-width` on the
+   button itself keeps a long subreddit name wrapping inside the button
+   rather than stretching it (or the panel) past the viewport. */
 #death-panel-actions .editor-btn {
   min-width: 96px;
+  max-width: 100%;
   flex-direction: row;
   padding: 9px 16px;
   font-size: 14px;
   font-weight: 600;
+  white-space: normal;
 }
 
 /* Reddit-orange accent — distinct from the green/red/yellow already used

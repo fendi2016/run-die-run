@@ -1,20 +1,46 @@
 import * as Phaser from 'phaser';
-import { gridViewHeightPx, gridViewTopY, levelWidthPx } from './GridSystem';
+import {
+  gridViewBottomY,
+  gridViewHeightPx,
+  gridViewTopY,
+  levelWidthPx,
+} from './GridSystem';
 
-// Both EditorScene and CurseScene lock the camera's vertical zoom to
-// LOGICAL_HEIGHT within a viewport shrunk by their bottom DOM toolbar's
+// Both EditorScene and CurseScene lock the camera's vertical zoom to fit
+// the editable grid within a viewport shrunk by their bottom DOM toolbar's
 // real rendered height (a hidden toolbar measures 0px tall, so
 // `attach()` must run after the toolbar is shown), and support panning
 // both by button and by drag. Extracted after the two scenes drifted
 // into ~55 lines of byte-identical logic — differing only in which
 // toolbar element id to measure — so a future fix to one wouldn't
 // silently fail to reach the other.
+//
+// Phaser's camera.scrollX/scrollY are NOT "world coordinate at the
+// viewport's top-left corner" once zoom != 1 — zoom pivots around the
+// viewport's center, and scrollX/Y instead satisfy
+// `scroll = worldCenter - viewportSizeInPixels / 2` (confirmed empirically
+// by rendering calibration lines at known world coordinates and reading
+// back actual pixel positions; a naive `scrollY = desiredTopWorldY` left
+// content floating a third of the way down the screen, and the same
+// mistake on X left a large dead gap at the left edge with grid columns
+// "cut off"/missing instead of reaching it — worse the further zoom sits
+// from 1, so it only became obvious on narrower/taller mobile aspect
+// ratios). `centerOnX`/`centerOnY` do this conversion correctly, so
+// every place that used to assign scrollX/Y directly goes through the
+// left-edge-world-X helpers below instead, and every place that reads
+// "what world X is at the screen edge right now" uses
+// `visibleWorldRangeX()` — never `camera.scrollX` or `camera.worldView`
+// directly (the latter is matrix-cached and can be a frame stale
+// immediately after a same-tick zoom/scroll change).
 const DRAG_THRESHOLD_PX = 4;
 export const PAN_STEP_PX = 240;
 
 export class PanZoomCamera {
   private pointerDownAt: { x: number; y: number } | undefined;
-  private dragStartScrollX = 0;
+  // World X that should sit at the viewport's left edge — the pan/inertia
+  // state lives in this "desired left edge" space throughout, and only
+  // ever touches the camera through setLeftEdgeWorldX/currentLeftEdgeWorldX.
+  private dragStartLeftEdgeX = 0;
   private isDragging = false;
   // Set while a draggable placed object (CurseScene's pending preview) owns
   // the pointer — without this, dragging that object also reads as a
@@ -22,7 +48,7 @@ export class PanZoomCamera {
   // one moves the object in world space while the other changes what world
   // space maps to which screen pixel.
   private suspended = false;
-  private targetScrollX = 0;
+  private targetLeftEdgeX = 0;
   private velocityX = 0;
   private lastMoveAt = 0;
   private activePointerId: number | undefined;
@@ -44,8 +70,9 @@ export class PanZoomCamera {
   attach(): void {
     this.previousTouchAction = this.scene.game.canvas.style.touchAction;
     this.scene.game.canvas.style.touchAction = 'none';
+    // targetLeftEdgeX defaults to 0 (the level's left edge) — applied by
+    // applyResponsiveZoom below.
     this.applyResponsiveZoom();
-    this.targetScrollX = this.scene.cameras.main.scrollX;
     this.scene.events.on('update', this.update, this);
     this.scene.game.canvas.addEventListener('wheel', this.onWheel, {
       passive: false,
@@ -93,18 +120,15 @@ export class PanZoomCamera {
     // Fit the grid's own content height (not GameScene's sky-inclusive
     // LOGICAL_HEIGHT) so the whole viewport above the toolbar is filled
     // with actual placeable grid instead of leaving a dead band above it.
-    const contentHeight = gridViewHeightPx();
-    const zoom = viewportHeight / contentHeight;
+    const zoom = viewportHeight / gridViewHeightPx();
     this.scene.cameras.main.setZoom(zoom);
-    // Phaser's zoom pivots around the viewport's own center rather than
-    // around scrollY, so scrollY = gridViewTopY() alone doesn't put that
-    // world-Y at the screen top once zoom != 1 (confirmed by rendering
-    // calibration lines at known world-Y and reading back pixel rows —
-    // the naive assignment left the grid floating a third of the way down
-    // the viewport instead of filling it). This offset compensates for
-    // that pivot so the content's top edge lands at screen y=0.
-    this.scene.cameras.main.scrollY =
-      gridViewTopY() - (contentHeight * (zoom - 1)) / 2;
+    this.scene.cameras.main.centerOnY(
+      (gridViewTopY() + gridViewBottomY()) / 2
+    );
+    // zoom changed, so the world width now visible at the current pan
+    // position changed too — reassert the left edge rather than leaving
+    // scrollX at whatever raw value it had for the old zoom.
+    this.setLeftEdgeWorldX(this.targetLeftEdgeX);
     this.onChange();
   };
 
@@ -113,16 +137,38 @@ export class PanZoomCamera {
     return toolbar ? toolbar.getBoundingClientRect().height : 0;
   }
 
+  private visibleWorldWidth(): number {
+    const cam = this.scene.cameras.main;
+    return cam.width / cam.zoom;
+  }
+
+  // The world X actually at the left edge of the viewport right now. Reads
+  // only plain scrollX/zoom/width properties (always synchronously
+  // current) rather than the matrix-derived camera.worldView.
+  private currentLeftEdgeWorldX(): number {
+    const cam = this.scene.cameras.main;
+    return cam.scrollX + cam.width / 2 - this.visibleWorldWidth() / 2;
+  }
+
+  private setLeftEdgeWorldX(leftEdgeX: number): void {
+    this.scene.cameras.main.centerOnX(leftEdgeX + this.visibleWorldWidth() / 2);
+  }
+
+  // The true visible world-X range, for grid-line-culling redraws — see
+  // the class-level comment for why this isn't camera.worldView.
+  visibleWorldRangeX(): { left: number; right: number } {
+    const left = this.currentLeftEdgeWorldX();
+    return { left, right: left + this.visibleWorldWidth() };
+  }
+
   private maxScrollX(): number {
-    const visibleWorldWidth =
-      this.scene.scale.width / this.scene.cameras.main.zoom;
-    return Math.max(0, levelWidthPx() - visibleWorldWidth);
+    return Math.max(0, levelWidthPx() - this.visibleWorldWidth());
   }
 
   panBy(deltaPx: number): void {
     this.velocityX = 0;
-    this.targetScrollX = Phaser.Math.Clamp(
-      this.targetScrollX + deltaPx,
+    this.targetLeftEdgeX = Phaser.Math.Clamp(
+      this.targetLeftEdgeX + deltaPx,
       0,
       this.maxScrollX()
     );
@@ -146,34 +192,37 @@ export class PanZoomCamera {
 
   private update = (_time: number, delta: number): void => {
     if (this.isDragging || this.suspended) return;
-    const camera = this.scene.cameras.main;
     if (this.velocityX !== 0) {
       // Integrate exponential friction so 60 Hz and 120 Hz coast equally far.
       const decay = Math.exp(-Math.min(delta, 64) / 240);
-      const next = camera.scrollX + this.velocityX * 240 * (1 - decay);
-      camera.scrollX = Phaser.Math.Clamp(next, 0, this.maxScrollX());
+      const current = this.currentLeftEdgeWorldX();
+      const next = current + this.velocityX * 240 * (1 - decay);
+      const clamped = Phaser.Math.Clamp(next, 0, this.maxScrollX());
+      this.setLeftEdgeWorldX(clamped);
       this.velocityX *= decay;
       if (
-        next !== camera.scrollX ||
-        Math.abs(this.velocityX * camera.zoom) < 0.015
+        next !== clamped ||
+        Math.abs(this.velocityX * this.scene.cameras.main.zoom) < 0.015
       ) {
         this.velocityX = 0;
       }
-      this.targetScrollX = camera.scrollX;
+      this.targetLeftEdgeX = clamped;
       this.onChange();
       return;
     }
-    this.targetScrollX = Phaser.Math.Clamp(
-      this.targetScrollX,
+    this.targetLeftEdgeX = Phaser.Math.Clamp(
+      this.targetLeftEdgeX,
       0,
       this.maxScrollX()
     );
-    const remaining = this.targetScrollX - camera.scrollX;
+    const current = this.currentLeftEdgeWorldX();
+    const remaining = this.targetLeftEdgeX - current;
     if (remaining === 0) return;
-    camera.scrollX =
+    const next =
       Math.abs(remaining) < 0.1
-        ? this.targetScrollX
-        : camera.scrollX + remaining * (1 - Math.exp(-delta / 65));
+        ? this.targetLeftEdgeX
+        : current + remaining * (1 - Math.exp(-delta / 65));
+    this.setLeftEdgeWorldX(next);
     this.onChange();
   };
 
@@ -183,7 +232,7 @@ export class PanZoomCamera {
   setSuspended(suspended: boolean): void {
     this.suspended = suspended;
     this.velocityX = 0;
-    this.targetScrollX = this.scene.cameras.main.scrollX;
+    this.targetLeftEdgeX = this.currentLeftEdgeWorldX();
     if (suspended) {
       this.activePointerId = undefined;
       this.pointerDownAt = undefined;
@@ -205,8 +254,8 @@ export class PanZoomCamera {
     this.activePointerId = pointer.id;
     this.lastMoveAt = performance.now();
     this.pointerDownAt = { x: pointer.x, y: pointer.y };
-    this.dragStartScrollX = this.scene.cameras.main.scrollX;
-    this.targetScrollX = this.dragStartScrollX;
+    this.dragStartLeftEdgeX = this.currentLeftEdgeWorldX();
+    this.targetLeftEdgeX = this.dragStartLeftEdgeX;
     this.isDragging = false;
   };
 
@@ -225,19 +274,19 @@ export class PanZoomCamera {
     }
     if (this.isDragging) {
       const now = performance.now();
-      const previousScroll = this.scene.cameras.main.scrollX;
-      this.scene.cameras.main.scrollX = Phaser.Math.Clamp(
-        this.dragStartScrollX - dx / this.scene.cameras.main.zoom,
+      const previousLeftEdge = this.currentLeftEdgeWorldX();
+      const nextLeftEdge = Phaser.Math.Clamp(
+        this.dragStartLeftEdgeX - dx / this.scene.cameras.main.zoom,
         0,
         this.maxScrollX()
       );
+      this.setLeftEdgeWorldX(nextLeftEdge);
       const elapsed = Math.max(1, now - this.lastMoveAt);
-      const sample =
-        (this.scene.cameras.main.scrollX - previousScroll) / elapsed;
+      const sample = (nextLeftEdge - previousLeftEdge) / elapsed;
       this.velocityX +=
         (sample - this.velocityX) * (1 - Math.exp(-elapsed / 35));
       this.lastMoveAt = now;
-      this.targetScrollX = this.scene.cameras.main.scrollX;
+      this.targetLeftEdgeX = nextLeftEdge;
       this.onChange();
     }
   };
