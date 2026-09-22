@@ -3,13 +3,15 @@ import * as Phaser from 'phaser';
 import {
   connectRealtime,
   disconnectRealtime,
-  showToast,
 } from '@devvit/web/client';
 import {
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
   SEED_AUTHOR,
 } from '../../../shared/constants';
+import { isDiscoveryResponse } from '../../../shared/discoveryApi';
+import { withTimeout } from '../../net';
+import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
 import {
   isPublishCurseResponse,
@@ -93,17 +95,22 @@ export class GameScene extends Scene {
   private levelWidth = 0;
   private spawn = FALLBACK_SPAWN;
   private runEnded = false;
-  private runStartTime = 0;
+  private runElapsedMs = 0;
+  private controls!: GameplayControls;
+  private paused = false;
+  private attempt = new AbortController();
+  private submitting = false;
+  private findingNext = false;
   private levelRequest: AbortController | undefined;
   // Set the moment the tap-to-start gate lifts (see update()) — false for
   // the entire tap-to-start hold, forever true afterward for the rest of
-  // this scene instance's life (a death-restart's own runStartTime
+  // this scene instance's life (a death-restart's own runElapsedMs
   // assignment in restartRun() runs unconditionally, so this flag staying
   // true just means that block is correctly skipped for every restart).
   private runStarted = false;
 
   // Slow Time (spec section 21) scales only these tweens' playback speed —
-  // never the run timer above, which is what `runStartTime` alone drives.
+  // never the run timer above, which is what `runElapsedMs` alone drives.
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
@@ -137,7 +144,11 @@ export class GameScene extends Scene {
     this.levelWidth = 0;
     this.spawn = FALLBACK_SPAWN;
     this.runEnded = false;
-    this.runStartTime = 0;
+    this.runElapsedMs = 0;
+    this.paused = false;
+    this.attempt = new AbortController();
+    this.submitting = false;
+    this.findingNext = false;
     this.runStarted = false;
     this.movingObjectTweens = [];
     this.resetMovingObjects = undefined;
@@ -157,15 +168,28 @@ export class GameScene extends Scene {
     this.deathPanel = new DeathPanel();
     this.deathPanel.setRetryHandler(() => this.restartRun());
     this.tapToStartPrompt = new TapToStartPrompt();
+    this.controls = new GameplayControls({
+      pause: () => this.pauseRun(),
+      resume: () => this.resumeRun(),
+      restart: () => this.restartRun(),
+      retryLoad: () => void this.loadAndStart(),
+      menu: () => this.scene.start('MainMenu'),
+      browse: () => this.scene.start('MainMenu', { browse: true }),
+    }, Boolean(this.previewLevel));
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('blur', this.onLeaveApp);
+    window.addEventListener('pagehide', this.onLeaveApp);
+    window.addEventListener('keydown', this.onNavigationKey);
     this.events.once('shutdown', this.cleanup, this);
 
     void this.loadAndStart();
   }
 
   override update(_time: number, deltaMs: number): void {
-    if (!this.player) {
+    if (!this.player || this.paused) {
       return;
     }
+    if (this.runStarted && !this.runEnded) this.runElapsedMs += deltaMs;
     this.player.update(deltaMs);
 
     // The tap-to-start gate lifts the instant Player's own jump-input
@@ -175,7 +199,7 @@ export class GameScene extends Scene {
     if (!this.runStarted && !this.player.isWaitingToStart) {
       this.runStarted = true;
       this.tapToStartPrompt.hide();
-      this.runStartTime = this.time.now;
+      this.runElapsedMs = 0;
       this.physics.resume();
       for (const tween of this.movingObjectTweens) {
         tween.resume();
@@ -197,6 +221,44 @@ export class GameScene extends Scene {
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
       this.onPlayerDied();
     }
+  }
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.onLeaveApp();
+  };
+
+  private readonly onLeaveApp = (): void => {
+    if (!this.runEnded) this.pauseRun();
+  };
+
+  private readonly onNavigationKey = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.repeat || !this.player) return;
+    event.preventDefault();
+    if (this.paused) this.resumeRun();
+    else this.pauseRun();
+  };
+
+  private pauseRun(): void {
+    if (!this.player || this.paused) return;
+    this.paused = true;
+    this.player.clearBufferedInput();
+    this.input.keyboard?.resetKeys();
+    // Pause synchronously: a hidden tab may not get another frame to
+    // process ScenePlugin's queued pause operation until it is visible.
+    this.sys.pause();
+    this.controls.showPaused(this.runEnded);
+  }
+
+  private resumeRun(): void {
+    if (!this.paused || document.hidden) return;
+    this.player?.clearBufferedInput();
+    this.input.keyboard?.resetKeys();
+    this.paused = false;
+    this.controls.hideDialog();
+    // Phaser's TweenManager uses wall time independently of scene delta.
+    // Consume the paused interval without stepping hazards or effects.
+    this.tweens.getDelta(true);
+    this.sys.resume();
   }
 
   private applyResponsiveZoom(): void {
@@ -228,29 +290,48 @@ export class GameScene extends Scene {
       return;
     }
 
+    this.levelRequest?.abort();
+    this.controls.showLoading();
     const levelId = this.explicitLevelId ?? getRequestedLevelId();
     const request = new AbortController();
     this.levelRequest = request;
 
-    let levelVersion: LevelVersion;
-    try {
-      const response = await fetch(
-        `/api/levels/${encodeURIComponent(levelId)}`,
-        { signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]) }
-      );
-      if (!response.ok) {
-        throw new Error(`Level request failed: ${response.status}`);
+    // A single transient failure (serverless cold start, a dropped packet)
+    // used to surface "Could not load this level" immediately and make the
+    // player tap Retry themselves for something that was never really
+    // broken — a couple of quick, silent retries absorb that before ever
+    // showing an error, so the loading spinner just holds a beat longer
+    // instead of flashing a false failure.
+    const LOAD_ATTEMPTS = 3;
+    let levelVersion: LevelVersion | undefined;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= LOAD_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(
+          `/api/levels/${encodeURIComponent(levelId)}`,
+          { signal: withTimeout(request.signal, 15000) }
+        );
+        if (!response.ok) {
+          throw new Error(`Level request failed: ${response.status}`);
+        }
+        const body: unknown = await response.json();
+        if (!isLevelVersion(body)) {
+          throw new Error(`Unexpected level response for "${levelId}"`);
+        }
+        levelVersion = body;
+        break;
+      } catch (error) {
+        if (request.signal.aborted) return;
+        lastError = error;
+        if (attempt < LOAD_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+          if (request.signal.aborted) return;
+        }
       }
-      const body: unknown = await response.json();
-      if (!isLevelVersion(body)) {
-        throw new Error(`Unexpected level response for "${levelId}"`);
-      }
-      levelVersion = body;
-    } catch (error) {
-      if (request.signal.aborted) return;
-      console.error(`Failed to load level "${levelId}":`, error);
-      showToast('Could not load this level. Please try again.');
-      this.scene.start('MainMenu');
+    }
+    if (!levelVersion) {
+      console.error(`Failed to load level "${levelId}":`, lastError);
+      this.controls.showLoadError();
       return;
     }
 
@@ -306,6 +387,7 @@ export class GameScene extends Scene {
   }
 
   private startRun(levelVersion: LevelVersion): void {
+    this.controls.hideDialog();
     const player = new Player(this, 0, 0);
     this.player = player;
 
@@ -354,6 +436,7 @@ export class GameScene extends Scene {
       tween.pause();
     }
     this.tapToStartPrompt.show();
+    if (document.hidden) this.pauseRun();
   }
 
   private onFinishReached(): void {
@@ -373,7 +456,7 @@ export class GameScene extends Scene {
     );
     this.cameras.main.flash(150, 57, 255, 136, false);
 
-    const timeMs = Math.round(this.time.now - this.runStartTime);
+    const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime(timeMs);
 
     if (this.previewLevel && this.candidateToken) {
@@ -384,7 +467,14 @@ export class GameScene extends Scene {
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show()
       );
-      void this.submitRun(levelVersion, timeMs);
+      const request: SubmitRunRequest = {
+        levelId: levelVersion.levelId,
+        version: levelVersion.version,
+        timeMs,
+        submissionId: crypto.randomUUID(),
+      };
+      void this.submitRun(request);
+      void this.findNextLevel();
     }
   }
 
@@ -396,42 +486,41 @@ export class GameScene extends Scene {
     timeMs: number
   ): Promise<void> {
     const previewReturn = this.previewReturn;
-    let verified = false;
+    const attempt = this.attempt;
+    this.resultOverlay.showSaveStatus('Verifying clear…');
+    let verified: boolean;
     try {
       const response = await fetch('/api/publish/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candidateToken, timeMs }),
+        signal: withTimeout(attempt.signal, 15000),
       });
       const json: unknown = await response.json();
-      verified = isVerifyLevelResponse(json) && json.status === 'ok';
+      verified = response.ok && isVerifyLevelResponse(json) && json.status === 'ok';
     } catch {
       verified = false;
     }
 
+    if (attempt.signal.aborted) return;
+    if (!verified) {
+      this.resultOverlay.showSaveStatus('Could not verify your clear. Retry verification or return to the editor.',
+        () => void this.submitVerification(candidateToken, timeMs));
+      return;
+    }
+    this.resultOverlay.showSaveStatus('Clear verified.');
     if (previewReturn?.kind === 'curse') {
-      if (verified) {
-        void this.publishCurseAndReturn(candidateToken, previewReturn);
-      } else {
-        this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
-          this.scene.start('CurseScene', {
-            levelId: previewReturn.levelId,
-            preselected: {
-              category: previewReturn.category,
-              object: previewReturn.object,
-            },
-          });
-        });
-      }
+      void this.publishCurseAndReturn(candidateToken, previewReturn);
       return;
     }
 
     const returnObjects =
       previewReturn?.kind === 'editor' ? previewReturn.objects : [];
     this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+      if (attempt.signal.aborted) return;
       this.scene.start('EditorScene', {
         objects: returnObjects,
-        verifiedCandidateToken: verified ? candidateToken : undefined,
+        verifiedCandidateToken: candidateToken,
       });
     });
   }
@@ -446,6 +535,8 @@ export class GameScene extends Scene {
     candidateToken: string,
     previewReturn: Extract<PreviewReturn, { kind: 'curse' }>
   ): Promise<void> {
+    const attempt = this.attempt;
+    this.resultOverlay.showSaveStatus('Publishing curse…');
     let message = 'Could not publish your curse — please try again.';
     let conflict = false;
     let published = false;
@@ -454,6 +545,7 @@ export class GameScene extends Scene {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candidateToken }),
+        signal: withTimeout(attempt.signal, 15000),
       });
       const json: unknown = await response.json();
       if (isPublishCurseResponse(json)) {
@@ -468,7 +560,9 @@ export class GameScene extends Scene {
       // message/conflict already default to the network-failure case
     }
 
+    if (attempt.signal.aborted) return;
     this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+      if (attempt.signal.aborted) return;
       if (published) {
         this.scene.start('GameScene', { levelId: previewReturn.levelId });
         return;
@@ -483,37 +577,71 @@ export class GameScene extends Scene {
     });
   }
 
-  private async submitRun(
-    levelVersion: LevelVersion,
-    timeMs: number
-  ): Promise<void> {
+  private async submitRun(request: SubmitRunRequest): Promise<void> {
+    if (this.submitting) return;
+    this.submitting = true;
+    const attempt = this.attempt;
+    this.resultOverlay.showSaveStatus('Saving score…');
     try {
-      const request: SubmitRunRequest = {
-        levelId: levelVersion.levelId,
-        version: levelVersion.version,
-        timeMs,
-      };
       const response = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
+        signal: withTimeout(attempt.signal, 15000),
       });
-
-      if (response.ok) {
-        const body: unknown = await response.json();
-        if (isSubmitRunResponse(body)) {
-          this.resultOverlay.showResult(body);
-          this.resultOverlay.setCurseHandler(() =>
-            this.scene.start('CurseScene', { levelId: levelVersion.levelId })
-          );
-        } else {
-          console.error('Unexpected /api/runs response shape', body);
-        }
-      } else {
-        console.error(`Run submission failed: ${response.status}`);
+      if (attempt.signal.aborted) return;
+      if (response.status === 401) {
+        this.resultOverlay.showSaveStatus('Sign in to Reddit to save scores. You can still replay or browse.');
+        return;
       }
-    } catch (error) {
-      console.error('Failed to submit run:', error);
+      const body: unknown = await response.json();
+      if (!response.ok || !isSubmitRunResponse(body)) throw new Error('Score was not saved');
+      if (attempt.signal.aborted) return;
+      this.resultOverlay.showResult(body);
+      this.resultOverlay.showSaveStatus('Score saved.');
+      this.resultOverlay.setCurseHandler(() =>
+        this.scene.start('CurseScene', { levelId: request.levelId })
+      );
+    } catch {
+      if (attempt.signal.aborted) return;
+      this.resultOverlay.showSaveStatus(
+        'Could not confirm your score was saved. Retry saving before leaving this result.',
+        () => void this.submitRun(request)
+      );
+    } finally {
+      if (!attempt.signal.aborted) this.submitting = false;
+    }
+  }
+
+  private async findNextLevel(): Promise<void> {
+    if (this.findingNext) return;
+    this.findingNext = true;
+    const attempt = this.attempt;
+    this.resultOverlay.showNext('Finding another level…');
+    try {
+      const response = await fetch('/api/discovery/levels?sort=new', {
+        signal: withTimeout(attempt.signal, 15000),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok || !isDiscoveryResponse(body)) throw new Error('Could not find levels');
+      if (attempt.signal.aborted) return;
+      const currentIndex = body.levels.findIndex((level) => level.levelId === this.levelVersion?.levelId);
+      const next = body.levels.slice(currentIndex + 1)
+        .concat(body.levels.slice(0, Math.max(0, currentIndex)))
+        .find((level) => level.levelId !== this.levelVersion?.levelId);
+      if (next) {
+        this.resultOverlay.showNext(`Up next: ${next.title}`, 'Next Level', () =>
+          this.scene.start('GameScene', { levelId: next.levelId })
+        );
+      } else {
+        this.resultOverlay.showNext('No other levels yet.');
+      }
+    } catch {
+      if (!attempt.signal.aborted) {
+        this.resultOverlay.showNext('Could not find the next level.', 'Retry Next Level', () => void this.findNextLevel());
+      }
+    } finally {
+      if (!attempt.signal.aborted) this.findingNext = false;
     }
   }
 
@@ -552,7 +680,7 @@ export class GameScene extends Scene {
     }
   }
 
-  // Scales moving hazard/platform tweens only — `runStartTime`/the timer
+  // Scales moving hazard/platform tweens only — `runElapsedMs`/the timer
   // are untouched, so this can never leak into a submitted time (spec
   // section 21: "Do NOT slow the actual run timer").
   private applySlowTime(): void {
@@ -613,15 +741,17 @@ export class GameScene extends Scene {
       return;
     }
 
+    const attempt = this.attempt;
     const request: TrapKillRequest = { levelId, version, objectId };
     fetch('/api/runs/trap-kill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
+      signal: attempt.signal,
     })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((json: unknown) => {
-        if (attributedAuthor !== undefined && isTrapKillResponse(json)) {
+        if (!attempt.signal.aborted && attributedAuthor !== undefined && isTrapKillResponse(json)) {
           this.deathPanel.setKillCount(shownToken, json.kills);
         }
       })
@@ -634,11 +764,21 @@ export class GameScene extends Scene {
     if (!this.player) {
       return;
     }
+    this.attempt.abort();
+    this.attempt = new AbortController();
+    this.submitting = false;
+    this.findingNext = false;
+    this.tweens.killTweensOf(this.player.sprite);
+    this.resumeRun();
+    this.controls.hideDialog();
     this.resultOverlay.hide();
     this.deathPanel.hide();
+    this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
     this.cameras.main.scrollX = 0;
-    this.runStartTime = this.time.now;
+    this.runElapsedMs = 0;
+    this.runStarted = true;
+    this.physics.resume();
     this.runEnded = false;
 
     // Power-ups are re-collectible each attempt (spec section 21's
@@ -654,6 +794,13 @@ export class GameScene extends Scene {
   }
 
   private cleanup(): void {
+    this.attempt.abort();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('blur', this.onLeaveApp);
+    window.removeEventListener('pagehide', this.onLeaveApp);
+    window.removeEventListener('keydown', this.onNavigationKey);
+    this.controls.destroy();
+    LeaderboardOverlay.instance().hide();
     this.levelRequest?.abort();
     this.levelRequest = undefined;
     // No physics.resume() needed here: ArcadePhysics's own 'shutdown'

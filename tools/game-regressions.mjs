@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright';
+import { testStageOne } from './stage-one-regressions.mjs';
 
 const root = resolve('dist/client');
 const server = createServer(async (req, res) => {
@@ -162,9 +163,11 @@ try {
   await phone.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
   assert.equal(await phone.evaluate(() => window.__PHASER_GAME__.textures.exists('player-idle')), true);
   await phone.close();
+  await testStageOne(page);
   assert.deepEqual(errors, []);
   console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, and touch retry after an asset failure.');
 } finally {
   await browser?.close();
+  server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
 }

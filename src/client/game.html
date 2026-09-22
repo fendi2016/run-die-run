@@ -10,6 +10,20 @@
   <body>
     <div id="app">
       <div id="game-container"></div>
+      <button type="button" id="gameplay-menu" class="editor-btn hidden" aria-label="Pause and open game menu">Pause / Menu</button>
+      <div id="gameplay-dialog" class="editor-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="gameplay-dialog-title">
+        <div class="editor-dialog-panel gameplay-dialog-panel">
+          <h2 id="gameplay-dialog-title"></h2>
+          <p id="gameplay-dialog-message" role="status"></p>
+          <div class="gameplay-actions">
+            <button type="button" id="gameplay-resume" class="editor-btn editor-btn-primary">Resume</button>
+            <button type="button" id="gameplay-retry-load" class="editor-btn editor-btn-primary">Retry Loading</button>
+            <button type="button" id="gameplay-restart" class="editor-btn">Restart</button>
+            <button type="button" id="gameplay-browse" class="editor-btn editor-btn-ghost">Browse Levels</button>
+            <button type="button" id="gameplay-exit" class="editor-btn editor-btn-ghost">Exit to Menu</button>
+          </div>
+        </div>
+      </div>
       <div id="tap-to-start" class="hidden" aria-live="polite">
         <img id="tap-to-start-logo" src="/assets/ui/tap-to-start-logo.webp" alt="" />
         <div id="tap-to-start-label">Tap to Start</div>
@@ -21,38 +35,54 @@
           <button type="button" id="death-panel-retry-btn" class="editor-btn editor-btn-primary">
             Retry
           </button>
+          <button type="button" id="death-panel-browse" class="editor-btn">Browse</button>
+          <button type="button" id="death-panel-menu" class="editor-btn">Exit to Menu</button>
         </div>
       </div>
       <div id="run-result" class="hidden" aria-live="polite">
-        <div id="run-result-title">CLEAR!</div>
-        <div id="run-result-time"></div>
-        <div id="run-result-rank"></div>
-        <div id="run-result-pb"></div>
-        <div id="run-result-wr"></div>
-        <div id="run-result-streak"></div>
-        <div id="run-result-currency"></div>
-        <div id="run-result-actions">
-          <button
-            type="button"
-            id="run-result-retry-btn"
-            class="editor-btn hidden"
-          >
-            Retry
-          </button>
-          <button
-            type="button"
-            id="run-result-curse-btn"
-            class="editor-btn editor-btn-primary hidden"
-          >
-            Curse This Level?
-          </button>
-          <button
-            type="button"
-            id="run-result-leaderboard-btn"
-            class="editor-btn hidden"
-          >
-            Leaderboard
-          </button>
+        <div id="run-result-panel">
+          <div id="run-result-title">CLEAR!</div>
+          <div id="run-result-time"></div>
+          <div id="run-result-stats">
+            <span id="run-result-rank"></span>
+            <span id="run-result-pb"></span>
+            <span id="run-result-wr"></span>
+            <span id="run-result-streak"></span>
+            <span id="run-result-currency"></span>
+          </div>
+          <div id="run-result-status">
+            <div id="run-result-save-status" role="status"></div>
+            <div id="run-result-next-status" role="status"></div>
+          </div>
+          <button type="button" id="run-result-save-retry" class="editor-btn hidden">Retry Saving Score</button>
+          <div id="run-result-actions">
+            <button
+              type="button"
+              id="run-result-retry-btn"
+              class="editor-btn editor-btn-primary hidden"
+            >
+              Retry
+            </button>
+            <button type="button" id="run-result-next" class="editor-btn editor-btn-primary hidden">Next Level</button>
+          </div>
+          <div id="run-result-links">
+            <button
+              type="button"
+              id="run-result-curse-btn"
+              class="run-result-link run-result-link-curse hidden"
+            >
+              Curse This Level?
+            </button>
+            <button type="button" id="run-result-browse" class="run-result-link">Browse</button>
+            <button
+              type="button"
+              id="run-result-leaderboard-btn"
+              class="run-result-link hidden"
+            >
+              Leaderboard
+            </button>
+            <button type="button" id="run-result-menu" class="run-result-link">Exit to Menu</button>
+          </div>
         </div>
       </div>
       <div id="realtime-toast" class="hidden" aria-live="polite">
@@ -121,6 +151,7 @@
             Build
           </button>
           <div id="game-menu-stack">
+            <div id="game-menu-status" role="status"></div>
             <button type="button" id="game-menu-play" class="game-menu-play">
               Play
             </button>

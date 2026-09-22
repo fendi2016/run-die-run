@@ -94,3 +94,7 @@ export const topCursersKey = (): string => 'topCursers:leaderboard';
 // Earn-only reward currency balance (no shop yet — see shared/constants.ts).
 export const currencyKey = (username: string): string =>
   `user:${username}:currency`;
+
+// Keep receipts for explicit submissions so a delayed retry remains safe.
+export const runSubmissionKey = (username: string, submissionId: string): string =>
+  `run:submission:${username}:${submissionId}`;

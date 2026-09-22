@@ -164,7 +164,7 @@ export class Player {
   private hasDoubleJump = false;
   private hasUsedAirJump = false;
   private hasShield = false;
-  private shieldProtectionUntil = 0;
+  private shieldProtectionRemainingMs = 0;
   private speedMultiplier = 1;
   private speedBoostTimer: Phaser.Time.TimerEvent | undefined;
 
@@ -232,6 +232,7 @@ export class Player {
   }
 
   update(deltaMs: number): void {
+    this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
     this.msSinceGrounded = this.body.blocked.down
       ? 0
       : this.msSinceGrounded + deltaMs;
@@ -314,12 +315,12 @@ export class Player {
   // shielded hit never reaches `die()` at all — the caller decides whether
   // to skip attribution/kill-counting for an absorbed hit.
   tryAbsorbHit(): boolean {
-    if (this.scene.time.now < this.shieldProtectionUntil) return true;
+    if (this.shieldProtectionRemainingMs > 0) return true;
     if (!this.hasShield) {
       return false;
     }
     this.hasShield = false;
-    this.shieldProtectionUntil = this.scene.time.now + 350;
+    this.shieldProtectionRemainingMs = 350;
     this.flashSprite();
     return true;
   }
@@ -454,7 +455,7 @@ export class Player {
     this.hasDoubleJump = false;
     this.hasUsedAirJump = false;
     this.hasShield = false;
-    this.shieldProtectionUntil = 0;
+    this.shieldProtectionRemainingMs = 0;
     this.speedMultiplier = 1;
     this.speedBoostTimer?.remove();
     this.speedBoostTimer = undefined;
@@ -480,7 +481,12 @@ export class Player {
     return this.waitingToStart;
   }
 
+  clearBufferedInput(): void {
+    this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
+  }
+
   private onJumpPressed(): void {
+    if (!this.scene.sys.isActive() || !this.alive) return;
     if (this.waitingToStart) {
       // The tap that dismisses tap-to-start begins the run — it doesn't
       // also register as a jump (the player hasn't landed anywhere to
@@ -502,6 +508,7 @@ export class Player {
   }
 
   private onJumpReleased(): void {
+    if (!this.scene.sys.isActive() || !this.alive) return;
     if (this.body.velocity.y < 0) {
       this.sprite.setVelocityY(this.body.velocity.y * JUMP_RELEASE_MULTIPLIER);
     }

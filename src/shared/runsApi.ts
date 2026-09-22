@@ -3,6 +3,8 @@
 // always computed server-side (spec section 19: never trust the client to
 // assign rank).
 export type SubmitRunRequest = {
+  // Stable for retries of one clear; older clients may omit this.
+  submissionId?: string;
   levelId: string;
   version: number;
   timeMs: number;

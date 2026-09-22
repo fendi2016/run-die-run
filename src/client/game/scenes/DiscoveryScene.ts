@@ -7,6 +7,7 @@ import {
   type DiscoverySort,
   type LevelSummary,
 } from '../../../shared/discoveryApi';
+import { withTimeout } from '../../net';
 
 const SORTS: DiscoverySort[] = ['trending', 'deadliest', 'speedrun', 'new'];
 const CARD_HEIGHT = 130;
@@ -60,7 +61,7 @@ export class DiscoveryScene extends Scene {
     this.render();
     try {
       const response = await fetch(`/api/discovery/levels?sort=${this.sort}`, {
-        signal: request.signal,
+        signal: withTimeout(request.signal, 15000),
       });
       const body: unknown = await response.json();
       if (!response.ok || !isDiscoveryResponse(body))

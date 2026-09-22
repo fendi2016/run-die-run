@@ -26,9 +26,29 @@ export class RunResultOverlay {
   private readonly curseBtn = requireButton('run-result-curse-btn');
   private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
 
+  private readonly saveStatus = requireElement('run-result-save-status');
+  private readonly saveRetry = requireButton('run-result-save-retry');
+  private readonly nextStatus = requireElement('run-result-next-status');
+  private readonly nextButton = requireButton('run-result-next');
+
+  showSaveStatus(message: string, retry?: () => void): void {
+    this.saveStatus.textContent = message;
+    this.saveRetry.classList.toggle('hidden', !retry);
+    this.saveRetry.onclick = retry ?? null;
+  }
+
+  showNext(message: string, label?: string, action?: () => void): void {
+    this.nextStatus.textContent = message;
+    this.nextButton.textContent = label ?? 'Next Level';
+    this.nextButton.classList.toggle('hidden', !action);
+    this.nextButton.onclick = action ?? null;
+  }
+
   // Shown immediately on finish, before the server round-trip resolves, so
   // the player sees their time instantly rather than waiting on network.
   showTime(timeMs: number): void {
+    this.showSaveStatus('');
+    this.showNext('');
     this.timeEl.textContent = formatSeconds(timeMs);
     this.rankEl.textContent = '';
     this.pbEl.textContent = '';
@@ -45,10 +65,10 @@ export class RunResultOverlay {
   }
 
   showResult(result: SubmitRunResponse): void {
-    this.rankEl.textContent = `#${result.rank} on this version`;
-    this.pbEl.textContent = `Personal Best: ${formatSeconds(result.personalBestMs)}`;
-    this.wrEl.textContent = `World Record: ${formatSeconds(result.worldRecordMs)}`;
-    this.streakEl.textContent = `CURRENT SURVIVAL STREAK: ${result.streak} VERSION${result.streak === 1 ? '' : 'S'}`;
+    this.rankEl.textContent = `#${result.rank}`;
+    this.pbEl.textContent = `PB ${formatSeconds(result.personalBestMs)}`;
+    this.wrEl.textContent = `WR ${formatSeconds(result.worldRecordMs)}`;
+    this.streakEl.textContent = `Streak: ${result.streak}`;
     this.streakEl.classList.toggle('run-result-streak-increased', result.isNewStreakIncrease);
     this.currencyEl.textContent =
       result.currencyAwarded > 0
@@ -80,6 +100,8 @@ export class RunResultOverlay {
     this.retryBtn.onclick = null;
     this.curseBtn.onclick = null;
     this.leaderboardBtn.onclick = null;
+    this.saveRetry.onclick = null;
+    this.nextButton.onclick = null;
     this.root.classList.add('hidden');
   }
 }

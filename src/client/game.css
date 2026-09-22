@@ -38,13 +38,14 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  padding: 64px 16px 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
   text-align: center;
   pointer-events: none;
-  background: rgba(15, 15, 15, 0.55);
+  background: rgba(10, 8, 16, 0.55);
   opacity: 1;
   visibility: visible;
   transition:
@@ -52,8 +53,7 @@ body {
     visibility 0s linear 0s;
 }
 
-/* `opacity: 0` alone leaves this overlay fully hit-testable: the
-   `pointer-events: none` below does NOT reach #run-result-actions, which
+/* `opacity: 0` alone leaves this overlay fully hit-testable: #run-result-panel
    opts itself back in with `pointer-events: auto` (a descendant's explicit
    `auto` wins over an ancestor's `none`). That left an invisible ~289x52px
    strip of live Retry/Curse buttons parked dead-centre of the screen —
@@ -72,61 +72,169 @@ body {
     visibility 0s linear 150ms;
 }
 
+/* Everything lives in one card so a clear reads as a single, calm result —
+   not a dozen competing lines of text floating over busy level art. */
+#run-result-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(92vw, 380px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 30px 24px 22px;
+  border-radius: 24px;
+  background: rgba(21, 17, 30, 0.7);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
 #run-result-title {
   font-family: 'Arial Black', sans-serif;
-  font-size: clamp(28px, 8vw, 48px);
+  font-size: clamp(24px, 7vw, 36px);
   color: #39ff88;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 #run-result-time {
   font-family: 'Arial Black', sans-serif;
-  font-size: clamp(20px, 6vw, 32px);
+  font-size: clamp(30px, 9vw, 44px);
+  margin-bottom: 2px;
 }
 
-#run-result-rank,
-#run-result-pb,
-#run-result-wr {
-  font-size: clamp(14px, 4vw, 18px);
-  color: rgba(255, 255, 255, 0.87);
+/* Rank/PB/WR/streak/shards as a single row of pills (was five stacked
+   lines) — a clear only needs these as a quick glance, not a stat sheet. */
+#run-result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
 }
-
-#run-result-streak {
-  font-size: clamp(12px, 3.2vw, 15px);
-  letter-spacing: 0.03em;
-  color: rgba(255, 255, 255, 0.6);
+#run-result-stats span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 700;
+  white-space: nowrap;
+}
+#run-result-stats span:empty {
+  display: none;
 }
 
 /* Only applied on the run that actually grew the streak (spec section 28
-   never resets it, so most clears just repeat the same count) — a plain
-   emphasis instead of an animation, matching this overlay's existing
-   text-only style. */
+   never resets it, so most clears just repeat the same count) — a tinted
+   pill instead of an animation, matching this overlay's plain-pill style. */
 #run-result-streak.run-result-streak-increased {
+  background: rgba(57, 255, 136, 0.16);
+  border-color: rgba(57, 255, 136, 0.5);
   color: #39ff88;
-  font-weight: 700;
 }
 
 #run-result-currency {
-  font-size: clamp(12px, 3.2vw, 15px);
+  background: rgba(255, 209, 102, 0.14);
+  border-color: rgba(255, 209, 102, 0.4);
   color: #ffd166;
+}
+
+#run-result-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#run-result-save-status,
+#run-result-next-status {
+  font: 12px/1.4 Arial, sans-serif;
+}
+#run-result-save-status:empty,
+#run-result-next-status:empty {
+  display: none;
+}
+#run-result-save-status {
+  color: #ffd166;
+}
+#run-result-next-status {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#run-result-save-retry {
+  margin-top: 2px;
 }
 
 /* Post-clear prompt (spec section 14): "CURSE THIS LEVEL?" alongside a
    plain retry, both real buttons rather than an auto-restart timer, since
-   the curse offer has to stay up until the player actually decides. */
+   the curse offer has to stay up until the player actually decides. Kept
+   as the only boxed buttons in the panel — everything else below is a
+   plain-text link — so Retry/Next Level read as the one obvious next step. */
 #run-result-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
-  margin-top: 10px;
-  pointer-events: auto;
+  margin-top: 8px;
+  width: 100%;
 }
 
 #run-result-actions .editor-btn {
-  min-width: 120px;
+  flex: 1 1 120px;
   flex-direction: row;
-  padding: 10px 18px;
-  font-size: 14px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Secondary navigation — Curse/Browse/Leaderboard/Exit — reads as a plain
+   text menu instead of a row of boxed buttons competing with Retry. */
+#run-result-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 0;
+  margin-top: 4px;
+}
+
+.run-result-link {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+}
+
+/* Hidden links (curse/leaderboard, shown conditionally) contribute no text
+   and no separator, so this stays correct no matter which subset is shown —
+   the trailing `#run-result-menu` never toggles hidden, so it's always the
+   real last item and never grows a dangling dot after it. */
+.run-result-link:not(:last-child)::after {
+  content: '·';
+  margin-left: 10px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+@media (hover: hover) {
+  .run-result-link:hover {
+    color: rgba(255, 255, 255, 0.85);
+  }
+}
+
+.run-result-link-curse {
+  color: #ff9f6b;
+}
+
+@media (hover: hover) {
+  .run-result-link-curse:hover {
+    color: #ffb98c;
+  }
 }
 
 /* Tap-to-start prompt: shown at spawn until the player's first jump input
@@ -361,6 +469,25 @@ body {
 
 .editor-btn:active {
   transform: scale(0.94);
+}
+
+/* `(hover: hover)` keeps this to real pointers (mouse/trackpad) — on touch,
+   the same rule would apply on tap and stay stuck until the next tap
+   elsewhere, reading as a button "jammed" highlighted. */
+@media (hover: hover) {
+  .editor-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .editor-btn-primary:hover:not(:disabled) {
+    background: #5dffa3;
+    border-color: #5dffa3;
+  }
+  .editor-btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+  }
 }
 
 .editor-btn-icon {
@@ -874,3 +1001,80 @@ body {
   align-self: center;
   margin-bottom: 2px;
 }
+
+/* Gameplay navigation remains usable on short landscape and narrow touch screens. */
+#gameplay-menu {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 3;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: #181824;
+}
+#gameplay-menu.hidden { display: none; }
+/* No blur and only a light dim here, unlike the data-entry dialogs
+   (publish/JSON/leaderboard) — this one sits over the player's own level
+   art mid-game, and the whole point is that art stays visible, not a card
+   blocking/blurring it into mush. Legibility comes from text-shadow on the
+   title/message and each button's own background, not a backing panel. */
+#gameplay-dialog {
+  z-index: 6;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(6, 5, 14, 0.22);
+}
+#gameplay-dialog .gameplay-dialog-panel {
+  width: min(340px, 100%);
+  min-width: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  text-align: center;
+  align-items: center;
+  background: none;
+  backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+}
+#gameplay-dialog-title {
+  margin: 0;
+  font-family: 'Arial Black', sans-serif;
+  font-size: clamp(26px, 7vw, 34px);
+  color: #39ff88;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+#gameplay-dialog-message {
+  margin: 0;
+  line-height: 1.4;
+  color: #e4e4ec;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+#gameplay-dialog-message:empty { display: none; }
+.gameplay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.gameplay-actions .editor-btn {
+  min-height: 50px;
+  flex-direction: row;
+  font-size: 15px;
+  font-weight: 600;
+}
+/* Without the card backing above, a plain button (Restart) needs its own
+   real background to stay legible over arbitrary level art — ghost
+   buttons (Browse Levels/Exit to Menu) instead stay fully see-through and
+   lean on this text-shadow, the same trick the title/message use. */
+.gameplay-actions .editor-btn:not(.editor-btn-primary):not(.editor-btn-ghost) {
+  background: rgba(18, 16, 28, 0.6);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.gameplay-actions .editor-btn-ghost {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+#run-result { justify-content: safe center; }
+#death-panel-actions { flex-wrap: wrap; justify-content: center; }
+#leaderboard-overlay { z-index: 5; }
+button:focus-visible { outline: 2px solid #ffd166; outline-offset: 3px; }

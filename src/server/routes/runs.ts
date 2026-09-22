@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { context, realtime, redis } from '@devvit/web/server';
 import { CURRENCY_PER_CLEAR, LEADERBOARD_TOP_N } from '../../shared/constants';
 import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
@@ -11,6 +12,7 @@ import {
   levelContributorKillsKey,
   levelVersionKey,
   runDedupeKey,
+  runSubmissionKey,
   streaksLeaderboardKey,
   topCursersKey,
   trapKillsKey,
@@ -46,6 +48,8 @@ function isValidSubmission(body: unknown): body is SubmitRunRequest {
   return (
     typeof body === 'object' &&
     body !== null &&
+    (!('submissionId' in body) ||
+      (typeof body.submissionId === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(body.submissionId))) &&
     'levelId' in body &&
     typeof body.levelId === 'string' &&
     body.levelId.length > 0 &&
@@ -124,7 +128,10 @@ runs.post('/', async (c) => {
   // repeated submission with the same/worse time just no-ops), but
   // `queueDiscoveryActivity`'s attempt/clear counters aren't — a retried
   // POST for a run that already succeeded would otherwise double-count.
-  const dedupeKey = runDedupeKey(levelId, version, username, timeMs);
+  const dedupeKey = body.submissionId
+    ? runSubmissionKey(username, body.submissionId)
+    : runDedupeKey(levelId, version, username, timeMs);
+  const fingerprint = JSON.stringify({ levelId, version, timeMs });
   const clearedKey = clearedVersionsKey(username);
   const clearField = `${levelId}:${version}`;
   const currencyBalanceKey = currencyKey(username);
@@ -145,27 +152,35 @@ runs.post('/', async (c) => {
       // instead of one after the other, saving Redis round-trips on every
       // run submission.
       const [
-        isDuplicate,
+        previousSubmission,
         existingScore,
         previousWorldRecordTop,
         alreadyCleared,
         currentStreak,
         currentCurrency,
       ] = await Promise.all([
-        redis.exists(dedupeKey).then(Boolean),
+        redis.get(dedupeKey),
         redis.zScore(leaderboardKey, username),
         redis.zRange(leaderboardKey, 0, 0, { by: 'rank' }),
         redis.hGet(clearedKey, clearField).then((value) => value !== undefined),
         redis.hLen(clearedKey),
         redis.get(currencyBalanceKey),
       ]);
+      const isDuplicate = previousSubmission !== undefined;
+      if (body.submissionId && isDuplicate && previousSubmission !== fingerprint) {
+        throw new HTTPException(409, { message: 'Submission ID already belongs to another clear' });
+      }
       const previousWorldRecordMs = previousWorldRecordTop[0]?.score;
 
       if (!isDuplicate) {
         await queueDiscoveryActivity(tx, levelId, username, true);
-        await tx.set(dedupeKey, '1', {
-          expiration: new Date(Date.now() + RUN_DEDUPE_TTL_MS),
-        });
+        if (body.submissionId) {
+          await tx.set(dedupeKey, fingerprint);
+        } else {
+          await tx.set(dedupeKey, '1', {
+            expiration: new Date(Date.now() + RUN_DEDUPE_TTL_MS),
+          });
+        }
       }
 
       // Flat currency per non-duplicate clear (no shop to balance a curve
