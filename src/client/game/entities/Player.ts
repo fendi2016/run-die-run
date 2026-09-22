@@ -57,8 +57,18 @@ const RUN_KEYS = [
   'player-run-6',
 ];
 const RISE_KEY = 'player-jump-rise';
+const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
 const DEATH_KEY = 'player-death';
+// Plays once (repeat: 0) for the ascent — a brief rise pose that hands off
+// to a held tuck frame, giving the apex an actual pose instead of holding
+// the leap pose for the entire ascent. The fall half stays a direct,
+// velocity-driven setTexture (see updateAnimation) rather than joining this
+// animation — ascent length varies a lot with how long the jump button was
+// held (JUMP_RELEASE_MULTIPLIER can cut it very short), so baking the fall
+// into a fixed-duration timeline would desync from the actual arc; a
+// physics-triggered cut can't.
+const JUMP_ASCEND_ANIM_KEY = 'player-jump-ascend';
 // Native size of every player pose image (see the extraction script's
 // output — all cropped to the same 362x362 grid cell). Arcade
 // Body.setSize()/.setOffset() take *unscaled source-image* pixels — the
@@ -84,23 +94,51 @@ const RUN_SCALE_X_FACTORS: readonly number[] = [
 const RUN_SCALE_Y_FACTORS: readonly number[] = [
   0.94, 1.02, 1.06, 0.94, 1.02, 1.06,
 ];
+// A vertical root-motion "bob" (translating sprite.y directly, on top of
+// the squash-stretch above) was tried here and reverted — Arcade Physics'
+// Body.preUpdate calls updateFromGameObject() *every frame*, which resyncs
+// the body's simulated position straight from the sprite's current
+// transform (including y) before the physics step runs. Any manual sprite.y
+// offset is therefore read back as "the body actually moved", which
+// desynced ground contact for a step at a time: blocked.down flickered
+// false, the falling branch below fired anims.stop(), and the run cycle
+// kept getting reset to frame 0 before it could visibly advance — the
+// "jitters while running" bug. Scale changes technically perturb the same
+// formula too (position.y factors in transform.scaleY), but empirically
+// stay within Arcade's collision tolerance; a direct y translate did not.
+// Do not reintroduce a bob via sprite.y on a physics-driven sprite without
+// decoupling visuals from the physics body first (e.g. a separate
+// non-physics display sprite mirroring this one's position).
 const PLAYER_BASE_SCALE = PLAYER_SIZE / PLAYER_FRAME_SIZE;
 
 function ensurePlayerAnims(scene: Phaser.Scene): void {
-  if (scene.anims.exists(RUN_ANIM_KEY)) {
-    return;
+  if (!scene.anims.exists(RUN_ANIM_KEY)) {
+    scene.anims.create({
+      key: RUN_ANIM_KEY,
+      frames: RUN_KEYS.map((key, i) => ({
+        key,
+        duration: RUN_FRAME_DURATIONS_MS[i] ?? 45,
+      })),
+      // frameRate is ignored once every frame has an explicit duration, but
+      // Phaser's AnimationConfig requires one to be set.
+      frameRate: 22,
+      repeat: -1,
+    });
   }
-  scene.anims.create({
-    key: RUN_ANIM_KEY,
-    frames: RUN_KEYS.map((key, i) => ({
-      key,
-      duration: RUN_FRAME_DURATIONS_MS[i] ?? 45,
-    })),
-    // frameRate is ignored once every frame has an explicit duration, but
-    // Phaser's AnimationConfig requires one to be set.
-    frameRate: 22,
-    repeat: -1,
-  });
+  if (!scene.anims.exists(JUMP_ASCEND_ANIM_KEY)) {
+    scene.anims.create({
+      key: JUMP_ASCEND_ANIM_KEY,
+      frames: [
+        { key: RISE_KEY, duration: 90 },
+        { key: TUCK_KEY, duration: 1000 },
+      ],
+      frameRate: 22,
+      // Plays through once and holds on the tuck frame — see the
+      // JUMP_ASCEND_ANIM_KEY comment above for why the fall half isn't
+      // joined to this same timeline.
+      repeat: 0,
+    });
+  }
 }
 
 export class Player {
@@ -238,17 +276,36 @@ export class Player {
       if (!this.sprite.anims.isPlaying) {
         this.sprite.play(RUN_ANIM_KEY);
       }
+      // Leg-cycle rate tracks actual ground speed — Speed Boost (1.6x) and
+      // Dash (2.4x) multiply RUN_SPEED but not the animation's own frame
+      // durations, so without this the character's feet would keep
+      // cycling at the normal-speed rate while sliding across the ground
+      // noticeably faster than the legs suggest (a skating/moonwalk
+      // artifact instead of a genuinely faster run).
+      this.sprite.anims.timeScale = this.speedMultiplier;
+      return;
+    }
+
+    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
+    // whichever pose was mid-bounce when the player left the ground stays
+    // stretched/squashed for the entire jump, shared by both airborne cases
+    // below.
+    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+    if (this.body.velocity.y < 0) {
+      // Ascending: play the rise→tuck sequence once instead of a hard cut
+      // straight to a single rise texture — see JUMP_ASCEND_ANIM_KEY.
+      // getName() keeps returning this anim's key after it completes (the
+      // tuck frame just holds), so this only calls play() on the frame the
+      // player actually leaves the ground.
+      if (this.sprite.anims.getName() !== JUMP_ASCEND_ANIM_KEY) {
+        this.sprite.play(JUMP_ASCEND_ANIM_KEY);
+      }
     } else {
-      // stop() no-ops if nothing's playing, so no need to track whether
-      // this is the first airborne frame before calling it.
+      // Falling: a direct, physics-driven cut rather than an animation —
+      // see JUMP_ASCEND_ANIM_KEY's comment on why the descent isn't baked
+      // into a fixed-duration timeline.
       this.sprite.anims.stop();
-      this.sprite.setTexture(
-        this.body.velocity.y < 0 ? RISE_KEY : FALL_KEY
-      );
-      // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
-      // whichever pose was mid-bounce when the player left the ground
-      // stays stretched/squashed for the entire jump.
-      this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+      this.sprite.setTexture(FALL_KEY);
     }
   }
 
@@ -354,6 +411,17 @@ export class Player {
     this.alive = false;
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
+    // Stopping velocity alone doesn't stop the run animation — it's driven
+    // by Phaser's animation clock, not per-frame velocity checks in
+    // update() (which this early-returns out of once `alive` is false) —
+    // so without this the character keeps running in place forever after
+    // reaching the finish.
+    this.sprite.anims.stop();
+    this.sprite.setTexture(PLAYER_IDLE_KEY);
+    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
+    // whichever pose was mid-bounce when the run ended stays
+    // squashed/stretched for the entire result screen.
+    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
   }
 
   // `waiting`: true for a level's very first spawn (tap-to-start gate,

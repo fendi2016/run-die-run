@@ -55,6 +55,7 @@ export class EditorScene extends Scene {
   private controller!: EditorController;
   private toolbar!: EditorToolbar;
   private currentTool: EditorTool = 'select';
+  private testRequest: AbortController | undefined;
   private verified = false;
   private verifiedToken: string | undefined;
 
@@ -133,6 +134,7 @@ export class EditorScene extends Scene {
       onJsonLoad: (objects) => this.scene.start('EditorScene', { objects }),
       onExit: () => this.scene.start('MainMenu'),
     });
+    this.toolbar.setEditingEnabled(true);
     this.toolbar.setActiveTool('select');
     this.toolbar.show();
     this.updateToolbarState();
@@ -157,7 +159,7 @@ export class EditorScene extends Scene {
     _tap: unknown,
     tileXY: { x: number; y: number }
   ): void {
-    if (this.panZoom.shouldIgnoreTap()) return;
+    if (this.testRequest || this.panZoom.shouldIgnoreTap()) return;
     const row = normalizeBoardRow(tileXY.y);
     const world = this.board.tileXYToWorldXY(tileXY.x, row);
 
@@ -183,8 +185,7 @@ export class EditorScene extends Scene {
       return;
     }
 
-    const hadSelection = this.controller.getSelectedId() !== undefined;
-    if (hadSelection && !this.controller.hasObjectAt(x, y)) {
+    if (this.controller.canMoveSelectedTo(x, y)) {
       this.applyMutation(() => this.controller.moveSelectedTo(x, y));
       return;
     }
@@ -201,6 +202,7 @@ export class EditorScene extends Scene {
     mutate: () => boolean,
     noopMessage = 'Nothing changed.'
   ): void {
+    if (this.testRequest) return;
     if (!mutate()) {
       this.toolbar.showMessage(noopMessage);
       return;
@@ -273,16 +275,24 @@ export class EditorScene extends Scene {
   }
 
   private async handleTest(): Promise<void> {
+    if (this.testRequest) return;
+    const requestController = new AbortController();
+    this.testRequest = requestController;
+    this.verified = false;
+    this.verifiedToken = undefined;
+    this.toolbar.setEditingEnabled(false);
     const objects = this.controller.getObjects();
     this.toolbar.showMessage('Checking level...');
     try {
       const request: ValidateLevelRequest = { objects };
       const response = await fetch('/api/publish/validate', {
+        signal: requestController.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
       const json: unknown = await response.json();
+      if (this.testRequest !== requestController) return;
       if (!isValidateLevelResponse(json)) {
         this.toolbar.showMessage('Unexpected server response.');
         return;
@@ -316,7 +326,15 @@ export class EditorScene extends Scene {
         previewReturn: { kind: 'editor', objects },
       });
     } catch {
-      this.toolbar.showMessage('Failed to reach the server.');
+      if (this.testRequest === requestController) {
+        this.toolbar.showMessage('Failed to reach the server.');
+      }
+    } finally {
+      if (this.testRequest === requestController) {
+        this.testRequest = undefined;
+        this.toolbar.setEditingEnabled(true);
+        this.updateToolbarState();
+      }
     }
   }
 
@@ -356,6 +374,8 @@ export class EditorScene extends Scene {
   }
 
   private cleanup(): void {
+    this.testRequest?.abort();
+    this.testRequest = undefined;
     // The board wires its own 'shutdown' -> destroy() hook when created
     // (Board's constructor registers it before this scene's own shutdown
     // listener below), so it tears itself down without help here.

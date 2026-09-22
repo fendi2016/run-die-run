@@ -92,6 +92,7 @@ export class GameScene extends Scene {
   // Slow Time (spec section 21) scales only these tweens' playback speed —
   // never the run timer above, which is what `runStartTime` alone drives.
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
+  private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
 
@@ -118,6 +119,7 @@ export class GameScene extends Scene {
     this.runStartTime = 0;
     this.runStarted = false;
     this.movingObjectTweens = [];
+    this.resetMovingObjects = undefined;
     this.powerUpImages = [];
     this.slowTimeTimer = undefined;
   }
@@ -246,8 +248,30 @@ export class GameScene extends Scene {
     this.spawn = loaded.spawn;
     this.levelWidth = loaded.levelWidth;
     this.movingObjectTweens = loaded.movingObjectTweens;
+    this.resetMovingObjects = loaded.resetMovingObjects;
     this.powerUpImages = loaded.powerUpImages;
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
+
+    // Tiled rather than stretched, so the art keeps its native proportions
+    // across levels of any width instead of warping to fit — scaled to
+    // fill LOGICAL_HEIGHT and repeated horizontally across the level.
+    const bgSource = this.textures.get('level-background').getSourceImage();
+    const bgScale = LOGICAL_HEIGHT / bgSource.height;
+    this.add
+      .tileSprite(0, 0, this.levelWidth, LOGICAL_HEIGHT, 'level-background')
+      .setOrigin(0, 0)
+      .setTileScale(bgScale, bgScale)
+      .setScrollFactor(1, 1)
+      .setDepth(-1);
+
+    // The background art is busy/saturated enough to compete with hazard
+    // sprites for attention — a flat dark scrim between it and the level
+    // geometry dims it down so spikes/saws/candles read clearly on top.
+    this.add
+      .rectangle(0, 0, this.levelWidth, LOGICAL_HEIGHT, 0x0a0714, 0.5)
+      .setOrigin(0, 0)
+      .setScrollFactor(1, 1)
+      .setDepth(-0.5);
 
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
     // — update() starts the timer and hides the prompt once Player itself
@@ -570,9 +594,7 @@ export class GameScene extends Scene {
     }
     this.slowTimeTimer?.remove();
     this.slowTimeTimer = undefined;
-    for (const tween of this.movingObjectTweens) {
-      tween.timeScale = 1;
-    }
+    this.resetMovingObjects?.();
   }
 
   private cleanup(): void {

@@ -6,6 +6,18 @@ function generateObjectId(type: ObjectType): string {
   return `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Ground and the object resting on it occupy separate placement slots, so
+// two objects only actually conflict when they share a cell AND are on the
+// same one of those two layers.
+function occupiesSameSlot(
+  o: DraftObject,
+  x: number,
+  y: number,
+  type: ObjectType | PlaceableObjectType
+): boolean {
+  return o.x === x && o.y === y && (o.type === 'ground') === (type === 'ground');
+}
+
 // Spawn/finish are singletons: placing a new one replaces the old one
 // rather than erroring, since re-placing to relocate is the natural way a
 // tap-only editor lets you move a "special" marker without a dedicated
@@ -45,6 +57,16 @@ export class EditorController {
     return this.objects.some((o) => o.x === x && o.y === y);
   }
 
+  canMoveSelectedTo(x: number, y: number): boolean {
+    const selected = this.objects.find((o) => o.id === this.selectedId);
+    return (
+      selected !== undefined &&
+      !this.objects.some(
+        (o) => o.id !== selected.id && occupiesSameSlot(o, x, y, selected.type)
+      )
+    );
+  }
+
   selectAt(x: number, y: number): boolean {
     const found =
       this.objects.find((o) => o.x === x && o.y === y && o.type !== 'ground') ??
@@ -57,10 +79,9 @@ export class EditorController {
     this.selectedId = undefined;
   }
 
-  // Ground and the object resting on it occupy separate placement slots.
   placeObject(type: PlaceableObjectType, x: number, y: number): boolean {
     this.pushUndoSnapshot();
-    this.objects = this.objects.filter((o) => o.x !== x || o.y !== y || (o.type === 'ground') !== (type === 'ground'));
+    this.objects = this.objects.filter((o) => !occupiesSameSlot(o, x, y, type));
     if (SINGLETON_TYPES.has(type)) {
       this.objects = this.objects.filter((o) => o.type !== type);
     }
@@ -79,7 +100,7 @@ export class EditorController {
     }
     this.pushUndoSnapshot();
     this.objects = this.objects.filter(
-      (o) => o.id === this.selectedId || o.x !== x || o.y !== y || (o.type === 'ground') !== (target.type === 'ground')
+      (o) => o.id === this.selectedId || !occupiesSameSlot(o, x, y, target.type)
     );
     target.x = x;
     target.y = y;

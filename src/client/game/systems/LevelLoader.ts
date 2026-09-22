@@ -1,12 +1,12 @@
 import * as Phaser from 'phaser';
+import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
+  FINISH_TRIGGER_HEIGHT_PX,
   MOVING_PLATFORM_AMPLITUDE_PX,
   MOVING_PLATFORM_PERIOD_MS,
-  MOVING_SAW_AMPLITUDE_PX,
-  MOVING_SAW_PERIOD_MS,
 } from '../constants';
-import type { LevelVersion, ObjectType } from '../../../shared/types';
-import { categoryOf, renderLevelObject } from '../objects/ObjectRegistry';
+import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/types';
+import { categoryOf, oscillationFor, renderLevelObject } from '../objects/ObjectRegistry';
 import { applyOutlineGlow } from './Juice';
 
 export type LoadedLevel = {
@@ -17,6 +17,7 @@ export type LoadedLevel = {
   // 21) without touching the run timer — a platform slowing down too
   // keeps it rideable instead of stranding the player mid-jump.
   movingObjectTweens: Phaser.Tweens.Tween[];
+  resetMovingObjects: () => void;
   // Power-up pickups, exposed so GameScene can bring them back on a
   // same-scene restart (spec section 30 reuses the scene/world, it doesn't
   // reload the level) — a power-up collected once shouldn't be gone for
@@ -65,6 +66,51 @@ export function loadLevel(
   let maxX = 0;
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
+  const movementResets: (() => void)[] = [];
+
+  // Static platform tiles only — a movingPlatform tweens away from wherever
+  // it's authored, so treating its start position as a fixed neighbor would
+  // pick an end-cap texture that stops matching the moment it moves.
+  const platformPositions = new Set<string>();
+  for (const object of levelVersion.objects) {
+    if (object.type === 'platform') {
+      platformPositions.add(`${Math.round(object.x)}:${Math.round(object.y)}`);
+    }
+  }
+  function platformNeighborsOf(object: LevelObject) {
+    return {
+      left: platformPositions.has(
+        `${Math.round(object.x - GRID_CELL_SIZE)}:${Math.round(object.y)}`
+      ),
+      right: platformPositions.has(
+        `${Math.round(object.x + GRID_CELL_SIZE)}:${Math.round(object.y)}`
+      ),
+    };
+  }
+
+  // Registers both halves of a moving object at once — the tween itself and
+  // the closure that resets it (position, carried velocity, collision
+  // bounds) for a same-scene restart — so the two arrays can never drift out
+  // of sync the way an index captured before the switch and read back after
+  // it could.
+  function registerMovingTween(
+    tween: Phaser.Tweens.Tween,
+    rendered: Phaser.GameObjects.Sprite,
+    object: LevelObject
+  ): void {
+    movingObjectTweens.push(tween);
+    movementResets.push(() => {
+      tween.timeScale = 1;
+      tween.restart();
+      rendered.setPosition(object.x, object.y);
+      if (rendered.body instanceof Phaser.Physics.Arcade.Body) {
+        // Clear derived carry velocity as well as the platform's position.
+        rendered.body.reset(object.x, object.y);
+      } else if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
+        rendered.body.updateFromGameObject();
+      }
+    });
+  }
 
   for (const object of levelVersion.objects) {
     maxX = Math.max(maxX, object.x);
@@ -74,7 +120,10 @@ export function loadLevel(
       continue;
     }
 
-    const rendered = renderLevelObject(scene, object);
+    const rendered =
+      object.type === 'platform'
+        ? renderLevelObject(scene, object, platformNeighborsOf(object))
+        : renderLevelObject(scene, object);
     if (!rendered) {
       continue;
     }
@@ -89,13 +138,15 @@ export function loadLevel(
           // tween's position changes each frame instead of just resyncing
           // static collision bounds — `setDirectControl()` is exactly
           // Phaser 4's built-in mechanism for "this body's position is
-          // driven externally, derive velocity from it".
+          // driven externally, derive velocity from it". Gravity is already
+          // off (ObjectRegistry.renderLevelObject disables it for every
+          // dynamic body at creation) — only immovable/direct-control are
+          // this branch's own concern.
           if (rendered.body instanceof Phaser.Physics.Arcade.Body) {
             rendered.body.setImmovable(true);
-            rendered.body.setAllowGravity(false);
             rendered.body.setDirectControl(true);
           }
-          movingObjectTweens.push(
+          registerMovingTween(
             scene.tweens.add({
               targets: rendered,
               x: object.x + MOVING_PLATFORM_AMPLITUDE_PX,
@@ -103,36 +154,63 @@ export function loadLevel(
               yoyo: true,
               repeat: -1,
               ease: 'Sine.easeInOut',
-            })
+            }),
+            rendered,
+            object
           );
         }
         break;
-      case 'hazard':
-        if (object.type === 'movingSaw') {
-          movingObjectTweens.push(
+      case 'hazard': {
+        const oscillation = oscillationFor(object.type);
+        if (oscillation) {
+          const axisTarget =
+            oscillation.axis === 'x'
+              ? { x: object.x + oscillation.amplitude }
+              : { y: object.y + oscillation.amplitude };
+          registerMovingTween(
             scene.tweens.add({
               targets: rendered,
-              x: object.x + MOVING_SAW_AMPLITUDE_PX,
-              duration: MOVING_SAW_PERIOD_MS,
+              ...axisTarget,
+              duration: oscillation.periodMs,
               yoyo: true,
               repeat: -1,
               ease: 'Sine.easeInOut',
+              // A static body's collision bounds don't follow its
+              // GameObject transform on their own, so each tween step has
+              // to resync it by hand.
               onUpdate: () => {
                 if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
                   rendered.body.updateFromGameObject();
                 }
               },
-            })
+            }),
+            rendered,
+            object
           );
         }
         scene.physics.add.overlap(player, rendered, () =>
           callbacks.onHazardHit(object.id)
         );
         break;
-      case 'finish':
-        scene.physics.add.overlap(player, rendered, callbacks.onFinishReached);
+      }
+      case 'finish': {
+        // Overlap against the visible trophy sprite alone (only 64px tall,
+        // flush with the ground) lets a well-timed jump clear it entirely —
+        // the player then keeps auto-running past it, off the end of the
+        // level, and falls to their death instead of finishing. A taller
+        // invisible sensor at the same x/width, anchored to the same
+        // ground baseline, catches every pass regardless of jump height.
+        const sensor = scene.add.zone(
+          object.x,
+          object.y - FINISH_TRIGGER_HEIGHT_PX / 2,
+          rendered.displayWidth,
+          FINISH_TRIGGER_HEIGHT_PX
+        );
+        scene.physics.add.existing(sensor, true);
+        scene.physics.add.overlap(player, sensor, callbacks.onFinishReached);
         applyOutlineGlow(rendered, 0x39ff88, 6);
         break;
+      }
       case 'powerup':
         powerUpImages.push(rendered);
         scene.physics.add.overlap(player, rendered, () => {
@@ -147,6 +225,9 @@ export function loadLevel(
   }
 
   return {
+    resetMovingObjects: () => {
+      for (const reset of movementResets) reset();
+    },
     spawn,
     levelWidth: maxX + LEVEL_WIDTH_MARGIN,
     movingObjectTweens,

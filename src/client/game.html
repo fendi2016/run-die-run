@@ -11,6 +11,7 @@
     <div id="app">
       <div id="game-container"></div>
       <div id="tap-to-start" class="hidden" aria-live="polite">
+        <img id="tap-to-start-logo" src="/assets/ui/tap-to-start-logo.png" alt="" />
         <div id="tap-to-start-label">Tap to Start</div>
       </div>
       <div id="death-panel" class="hidden" aria-live="polite">
@@ -48,6 +49,39 @@
           </button>
         </div>
       </div>
+      <div id="game-menu" class="hidden">
+        <div id="game-menu-header">
+          <span id="game-menu-chip">
+            <span id="game-menu-stat-value">···</span>
+            <span id="game-menu-stat-label">RUNS</span>
+          </span>
+        </div>
+        <div id="game-menu-scene">
+          <button
+            type="button"
+            id="game-menu-browse"
+            class="game-menu-secondary game-menu-corner game-menu-browse"
+          >
+            Browse
+          </button>
+          <button
+            type="button"
+            id="game-menu-build"
+            class="game-menu-secondary game-menu-corner game-menu-build"
+          >
+            Build
+          </button>
+          <div id="game-menu-stack">
+            <button type="button" id="game-menu-play" class="game-menu-play">
+              Play
+            </button>
+          </div>
+          <div id="game-menu-attribution">
+            <span id="game-menu-attribution-label">Made by</span>
+            <span id="game-menu-creator-name">CURSED</span>
+          </div>
+        </div>
+      </div>
       <div id="editor-ui" class="hidden">
         <div id="editor-message" class="hidden"></div>
         <div id="editor-toolbar">
@@ -58,31 +92,43 @@
               <span class="editor-btn-label">Select</span>
             </button>
             <button type="button" id="editor-tool-ground" class="editor-btn">
-              <span class="editor-btn-icon">&#9644;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/ground.png" alt="" />
               <span class="editor-btn-label">Ground</span>
             </button>
             <button type="button" id="editor-tool-platform" class="editor-btn">
-              <span class="editor-btn-icon">&#9645;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.png" alt="" />
               <span class="editor-btn-label">Platform</span>
             </button>
             <button type="button" id="editor-tool-spike" class="editor-btn">
-              <span class="editor-btn-icon">&#9650;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/spike.png" alt="" />
               <span class="editor-btn-label">Spike</span>
             </button>
             <button type="button" id="editor-tool-saw" class="editor-btn">
-              <span class="editor-btn-icon">&#9679;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/saw-icon.png" alt="" />
               <span class="editor-btn-label">Saw</span>
             </button>
             <button type="button" id="editor-tool-movingSaw" class="editor-btn">
-              <span class="editor-btn-icon">&#8646;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/saw-icon.png" alt="" />
               <span class="editor-btn-label">Moving Saw</span>
+            </button>
+            <button type="button" id="editor-tool-candle" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/candle.png" alt="" />
+              <span class="editor-btn-label">Candle</span>
+            </button>
+            <button type="button" id="editor-tool-bat" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/bat.png" alt="" />
+              <span class="editor-btn-label">Bat</span>
+            </button>
+            <button type="button" id="editor-tool-ghost" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/ghost.png" alt="" />
+              <span class="editor-btn-label">Ghost</span>
             </button>
             <button
               type="button"
               id="editor-tool-movingPlatform"
               class="editor-btn"
             >
-              <span class="editor-btn-icon">&#8645;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.png" alt="" />
               <span class="editor-btn-label">Moving Platform</span>
             </button>
             <button
@@ -90,11 +136,11 @@
               id="editor-tool-doubleJump"
               class="editor-btn"
             >
-              <span class="editor-btn-icon">&#8648;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/doubleJump.png" alt="" />
               <span class="editor-btn-label">Double Jump</span>
             </button>
             <button type="button" id="editor-tool-shield" class="editor-btn">
-              <span class="editor-btn-icon">&#9679;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/shield.png" alt="" />
               <span class="editor-btn-label">Shield</span>
             </button>
             <button
@@ -102,23 +148,23 @@
               id="editor-tool-speedBoost"
               class="editor-btn"
             >
-              <span class="editor-btn-icon">&#187;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.png" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
             </button>
             <button type="button" id="editor-tool-slowTime" class="editor-btn">
-              <span class="editor-btn-icon">&#8986;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/slowTime.png" alt="" />
               <span class="editor-btn-label">Slow Time</span>
             </button>
             <button type="button" id="editor-tool-autoDash" class="editor-btn">
-              <span class="editor-btn-icon">&#10148;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/autoDash.png" alt="" />
               <span class="editor-btn-label">Auto Dash</span>
             </button>
             <button type="button" id="editor-tool-spawn" class="editor-btn">
-              <span class="editor-btn-icon">&#9873;</span>
+              <img class="editor-btn-icon-img" src="/assets/markers/spawn.png" alt="" />
               <span class="editor-btn-label">Spawn</span>
             </button>
             <button type="button" id="editor-tool-finish" class="editor-btn">
-              <span class="editor-btn-icon">&#9670;</span>
+              <img class="editor-btn-icon-img" src="/assets/markers/finish.png" alt="" />
               <span class="editor-btn-label">Finish</span>
             </button>
           </div>
@@ -259,7 +305,7 @@
           <div id="curse-toolbar-handle"></div>
           <div id="curse-row" class="editor-row">
             <button type="button" id="curse-category-hazard" class="editor-btn">
-              <span class="editor-btn-icon">&#9650;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/spike.png" alt="" />
               <span class="editor-btn-label">Hazard</span>
             </button>
             <button
@@ -267,7 +313,7 @@
               id="curse-category-platform"
               class="editor-btn"
             >
-              <span class="editor-btn-icon">&#9645;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.png" alt="" />
               <span class="editor-btn-label">Platform</span>
             </button>
             <button
@@ -275,7 +321,7 @@
               id="curse-category-powerUp"
               class="editor-btn"
             >
-              <span class="editor-btn-icon">&#9733;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/shield.png" alt="" />
               <span class="editor-btn-label">Power-Up</span>
             </button>
             <span class="editor-divider"></span>
@@ -284,11 +330,11 @@
               id="curse-type-spike"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#9650;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/spike.png" alt="" />
               <span class="editor-btn-label">Spike</span>
             </button>
             <button type="button" id="curse-type-saw" class="editor-btn hidden">
-              <span class="editor-btn-icon">&#9679;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/saw-icon.png" alt="" />
               <span class="editor-btn-label">Saw</span>
             </button>
             <button
@@ -296,15 +342,35 @@
               id="curse-type-movingSaw"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#8646;</span>
+              <img class="editor-btn-icon-img" src="/assets/hazards/saw-icon.png" alt="" />
               <span class="editor-btn-label">Moving Saw</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-candle"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/candle.png" alt="" />
+              <span class="editor-btn-label">Candle</span>
+            </button>
+            <button type="button" id="curse-type-bat" class="editor-btn hidden">
+              <img class="editor-btn-icon-img" src="/assets/hazards/bat.png" alt="" />
+              <span class="editor-btn-label">Bat</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-ghost"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/ghost.png" alt="" />
+              <span class="editor-btn-label">Ghost</span>
             </button>
             <button
               type="button"
               id="curse-type-platform"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#9645;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.png" alt="" />
               <span class="editor-btn-label">Platform</span>
             </button>
             <button
@@ -312,7 +378,7 @@
               id="curse-type-movingPlatform"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#8645;</span>
+              <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.png" alt="" />
               <span class="editor-btn-label">Moving Platform</span>
             </button>
             <button
@@ -320,7 +386,7 @@
               id="curse-type-doubleJump"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#8648;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/doubleJump.png" alt="" />
               <span class="editor-btn-label">Double Jump</span>
             </button>
             <button
@@ -328,7 +394,7 @@
               id="curse-type-shield"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#9679;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/shield.png" alt="" />
               <span class="editor-btn-label">Shield</span>
             </button>
             <button
@@ -336,7 +402,7 @@
               id="curse-type-speedBoost"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#187;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.png" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
             </button>
             <button
@@ -344,7 +410,7 @@
               id="curse-type-slowTime"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#8986;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/slowTime.png" alt="" />
               <span class="editor-btn-label">Slow Time</span>
             </button>
             <button
@@ -352,7 +418,7 @@
               id="curse-type-autoDash"
               class="editor-btn hidden"
             >
-              <span class="editor-btn-icon">&#10148;</span>
+              <img class="editor-btn-icon-img" src="/assets/powerups/autoDash.png" alt="" />
               <span class="editor-btn-label">Auto Dash</span>
             </button>
           </div>

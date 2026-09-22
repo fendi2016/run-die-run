@@ -16,6 +16,9 @@ export const PLACEABLE_TYPES = [
   'spike',
   'saw',
   'movingSaw',
+  'candle',
+  'bat',
+  'ghost',
   'movingPlatform',
   'doubleJump',
   'shield',
@@ -69,6 +72,24 @@ export function clampBoardColumn(col: number): number {
 
 export function levelWidthPx(): number {
   return EDITOR_MAX_COLUMNS * GRID_CELL_SIZE;
+}
+
+// Vertical framing for PanZoomCamera: the region the editor/curse camera
+// should fit to fill its viewport, as opposed to LOGICAL_HEIGHT (which is
+// GameScene's sky-inclusive play area and leaves a large dead band above
+// the grid when reused here). One extra cell of headroom above the top
+// placeable row mirrors the existing buffer row already reserved below
+// the ground line, so the framed content isn't flush against either edge.
+export function gridViewTopY(): number {
+  return GROUND_TOP_Y - EDITOR_MAX_ROWS * GRID_CELL_SIZE;
+}
+
+export function gridViewBottomY(): number {
+  return GROUND_TOP_Y + GRID_CELL_SIZE;
+}
+
+export function gridViewHeightPx(): number {
+  return gridViewBottomY() - gridViewTopY();
 }
 
 const GRID_LINE_ALPHA = 0.12;

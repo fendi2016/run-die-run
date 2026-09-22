@@ -24,6 +24,14 @@ export const SPAWN_ICON_SIZE = Math.min(PLAYER_SIZE, GRID_CELL_SIZE);
 // after the leaderboard round-trip resolves, before auto-restarting.
 export const FINISH_RESTART_DELAY_MS = 2500;
 
+// The finish trigger's hitbox is grown to this height (LevelLoader) so a
+// jump can't clear it and sail past the level's edge — a single jump peaks
+// at JUMP_VELOCITY^2 / (2 * GRAVITY_Y) ≈ 107px above ground, and a double
+// jump timed at that apex can add nearly another 107px on top, so this
+// covers a full double-jump arc with margin. The visible trophy sprite
+// itself (64px tall) is left untouched; only the overlap sensor is taller.
+export const FINISH_TRIGGER_HEIGHT_PX = 320;
+
 // How far from the left edge of the screen the player sits while running,
 // so there's always more upcoming level geometry visible than trailing.
 export const PLAYER_SCREEN_ANCHOR = 0.35;
@@ -46,3 +54,19 @@ export const MOVING_SAW_PERIOD_MS = 900;
 // needs to be rideable/predictable, not a fast-twitch hazard.
 export const MOVING_PLATFORM_AMPLITUDE_PX = 160;
 export const MOVING_PLATFORM_PERIOD_MS = 2200;
+// A Bat patrols horizontally like a Moving Saw, but shorter and quicker —
+// a flappy, erratic-feeling flight path rather than a mechanical sweep.
+export const BAT_AMPLITUDE_PX = 60;
+export const BAT_PERIOD_MS = 500;
+// A Ghost drifts vertically instead of horizontally — a slow haunting float
+// rather than a patrol — so it reads as a different kind of threat than the
+// horizontal hazards above.
+export const GHOST_AMPLITUDE_PX = 50;
+export const GHOST_PERIOD_MS = 1600;
+
+// The mossy-stone platform tileset's tiles are chunky blocks (~143x124
+// source px), not the old thin 60x20 plank — every variant is forced to
+// this one display size (width matches the grid cell) rather than each
+// texture's own aspect ratio, so every platform tile shares one collision
+// footprint regardless of which edge/center variant got picked.
+export const PLATFORM_DISPLAY_HEIGHT_PX = 52;

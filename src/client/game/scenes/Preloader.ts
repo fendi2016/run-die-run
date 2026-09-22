@@ -51,7 +51,17 @@ export class Preloader extends Scene {
     // one of these keys). Sourced from the open-source sprite pack in
     // /sprites, pre-cropped/scaled to the game's tile and hazard sizes.
     this.load.image('ground', 'tiles/ground.png');
-    this.load.image('platform', 'tiles/platform.png');
+    // Mossy-stone platform tileset (see ObjectRegistry.pickPlatformTexture)
+    // — edge/center variants so a run of platform tiles reads as one
+    // continuous block instead of one texture tiled flat.
+    this.load.image('platform-top-left-edge', 'tiles/platform/platform-top-left-edge.png');
+    this.load.image('platform-top-right-edge', 'tiles/platform/platform-top-right-edge.png');
+    for (let i = 1; i <= 7; i++) {
+      this.load.image(
+        `platform-top-center-${i}`,
+        `tiles/platform/platform-top-center-${i}.png`
+      );
+    }
     this.load.image('spike', 'hazards/spike.png');
     // 8-frame spin animation (see ObjectRegistry.ensureHazardAnims), not a
     // static image, unlike every other level-object texture here.
@@ -59,6 +69,9 @@ export class Preloader extends Scene {
       frameWidth: 40,
       frameHeight: 40,
     });
+    this.load.image('candle', 'hazards/candle.png');
+    this.load.image('bat', 'hazards/bat.png');
+    this.load.image('ghost', 'hazards/ghost.png');
     this.load.image('finish', 'markers/finish.png');
     this.load.image('spawn-marker', 'markers/spawn.png');
     this.load.image('doubleJump', 'powerups/doubleJump.png');
@@ -66,6 +79,7 @@ export class Preloader extends Scene {
     this.load.image('speedBoost', 'powerups/speedBoost.png');
     this.load.image('slowTime', 'powerups/slowTime.png');
     this.load.image('autoDash', 'powerups/autoDash.png');
+    this.load.image('level-background', 'ui/scene-bg.png');
   }
 
   create() {

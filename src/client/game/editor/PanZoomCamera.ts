@@ -1,6 +1,5 @@
 import * as Phaser from 'phaser';
-import { LOGICAL_HEIGHT } from '../../../shared/constants';
-import { levelWidthPx } from './GridSystem';
+import { gridViewHeightPx, gridViewTopY, levelWidthPx } from './GridSystem';
 
 // Both EditorScene and CurseScene lock the camera's vertical zoom to
 // LOGICAL_HEIGHT within a viewport shrunk by their bottom DOM toolbar's
@@ -91,7 +90,21 @@ export class PanZoomCamera {
       this.scene.scale.width,
       viewportHeight
     );
-    this.scene.cameras.main.setZoom(viewportHeight / LOGICAL_HEIGHT);
+    // Fit the grid's own content height (not GameScene's sky-inclusive
+    // LOGICAL_HEIGHT) so the whole viewport above the toolbar is filled
+    // with actual placeable grid instead of leaving a dead band above it.
+    const contentHeight = gridViewHeightPx();
+    const zoom = viewportHeight / contentHeight;
+    this.scene.cameras.main.setZoom(zoom);
+    // Phaser's zoom pivots around the viewport's own center rather than
+    // around scrollY, so scrollY = gridViewTopY() alone doesn't put that
+    // world-Y at the screen top once zoom != 1 (confirmed by rendering
+    // calibration lines at known world-Y and reading back pixel rows —
+    // the naive assignment left the grid floating a third of the way down
+    // the viewport instead of filling it). This offset compensates for
+    // that pivot so the content's top edge lands at screen y=0.
+    this.scene.cameras.main.scrollY =
+      gridViewTopY() - (contentHeight * (zoom - 1)) / 2;
     this.onChange();
   };
 

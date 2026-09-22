@@ -52,7 +52,14 @@ export class RunResultOverlay {
     this.curseBtn.onclick = handler;
   }
 
+  // Drops the button handlers as well as showing the hidden state. They
+  // close over the GameScene that set them, and `hide()` runs from that
+  // scene's own `shutdown` cleanup — leaving them bound means a stray tap
+  // during the fade-out calls `restartRun()` on an already-destroyed scene
+  // (its Player's Arcade body is gone by then, so `reset()` throws).
   hide(): void {
+    this.retryBtn.onclick = null;
+    this.curseBtn.onclick = null;
     this.root.classList.add('hidden');
   }
 }

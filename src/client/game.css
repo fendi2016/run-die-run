@@ -33,12 +33,30 @@ body {
   pointer-events: none;
   background: rgba(15, 15, 15, 0.55);
   opacity: 1;
-  transition: opacity 150ms ease-out;
+  visibility: visible;
+  transition:
+    opacity 150ms ease-out,
+    visibility 0s linear 0s;
 }
 
+/* `opacity: 0` alone leaves this overlay fully hit-testable: the
+   `pointer-events: none` below does NOT reach #run-result-actions, which
+   opts itself back in with `pointer-events: auto` (a descendant's explicit
+   `auto` wins over an ancestor's `none`). That left an invisible ~289x52px
+   strip of live Retry/Curse buttons parked dead-centre of the screen —
+   exactly over CurseScene's ground row — swallowing the tap that should
+   have placed a curse, and firing the previous (already destroyed)
+   GameScene's restartRun() instead. `visibility: hidden` is inherited and
+   can't be opted out of, so it removes the whole subtree from hit testing;
+   its transition is delayed by the fade duration so the fade-out still
+   plays before the overlay goes untappable. */
 #run-result.hidden {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity 150ms ease-out,
+    visibility 0s linear 150ms;
 }
 
 #run-result-title {
@@ -88,8 +106,10 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 18px;
   pointer-events: none;
   opacity: 1;
   transition: opacity 120ms ease-out;
@@ -97,6 +117,12 @@ body {
 
 #tap-to-start.hidden {
   opacity: 0;
+}
+
+#tap-to-start-logo {
+  width: min(62vw, 260px);
+  height: auto;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5));
 }
 
 #tap-to-start-label {
@@ -143,12 +169,22 @@ body {
   text-align: center;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 200ms ease-out;
+  visibility: visible;
+  transition:
+    opacity 200ms ease-out,
+    visibility 0s linear 0s;
 }
 
+/* Same hit-test leak as #run-result above: #death-panel-actions opts back
+   into `pointer-events: auto`, so a faded-out death panel would keep its
+   Retry/Follow buttons live and intercept taps meant for the canvas. */
 #death-panel.hidden {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity 200ms ease-out,
+    visibility 0s linear 200ms;
 }
 
 #death-panel-attribution {
@@ -309,6 +345,13 @@ body {
 .editor-btn-icon {
   font-size: 19px;
   line-height: 1;
+}
+
+.editor-btn-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .editor-btn-label {
@@ -480,6 +523,163 @@ body {
    specificity, so this doesn't change their opacity-transition behavior. */
 .hidden {
   display: none;
+}
+
+/* Game menu overlay: the "popped-out game" equivalent of splash.html's
+   card, ported into game.html so Exit/Cancel from the editor and curse
+   flows land on the same Play/Build/Browse design instead of leaving the
+   expanded webview or falling back to a bare Phaser placeholder screen.
+   Structure/classnames deliberately mirror splash.css's .header/.scene
+   split (own #game-menu-* ids/classes throughout so nothing here collides
+   with .editor-btn or the toolbar styles above). */
+#game-menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#game-menu.hidden {
+  display: none;
+}
+
+#game-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  padding-top: env(safe-area-inset-top);
+  background: #0d0d16;
+  border-bottom: 2px solid #000000;
+  flex-shrink: 0;
+}
+
+#game-menu-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #ffffff;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-shadow: 1px 1px 0 #000000;
+}
+
+#game-menu-stat-value {
+  color: #39ff88;
+}
+
+#game-menu-scene {
+  position: relative;
+  flex: 1;
+  background-image: linear-gradient(
+      rgba(10, 8, 16, 0.35) 0%,
+      rgba(12, 10, 18, 0.55) 55%,
+      rgba(8, 7, 12, 0.85) 100%
+    ),
+    url('/assets/ui/menu-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+#game-menu-stack {
+  position: absolute;
+  left: 50%;
+  bottom: max(26px, env(safe-area-inset-bottom));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+
+.game-menu-play {
+  padding: 16px 46px;
+  background: #ffffff;
+  color: #0d0d16;
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 4px solid #000000;
+  border-radius: 12px;
+  box-shadow: 0 7px 0 #000000;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+
+.game-menu-play:active {
+  transform: translateY(7px);
+  box-shadow: 0 0 0 #000000;
+}
+
+.game-menu-secondary {
+  padding: 8px 28px;
+  background: #39ff88;
+  color: #0d0d16;
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 3px solid #000000;
+  border-radius: 8px;
+  box-shadow: 0 4px 0 #000000;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+
+.game-menu-secondary:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #000000;
+}
+
+.game-menu-corner {
+  position: absolute;
+  top: 14px;
+  z-index: 1;
+  padding: 7px 18px;
+  font-size: 13px;
+}
+
+.game-menu-browse {
+  left: 12px;
+}
+
+.game-menu-build {
+  right: 12px;
+}
+
+#game-menu-attribution {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  padding: 4px 9px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+}
+
+#game-menu-attribution-label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#game-menu-creator-name {
+  color: #ffffff;
+  font-size: 13px;
+  text-shadow: 1px 1px 0 #000000;
 }
 
 /* Curse UI (spec sections 14-15): same DOM-overlay-over-canvas /

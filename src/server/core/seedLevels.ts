@@ -62,7 +62,12 @@ function level(
   };
 }
 
-// The default level: two gaps, two spikes.
+// The default level: two gaps, two spikes, plus one of each new Halloween
+// hazard — a static candle, a bat patrolling at head height (must be jumped
+// over, the same dodge a spike or movingSaw asks for), and a ghost drifting
+// well above the ground (only a threat if the player jumps into its band —
+// GROUND_TOP_Y - 80 stays out of reach of a grounded player's ~68px-tall
+// hitbox, so it punishes jumping here instead of rewarding it).
 //
 // Ground/spike/saw/spawn/finish are all bottom-anchored objects that SIT ON
 // the surface at GROUND_TOP_Y (ObjectRegistry.originFor: everything but
@@ -77,59 +82,20 @@ const meatGrinder = level(
     ...groundStrip(1500, 500),
     ...groundStrip(2110, 1090),
     placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
+    placed('candle-1', 'candle', 400, GROUND_TOP_Y),
     placed('spike-1', 'spike', 1100, GROUND_TOP_Y),
+    // Patrols ±BAT_AMPLITUDE_PX (60px) around x=1250, so its sweep stays
+    // clear of spike-1 behind it and the gap at x=1400 ahead of it.
+    placed('bat-1', 'bat', 1250, GROUND_TOP_Y - 45),
     placed('spike-2', 'spike', 1850, GROUND_TOP_Y),
+    // Drifts ±GHOST_AMPLITUDE_PX (50px) around y = GROUND_TOP_Y - 130, on
+    // the long clear run-up to the finish.
+    placed('ghost-1', 'ghost', 2400, GROUND_TOP_Y - 130),
     placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
   ],
   9831
 );
 
-// Wider, more frequent gaps — tests jump-distance tuning independent of
-// hazard placement.
-const gapGauntlet = level(
-  'gap-gauntlet',
-  [
-    ...groundStrip(0, 500),
-    ...groundStrip(700, 300),
-    ...groundStrip(1140, 300),
-    ...groundStrip(1580, 300),
-    ...groundStrip(2020, 300),
-    // A 360px gap — wider than the ~179px a straight jump covers at this
-    // run speed/gravity, so the moving platform below is load-bearing, not
-    // decorative: catch it near the left edge, ride it, hop off near the
-    // right edge.
-    ...groundStrip(2680, 700),
-    placed('moving-platform-1', 'movingPlatform', 2420, GROUND_TOP_Y),
-    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
-    placed('double-jump-1', 'doubleJump', 300, GROUND_TOP_Y - 60),
-    placed('finish-1', 'finish', 3280, GROUND_TOP_Y),
-  ],
-  11204
-);
-
-// A raised platform, a saw, a moving saw, and a couple of power-ups, to
-// prove the ObjectRegistry generalizes beyond spikes/ground (and, later,
-// that Phase 8's power-ups/moving hazards do too).
-const sawAlley = level(
-  'saw-alley',
-  [
-    ...groundStrip(0, 900),
-    placed('platform-1', 'platform', 1050, GROUND_TOP_Y - 90),
-    placed('platform-2', 'platform', 1170, GROUND_TOP_Y - 90),
-    ...groundStrip(1300, 1900),
-    placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
-    placed('auto-dash-1', 'autoDash', 500, GROUND_TOP_Y - 60),
-    placed('saw-1', 'saw', 1900, GROUND_TOP_Y),
-    placed('moving-saw-1', 'movingSaw', 2250, GROUND_TOP_Y),
-    placed('shield-1', 'shield', 2450, GROUND_TOP_Y - 60),
-    placed('spike-1', 'spike', 2600, GROUND_TOP_Y),
-    placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
-  ],
-  10556
-);
-
 export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
-  [gapGauntlet.levelId]: gapGauntlet,
-  [sawAlley.levelId]: sawAlley,
 };

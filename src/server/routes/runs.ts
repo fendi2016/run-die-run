@@ -119,17 +119,25 @@ runs.post('/', async (c) => {
   // `queueDiscoveryActivity`'s attempt/clear counters aren't — a retried
   // POST for a run that already succeeded would otherwise double-count.
   const dedupeKey = runDedupeKey(levelId, version, username, timeMs);
-  const isDuplicate = await redis.exists(dedupeKey);
   const { personalBestMs, isNewPersonalBest } = await withTransaction(
-    [leaderboardKey],
+    [leaderboardKey, dedupeKey],
     async (tx) => {
+      // Two independent reads against unrelated keys — read both up front
+      // instead of one after the other, saving a Redis round-trip on every
+      // run submission.
+      const [isDuplicate, existingScore] = await Promise.all([
+        redis.exists(dedupeKey).then(Boolean),
+        redis.zScore(leaderboardKey, username),
+      ]);
       if (!isDuplicate) {
         await queueDiscoveryActivity(tx, levelId, username, true);
+        await tx.set(dedupeKey, '1', {
+          expiration: new Date(Date.now() + RUN_DEDUPE_TTL_MS),
+        });
       }
-      const existingScore = await redis.zScore(leaderboardKey, username);
       if (existingScore !== undefined && timeMs >= existingScore) {
         return {
-          commit: true,
+          commit: !isDuplicate,
           value: { personalBestMs: existingScore, isNewPersonalBest: false },
         };
       }
@@ -140,11 +148,6 @@ runs.post('/', async (c) => {
       };
     }
   );
-  if (!isDuplicate) {
-    await redis.set(dedupeKey, '1', {
-      expiration: new Date(Date.now() + RUN_DEDUPE_TTL_MS),
-    });
-  }
 
   const [rankIndex, topTenRaw] = await Promise.all([
     redis.zRank(leaderboardKey, username),
