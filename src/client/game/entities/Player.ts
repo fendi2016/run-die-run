@@ -173,7 +173,7 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (!scene.anims.exists(DANCE_ANIM_KEY)) {
     scene.anims.create({
       key: DANCE_ANIM_KEY,
-      frames: DANCE_KEYS.map((key) => ({ key, duration: 90 })),
+      frames: DANCE_KEYS.map((key) => ({ key, duration: 180 })),
       frameRate: 22,
       repeat: -1,
     });
