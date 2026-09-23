@@ -10,8 +10,8 @@ import {
 } from '../../../shared/editorApi';
 import {
   computeLevelExtension,
+  maxExtendableTiles,
   tilesNeededToReach,
-  LEVEL_EXTEND_CHUNK_TILES,
   type LevelExtension,
 } from '../../../shared/levelExtend';
 import {
@@ -70,7 +70,8 @@ export class CurseScene extends Scene {
   // derived live via currentExtension() so there's exactly one place that
   // does the math, same reasoning as the server recomputing it from this
   // same count rather than trusting positions over the wire). Grows either
-  // from an explicit "Extend Level" tap (extendByChunk) or implicitly when
+  // from an explicit "Extend Level" tap (extendLevel — one click maxes it
+  // out, no re-tappable chunk) or implicitly when
   // the pending object is placed past the level's current end
   // (growExtensionToReach) — never shrinks except via Clear.
   private pendingExtendTiles = 0;
@@ -135,7 +136,7 @@ export class CurseScene extends Scene {
       onTypeSelected: (type) => this.selectType(type),
       onPanLeft: () => this.panZoom.panBy(-PAN_STEP_PX),
       onPanRight: () => this.panZoom.panBy(PAN_STEP_PX),
-      onExtend: () => this.extendByChunk(),
+      onExtend: () => this.extendLevel(),
       onClear: () => this.clearPending(),
       onProve: () => void this.handleProve(),
       onCancel: () => this.scene.start('MainMenu'),
@@ -319,22 +320,23 @@ export class CurseScene extends Scene {
     }
   }
 
-  // The explicit "Extend Level" button — adds one fixed chunk on top of
-  // whatever's already pending. Reverts the increment (rather than just
-  // leaving pendingExtendTiles inflated past what computeLevelExtension
-  // will ever actually place) when the level's already at its max width,
-  // so a second tap doesn't show the same "at the maximum" message.
-  private extendByChunk(): void {
+  // The explicit "Extend Level" button — one click maxes the level out to
+  // its full allowed width (see maxExtendableTiles), not a re-tappable
+  // small chunk, so extending only ever takes one click. A second click
+  // (or one on an already-maxed level) is a correctly-detected no-op —
+  // maxExtendableTiles is measured from the original base, same reference
+  // frame pendingExtendTiles already uses everywhere else.
+  private extendLevel(): void {
     if (this.proposalRequest || !this.baseLevel) return;
-    const before = this.currentExtension()?.groundTiles.length ?? 0;
-    this.pendingExtendTiles += LEVEL_EXTEND_CHUNK_TILES;
-    const after = this.currentExtension()?.groundTiles.length ?? 0;
-    if (after === before) {
-      this.pendingExtendTiles -= LEVEL_EXTEND_CHUNK_TILES;
+    const max = maxExtendableTiles(this.baseObjectsAsDraft());
+    if (max <= this.pendingExtendTiles) {
       this.toolbar.showMessage('Level is already at the maximum length.');
       return;
     }
-    this.toolbar.showMessage('Extended the level — pan right to see it.');
+    this.pendingExtendTiles = max;
+    this.toolbar.showMessage(
+      "Level extended — now place a curse, then prove it's possible."
+    );
     this.redrawBase();
     this.redrawExtension();
     this.updateProveEnabled();

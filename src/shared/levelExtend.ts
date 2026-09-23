@@ -1,13 +1,6 @@
 import { EDITOR_MAX_COLUMNS, GRID_CELL_SIZE, GROUND_TOP_Y } from './constants';
 import type { DraftObject } from './editorApi';
 
-// How many tiles one tap of "Extend Level" appends (both the base editor
-// and the curse flow use this same chunk size — see EditorController
-// .extendLevel and CurseScene's extend button). Re-tappable, so the actual
-// extension length is just however many multiples of this the player
-// wants, up to the level's existing hard width cap (EDITOR_MAX_COLUMNS).
-export const LEVEL_EXTEND_CHUNK_TILES = 8;
-
 export type LevelExtension = {
   groundTiles: DraftObject[];
   finish: DraftObject;
@@ -60,6 +53,20 @@ export function tilesNeededToReach(
   return Math.max(0, xToColumn(x) - rightmostGroundColumn(objects));
 }
 
+function roomTiles(objects: readonly DraftObject[]): number {
+  const startColumn = rightmostGroundColumn(objects) + 1;
+  const lastColumn = EDITOR_MAX_COLUMNS - 1;
+  return Math.max(0, lastColumn - startColumn + 1);
+}
+
+// The most tiles a single "Extend Level" action can add right now — one
+// tap always maxes out to this (see EditorController.extendLevel and
+// CurseScene.extendLevel), rather than a small re-tappable chunk, so
+// extending only ever takes one click.
+export function maxExtendableTiles(objects: readonly DraftObject[]): number {
+  return roomTiles(objects);
+}
+
 // Deterministic, side-effect-free: given the level's current objects and a
 // tile count, computes the ground fill + relocated finish for extending the
 // level by that many tiles past its current rightmost ground tile. Called
@@ -80,9 +87,7 @@ export function computeLevelExtension(
   makeFinishId: () => string
 ): LevelExtension | undefined {
   const startColumn = rightmostGroundColumn(objects) + 1;
-  const lastColumn = EDITOR_MAX_COLUMNS - 1;
-  const roomTiles = lastColumn - startColumn + 1;
-  const clampedTiles = Math.max(0, Math.min(Math.floor(tiles), roomTiles));
+  const clampedTiles = Math.max(0, Math.min(Math.floor(tiles), roomTiles(objects)));
   if (clampedTiles <= 0) {
     return undefined;
   }
