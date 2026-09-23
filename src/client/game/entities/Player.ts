@@ -44,6 +44,18 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-jump-fall',
   'player-crouch',
   'player-death',
+  'player-dance-1',
+  'player-dance-2',
+  'player-dance-3',
+  'player-dance-4',
+  'player-dance-5',
+  'player-dance-6',
+  'player-dance-7',
+  'player-dance-8',
+  'player-dance-9',
+  'player-dance-10',
+  'player-dance-11',
+  'player-dance-12',
 ] as const;
 
 export const PLAYER_IDLE_KEY = 'player-idle';
@@ -60,6 +72,25 @@ const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
 const DEATH_KEY = 'player-death';
+const DANCE_ANIM_KEY = 'player-dance';
+// Reordered from the source sheet's raster order (1 is a near-idle pose —
+// starting the loop on it would read as "nothing happened" for a beat)
+// so the finish dance leads with a distinct gesture and only cycles back
+// through the calm pose as a brief breather before repeating.
+const DANCE_KEYS = [
+  'player-dance-2',
+  'player-dance-3',
+  'player-dance-4',
+  'player-dance-5',
+  'player-dance-6',
+  'player-dance-7',
+  'player-dance-8',
+  'player-dance-9',
+  'player-dance-10',
+  'player-dance-11',
+  'player-dance-12',
+  'player-dance-1',
+];
 // Plays once (repeat: 0) for the ascent — a brief rise pose that hands off
 // to a held tuck frame, giving the apex an actual pose instead of holding
 // the leap pose for the entire ascent. The fall half stays a direct,
@@ -137,6 +168,14 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
       // JUMP_ASCEND_ANIM_KEY comment above for why the fall half isn't
       // joined to this same timeline.
       repeat: 0,
+    });
+  }
+  if (!scene.anims.exists(DANCE_ANIM_KEY)) {
+    scene.anims.create({
+      key: DANCE_ANIM_KEY,
+      frames: DANCE_KEYS.map((key) => ({ key, duration: 90 })),
+      frameRate: 22,
+      repeat: -1,
     });
   }
 }
@@ -408,21 +447,20 @@ export class Player {
     });
   }
 
+  // Called once, when the finish line is reached (see GameScene.onFinishReached
+  // — the only call site). Swaps the run cycle for a victory dance loop
+  // rather than just freezing on the idle pose, so reaching the finish
+  // reads as a distinct celebratory beat instead of the character just
+  // stopping mid-stride.
   freeze(): void {
     this.alive = false;
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
-    // Stopping velocity alone doesn't stop the run animation — it's driven
-    // by Phaser's animation clock, not per-frame velocity checks in
-    // update() (which this early-returns out of once `alive` is false) —
-    // so without this the character keeps running in place forever after
-    // reaching the finish.
-    this.sprite.anims.stop();
-    this.sprite.setTexture(PLAYER_IDLE_KEY);
     // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
     // whichever pose was mid-bounce when the run ended stays
-    // squashed/stretched for the entire result screen.
+    // squashed/stretched underneath the dance animation.
     this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+    this.sprite.play(DANCE_ANIM_KEY);
   }
 
   // `waiting`: true for a level's very first spawn (tap-to-start gate,
