@@ -24,6 +24,7 @@ import {
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
 import {
+  motionTweenConfigFor,
   renderLevelObject,
   renderSpawnMarker,
 } from '../objects/ObjectRegistry';
@@ -62,6 +63,15 @@ export class EditorScene extends Scene {
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private selectionGraphics!: Phaser.GameObjects.Graphics;
   private renderedObjects = new Map<string, Phaser.GameObjects.Sprite>();
+  // A patrolling/rideable placed object's tween (see ObjectRegistry's
+  // motionTweenConfigFor) — stopped and rebuilt alongside its sprite on
+  // every redrawObjects() so a moving hazard's motion in the editor matches
+  // what it'll actually do in a run, instead of sitting frozen. Stopping
+  // these before destroying their sprites (rather than leaving them to keep
+  // running with repeat: -1 against a dead target) is what actually matters
+  // here — an uncapped pile of ghost tweens would otherwise build up on
+  // every edit.
+  private motionTweens: Phaser.Tweens.Tween[] = [];
 
   private panZoom!: PanZoomCamera;
 
@@ -220,6 +230,10 @@ export class EditorScene extends Scene {
   }
 
   private redrawObjects(): void {
+    for (const tween of this.motionTweens) {
+      tween.stop();
+    }
+    this.motionTweens = [];
     for (const image of this.renderedObjects.values()) {
       image.destroy();
     }
@@ -240,6 +254,10 @@ export class EditorScene extends Scene {
             });
       if (image) {
         this.renderedObjects.set(object.id, image);
+        const tweenConfig = motionTweenConfigFor(image, object);
+        if (tweenConfig) {
+          this.motionTweens.push(this.tweens.add(tweenConfig));
+        }
       }
     }
     this.refreshSelectionHighlight();

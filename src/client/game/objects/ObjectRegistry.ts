@@ -8,6 +8,8 @@ import {
   FINISH_DISPLAY_HEIGHT_PX,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
+  MOVING_PLATFORM_AMPLITUDE_PX,
+  MOVING_PLATFORM_PERIOD_MS,
   MOVING_SAW_AMPLITUDE_PX,
   MOVING_SAW_PERIOD_MS,
   PLATFORM_DISPLAY_HEIGHT_PX,
@@ -33,11 +35,8 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   ghost: 'hazard',
   finish: 'finish',
   spawn: 'spawn',
-  doubleJump: 'powerup',
   shield: 'powerup',
   speedBoost: 'powerup',
-  slowTime: 'powerup',
-  autoDash: 'powerup',
 };
 
 // ground/platform/movingPlatform are deliberately absent here — their
@@ -55,11 +54,8 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   // The at-rest frame — LevelLoader/Juice.playFinishBellAnimation swaps to
   // the hit/ringing/success frames on overlap (see FINISH_ORIGIN_X below).
   finish: 'finish-idle',
-  doubleJump: 'doubleJump',
   shield: 'shield',
   speedBoost: 'speedBoost',
-  slowTime: 'slowTime',
-  autoDash: 'autoDash',
 };
 
 // Hazards whose art is an animated spritesheet rather than a static image —
@@ -127,6 +123,57 @@ const OSCILLATION_BY_TYPE: Partial<Record<ObjectType, OscillationConfig>> = {
 
 export function oscillationFor(type: ObjectType): OscillationConfig | undefined {
   return OSCILLATION_BY_TYPE[type];
+}
+
+// Tween config for a moving object's patrol/drift/rideable motion — the same
+// math LevelLoader uses to build a real run's tween, factored out so the
+// editor and curse-placement boards can play the identical motion live while
+// placing (a bat/ghost/movingSaw/movingPlatform previously sat frozen there,
+// even though every other hazard's spin animation already played). Callers
+// that need LevelLoader's extra bookkeeping (registerMovingTween's
+// reset/restart closure, exposing the tween for Slow Time) still build their
+// own Phaser.Tweens.Tween from this config; this function only computes the
+// config, never calls scene.tweens.add itself, so it has no side effects and
+// no opinion on tween lifecycle. Undefined for any type with no motion.
+export function motionTweenConfigFor(
+  sprite: Phaser.GameObjects.Sprite,
+  object: { type: ObjectType; x: number; y: number }
+): Phaser.Types.Tweens.TweenBuilderConfig | undefined {
+  if (object.type === 'movingPlatform') {
+    return {
+      targets: sprite,
+      x: object.x + MOVING_PLATFORM_AMPLITUDE_PX,
+      duration: MOVING_PLATFORM_PERIOD_MS,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    };
+  }
+  const oscillation = oscillationFor(object.type);
+  if (!oscillation) {
+    return undefined;
+  }
+  const axisTarget =
+    oscillation.axis === 'x'
+      ? { x: object.x + oscillation.amplitude }
+      : { y: object.y + oscillation.amplitude };
+  return {
+    targets: sprite,
+    ...axisTarget,
+    duration: oscillation.periodMs,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut',
+    // A static body's collision bounds don't follow its GameObject transform
+    // on their own, so each tween step has to resync it by hand — harmless
+    // to run in the editor/curse boards too, where it's a no-op cosmetic
+    // resync rather than something collision detection there relies on.
+    onUpdate: () => {
+      if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+        sprite.body.updateFromGameObject();
+      }
+    },
+  };
 }
 
 // ground and platform/movingPlatform are both "solid terrain, placed in

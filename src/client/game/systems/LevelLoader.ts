@@ -1,10 +1,6 @@
 import * as Phaser from 'phaser';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
-import {
-  FINISH_TRIGGER_HEIGHT_PX,
-  MOVING_PLATFORM_AMPLITUDE_PX,
-  MOVING_PLATFORM_PERIOD_MS,
-} from '../constants';
+import { FINISH_TRIGGER_HEIGHT_PX } from '../constants';
 import type {
   LevelObject,
   LevelVersion,
@@ -12,7 +8,7 @@ import type {
 } from '../../../shared/types';
 import {
   categoryOf,
-  oscillationFor,
+  motionTweenConfigFor,
   renderLevelObject,
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow } from './Juice';
@@ -198,47 +194,20 @@ export function loadLevel(
             rendered.body.setImmovable(true);
             rendered.body.setDirectControl(true);
           }
-          registerMovingTween(
-            scene.tweens.add({
-              targets: rendered,
-              x: object.x + MOVING_PLATFORM_AMPLITUDE_PX,
-              duration: MOVING_PLATFORM_PERIOD_MS,
-              yoyo: true,
-              repeat: -1,
-              ease: 'Sine.easeInOut',
-            }),
-            rendered,
-            object
-          );
+          const platformTween = motionTweenConfigFor(rendered, object);
+          if (platformTween) {
+            registerMovingTween(
+              scene.tweens.add(platformTween),
+              rendered,
+              object
+            );
+          }
         }
         break;
       case 'hazard': {
-        const oscillation = oscillationFor(object.type);
-        if (oscillation) {
-          const axisTarget =
-            oscillation.axis === 'x'
-              ? { x: object.x + oscillation.amplitude }
-              : { y: object.y + oscillation.amplitude };
-          registerMovingTween(
-            scene.tweens.add({
-              targets: rendered,
-              ...axisTarget,
-              duration: oscillation.periodMs,
-              yoyo: true,
-              repeat: -1,
-              ease: 'Sine.easeInOut',
-              // A static body's collision bounds don't follow its
-              // GameObject transform on their own, so each tween step has
-              // to resync it by hand.
-              onUpdate: () => {
-                if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
-                  rendered.body.updateFromGameObject();
-                }
-              },
-            }),
-            rendered,
-            object
-          );
+        const hazardTween = motionTweenConfigFor(rendered, object);
+        if (hazardTween) {
+          registerMovingTween(scene.tweens.add(hazardTween), rendered, object);
         }
         hazards.add(rendered);
         break;

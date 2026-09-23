@@ -30,6 +30,7 @@ import {
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
 import {
+  motionTweenConfigFor,
   renderLevelObject,
   renderSpawnMarker,
 } from '../objects/ObjectRegistry';
@@ -80,6 +81,22 @@ export class CurseScene extends Scene {
   private pendingGraphics!: Phaser.GameObjects.Graphics;
   private baseImages: Phaser.GameObjects.Sprite[] = [];
   private extensionImages: Phaser.GameObjects.Sprite[] = [];
+  // Patrol/drift/rideable tweens for the objects above (see ObjectRegistry's
+  // motionTweenConfigFor) — a bat/ghost/movingSaw/movingPlatform in the base
+  // level or the extension preview previously sat frozen here even though
+  // every other hazard's spin animation already played. Stopped and rebuilt
+  // alongside their sprites on every redraw, same reasoning as EditorScene's
+  // own motionTweens field: leaving a repeat: -1 tween running against a
+  // destroyed sprite would leak one on every redraw instead of replacing it.
+  private baseMotionTweens: Phaser.Tweens.Tween[] = [];
+  private extensionMotionTweens: Phaser.Tweens.Tween[] = [];
+  // The single object currently being placed/dragged (see redrawPending) —
+  // paused for the duration of a drag so the tween's own per-frame x/y
+  // writes don't fight onPendingDrag's setPosition, then simply left to be
+  // stopped and replaced the next time redrawPending runs (every drag ends
+  // in either a rejected drop, which calls redrawPending itself, or an
+  // accepted one via setPendingAt, which does the same).
+  private pendingMotionTween: Phaser.Tweens.Tween | undefined;
   // Placement uses rexBoard's own tile math (Board.worldXYToTileXY /
   // tileXYToWorldXY — the same calls tap-to-place already used) for
   // snapping, and Phaser's native GameObject drag for the pointer gesture.
@@ -112,6 +129,9 @@ export class CurseScene extends Scene {
     this.initialMessage = data.message;
     this.baseImages = [];
     this.extensionImages = [];
+    this.baseMotionTweens = [];
+    this.extensionMotionTweens = [];
+    this.pendingMotionTween = undefined;
     this.pendingImage = undefined;
   }
 
@@ -346,6 +366,10 @@ export class CurseScene extends Scene {
   // being relocated, and redrawExtension() renders the new one in its
   // place — so the player never sees two finish portals at once.
   private redrawBase(): void {
+    for (const tween of this.baseMotionTweens) {
+      tween.stop();
+    }
+    this.baseMotionTweens = [];
     for (const image of this.baseImages) {
       image.destroy();
     }
@@ -362,11 +386,19 @@ export class CurseScene extends Scene {
       if (image) {
         image.disableInteractive();
         this.baseImages.push(image);
+        const tweenConfig = motionTweenConfigFor(image, object);
+        if (tweenConfig) {
+          this.baseMotionTweens.push(this.tweens.add(tweenConfig));
+        }
       }
     }
   }
 
   private redrawExtension(): void {
+    for (const tween of this.extensionMotionTweens) {
+      tween.stop();
+    }
+    this.extensionMotionTweens = [];
     for (const image of this.extensionImages) {
       image.destroy();
     }
@@ -389,12 +421,21 @@ export class CurseScene extends Scene {
       if (image) {
         image.disableInteractive();
         this.extensionImages.push(image);
+        // Ground/finish tiles never move — this only ever actually starts a
+        // tween on some future extension tile type that does, if one's ever
+        // added to the palette.
+        const tweenConfig = motionTweenConfigFor(image, previewObject);
+        if (tweenConfig) {
+          this.extensionMotionTweens.push(this.tweens.add(tweenConfig));
+        }
       }
     }
   }
 
   private redrawPending(): void {
     this.pendingGraphics.clear();
+    this.pendingMotionTween?.stop();
+    this.pendingMotionTween = undefined;
     this.pendingImage?.destroy();
     this.pendingImage = undefined;
     if (!this.pending) {
@@ -414,7 +455,19 @@ export class CurseScene extends Scene {
       image.setAlpha(0.85);
       image.setInteractive();
       this.input.setDraggable(image);
-      image.on('pointerdown', () => this.panZoom.setSuspended(true));
+      const tweenConfig = motionTweenConfigFor(image, previewObject);
+      if (tweenConfig) {
+        this.pendingMotionTween = this.tweens.add(tweenConfig);
+      }
+      image.on('pointerdown', () => {
+        this.panZoom.setSuspended(true);
+        // Paused, not stopped — a tap that never crosses the drag threshold
+        // fires 'pointerup' with no 'drag'/'dragend' at all, so this has to
+        // resume from wherever it left off rather than relying on dragend's
+        // redrawPending to build a fresh one.
+        this.pendingMotionTween?.pause();
+      });
+      image.on('pointerup', () => this.pendingMotionTween?.resume());
       image.on('drag', (_p: unknown, dragX: number, dragY: number) =>
         this.onPendingDrag(dragX, dragY)
       );
@@ -500,7 +553,7 @@ export class CurseScene extends Scene {
       const request: ProposeCurseRequest = {
         levelId,
         object: pending,
-        extendByTiles: extendByTiles > 0 ? extendByTiles : undefined,
+        ...(extendByTiles > 0 ? { extendByTiles } : {}),
       };
       const response = await fetch('/api/curse/propose', {
         method: 'POST',
