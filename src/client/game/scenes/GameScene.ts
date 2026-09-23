@@ -234,7 +234,20 @@ export class GameScene extends Scene {
   };
 
   private readonly onNavigationKey = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || event.repeat || !this.player) return;
+    if (event.repeat || !this.player) return;
+    // Dev shortcut: warp to the finish sprite, then trigger the real finish
+    // sequence (particles, camera flash, bell animation, player's dance,
+    // result overlay) there — triggering in place left the camera (which
+    // just follows the player's x) nowhere near the bell.
+    if (event.key === '7') {
+      event.preventDefault();
+      if (this.finishSprite) {
+        this.player.reset(this.finishSprite.x, this.finishSprite.y, false);
+      }
+      this.onFinishReached();
+      return;
+    }
+    if (event.key !== 'Escape') return;
     event.preventDefault();
     if (this.paused) this.resumeRun();
     else this.pauseRun();
