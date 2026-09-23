@@ -98,14 +98,9 @@ body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
-#run-result-time {
-  font-family: 'Arial Black', sans-serif;
-  font-size: clamp(30px, 9vw, 44px);
-  margin-bottom: 2px;
-}
-
-/* Rank/PB/WR/streak/shards as a single row of pills (was five stacked
-   lines) — a clear only needs these as a quick glance, not a stat sheet. */
+/* Rank/streak/shards as a single row of pills — a clear only needs these
+   as a quick glance, not a stat sheet (time/PB/WR were dropped entirely:
+   this game is about cursing levels, not chasing a clock). */
 #run-result-stats {
   display: flex;
   flex-wrap: wrap;
@@ -168,72 +163,77 @@ body {
   margin-top: 2px;
 }
 
-/* Post-clear prompt (spec section 14): "CURSE THIS LEVEL?" alongside a
-   plain retry, both real buttons rather than an auto-restart timer, since
-   the curse offer has to stay up until the player actually decides. Kept
-   as the only boxed buttons in the panel — everything else below is a
-   plain-text link — so Retry/Next Level read as the one obvious next step. */
+/* Post-clear prompt (spec section 14): cursing the level you just beat is
+   the actual point of the game, so it gets the loudest, largest button on
+   this screen — full-width, its own accent color, more padding than
+   anything else here. Next Level (progression) sits underneath it at
+   normal size; Retry (just "try again") is demoted to a plain link below,
+   since it's the least interesting choice after a clear. */
 #run-result-actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 10px;
   width: 100%;
 }
 
 #run-result-actions .editor-btn {
-  flex: 1 1 120px;
   flex-direction: row;
+  width: 100%;
   padding: 12px 18px;
   font-size: 15px;
   font-weight: 700;
 }
 
-/* Secondary navigation — Curse/Browse/Leaderboard/Exit — reads as a plain
-   text menu instead of a row of boxed buttons competing with Retry. */
+.editor-btn-curse {
+  padding: 18px 20px;
+  font-size: 17px;
+  background: #ffd23f;
+  border-color: #ffd23f;
+  color: #2a0f16;
+}
+
+@media (hover: hover) {
+  .editor-btn-curse:hover:not(:disabled) {
+    background: #ffdd6b;
+    border-color: #ffdd6b;
+  }
+}
+
+/* Secondary navigation — Browse/Leaderboard (leaderboard shown
+   conditionally)/Exit — reads as a plain vertical text menu instead of a
+   row of boxed buttons competing with Curse. */
 #run-result-links {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 0;
-  margin-top: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  margin-top: 8px;
+  width: 100%;
 }
 
 .run-result-link {
   appearance: none;
   border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: none;
-  padding: 6px 10px;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
+  padding: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* Hidden links (curse/leaderboard, shown conditionally) contribute no text
-   and no separator, so this stays correct no matter which subset is shown —
-   the trailing `#run-result-menu` never toggles hidden, so it's always the
-   real last item and never grows a dangling dot after it. */
-.run-result-link:not(:last-child)::after {
-  content: '·';
-  margin-left: 10px;
-  color: rgba(255, 255, 255, 0.25);
+/* Hidden links (leaderboard, shown conditionally) contribute no divider
+   either, so a hidden middle item doesn't leave a stray rule glued to the
+   item above it. */
+.run-result-link:first-child {
+  border-top: none;
 }
 
 @media (hover: hover) {
   .run-result-link:hover {
     color: rgba(255, 255, 255, 0.85);
-  }
-}
-
-.run-result-link-curse {
-  color: #ff9f6b;
-}
-
-@media (hover: hover) {
-  .run-result-link-curse:hover {
-    color: #ffb98c;
   }
 }
 
@@ -347,6 +347,8 @@ body {
 
 #death-panel-actions {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   margin-top: 4px;
   pointer-events: auto;
@@ -355,6 +357,7 @@ body {
 #death-panel-actions .editor-btn {
   min-width: 96px;
   flex-direction: row;
+  justify-content: center;
   padding: 9px 16px;
   font-size: 14px;
   font-weight: 600;
@@ -679,6 +682,127 @@ body {
 #leaderboard-table tbody tr:first-child td {
   color: #39ff88;
   font-weight: 700;
+}
+
+/* Level browser overlay (spec sections 26-27): reuses .editor-dialog/
+   .editor-dialog-panel (same modal chrome as leaderboard/publish/JSON), a
+   fixed-height panel with its own scrollable list instead of the sort of
+   scrolling the leaderboard's short table never needed. */
+#discovery-overlay .editor-dialog-panel {
+  width: min(92vw, 480px);
+  height: min(82vh, 640px);
+  box-sizing: border-box;
+}
+
+#discovery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#discovery-title {
+  font-family: 'Arial Black', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: #39ff88;
+}
+
+#discovery-sorts {
+  flex-shrink: 0;
+}
+
+.discovery-sort-btn {
+  flex-direction: row;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+#discovery-message {
+  flex-shrink: 0;
+  min-height: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+#discovery-message:empty {
+  display: none;
+}
+
+#discovery-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.discovery-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out;
+}
+
+.discovery-card:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) {
+  .discovery-card:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(57, 255, 136, 0.4);
+  }
+}
+
+.discovery-card-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.discovery-card-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.discovery-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.discovery-card-stats span {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Realtime toast (spec section 29): a version-published/new-world-record
@@ -1074,7 +1198,25 @@ body {
 .gameplay-actions .editor-btn-ghost {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
+
+/* Loading/load-error happen before any level art exists to sit over — the
+   bare, no-card treatment above (meant for pausing mid-run) left this as
+   floating green title text and near-invisible ghost buttons on an empty
+   canvas. Give it back a real card, like every other dialog in the app,
+   plus a stronger dim. */
+#gameplay-dialog.gameplay-dialog-loading {
+  background: rgba(10, 8, 16, 0.55);
+}
+#gameplay-dialog.gameplay-dialog-loading .gameplay-dialog-panel {
+  background: rgba(24, 20, 36, 0.75);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  padding: 26px 22px;
+}
+
 #run-result { justify-content: safe center; }
-#death-panel-actions { flex-wrap: wrap; justify-content: center; }
+#death-panel-actions { align-items: stretch; }
 #leaderboard-overlay { z-index: 5; }
+#discovery-overlay { z-index: 5; }
 button:focus-visible { outline: 2px solid #ffd166; outline-offset: 3px; }

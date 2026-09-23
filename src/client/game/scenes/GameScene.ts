@@ -457,13 +457,12 @@ export class GameScene extends Scene {
     this.cameras.main.flash(150, 57, 255, 136, false);
 
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
-    this.resultOverlay.showTime(timeMs);
+    this.resultOverlay.showTime();
 
     if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
       const levelVersion = this.levelVersion;
-      this.resultOverlay.setRetryHandler(() => this.restartRun());
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show()
       );
@@ -598,7 +597,7 @@ export class GameScene extends Scene {
       if (!response.ok || !isSubmitRunResponse(body)) throw new Error('Score was not saved');
       if (attempt.signal.aborted) return;
       this.resultOverlay.showResult(body);
-      this.resultOverlay.showSaveStatus('Score saved.');
+      this.resultOverlay.showSaveStatus('');
       this.resultOverlay.setCurseHandler(() =>
         this.scene.start('CurseScene', { levelId: request.levelId })
       );
@@ -634,7 +633,7 @@ export class GameScene extends Scene {
           this.scene.start('GameScene', { levelId: next.levelId })
         );
       } else {
-        this.resultOverlay.showNext('No other levels yet.');
+        this.resultOverlay.showNext('');
       }
     } catch {
       if (!attempt.signal.aborted) {

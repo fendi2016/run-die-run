@@ -3,6 +3,7 @@ import type { LevelObject, ObjectType } from '../../../shared/types';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
   BAT_AMPLITUDE_PX,
+  BAT_DISPLAY_HEIGHT_PX,
   BAT_PERIOD_MS,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
@@ -10,6 +11,7 @@ import {
   MOVING_SAW_PERIOD_MS,
   PLATFORM_DISPLAY_HEIGHT_PX,
   SPAWN_ICON_SIZE,
+  SPIKE_DISPLAY_HEIGHT_PX,
 } from '../constants';
 
 export type ObjectCategory =
@@ -223,6 +225,13 @@ export function renderLevelObject(
     // footprint (see PLATFORM_DISPLAY_HEIGHT_PX) so collision stays
     // uniform regardless of which edge/center texture got picked.
     sprite.setDisplaySize(GRID_CELL_SIZE, PLATFORM_DISPLAY_HEIGHT_PX);
+  } else if (object.type === 'spike') {
+    sprite.setDisplaySize(sprite.width, SPIKE_DISPLAY_HEIGHT_PX);
+  } else if (object.type === 'bat') {
+    sprite.setDisplaySize(
+      sprite.width * (BAT_DISPLAY_HEIGHT_PX / sprite.height),
+      BAT_DISPLAY_HEIGHT_PX
+    );
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
 

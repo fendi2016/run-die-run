@@ -57,19 +57,14 @@ const config: Phaser.Types.Core.GameConfig = {
   // via `this.plugins.get(key)`. The finish/power-up glow previously used
   // a third rex-plugins module (rexOutlinePipeline) — swapped for Phaser
   // 4's own built-in Filters.Glow (see Juice.ts's `applyOutlineGlow`),
-  // which needs no plugin registration at all. rexUI (~50 components, only
-  // one of which — GridTable — this app uses) is NOT registered here
-  // either: it's dynamically imported and installed only when
-  // DiscoveryScene is actually opened (see MainMenu's BROWSE handler),
-  // keeping it out of the main bundle entirely.
+  // which needs no plugin registration at all. The level browser (spec
+  // sections 26-27) used to pull in a fourth module (rexUI's GridTable,
+  // ~50 components for one scrollable list) but is a DOM overlay now
+  // (DiscoveryOverlay), so that dependency is gone entirely.
   plugins: {
     global: [{ key: 'rexFlash', plugin: FlashPlugin, start: true }],
     scene: [{ key: 'rexBoard', plugin: BoardPlugin, mapping: 'rexBoard' }],
   },
-  // DiscoveryScene is deliberately absent from this static list — it's
-  // added on demand (`this.scene.add(...)`) the first time the player
-  // opens it, so its rexUI dependency loads in its own chunk instead of
-  // bloating every player's initial download.
   scene: [Boot, Preloader, MainMenu, GameScene, EditorScene, CurseScene],
 };
 

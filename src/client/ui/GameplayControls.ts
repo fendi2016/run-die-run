@@ -58,28 +58,37 @@ export class GameplayControls {
   }
 
   showLoading(): void {
-    this.show('Loading level…', 'You can return to the menu or browse other levels.', false, false, false);
+    this.show('Loading level…', 'You can return to the menu or browse other levels.', false, false, false, true);
     requireButton('gameplay-exit').focus({ preventScroll: true });
   }
 
   showLoadError(): void {
-    this.show('Could not load this level', 'Check your connection and try again, or choose another level.', false, false, true);
+    this.show('Could not load this level', 'Check your connection and try again, or choose another level.', false, false, true, true);
     this.retry.focus({ preventScroll: true });
   }
 
   showPaused(ended: boolean): void {
-    this.show(ended ? 'Menu' : 'Paused', ended ? 'Choose what to do next.' : '', true, true, false);
+    this.show(ended ? 'Menu' : 'Paused', ended ? 'Choose what to do next.' : '', true, true, false, false);
     this.resume.textContent = ended ? 'Back' : 'Resume';
     this.resume.focus({ preventScroll: true });
   }
 
-  private show(title: string, message: string, resume: boolean, restart: boolean, retry: boolean): void {
+  // `emptyCanvas` distinguishes "nothing behind this dialog yet" (loading/
+  // load-error, before any level art exists) from "paused mid-run" (the
+  // level is visible and dimmed behind it) — the two need opposite panel
+  // treatments. Without this, loading/error reused the paused look (no
+  // card, relies on the level art behind it for contrast) and rendered as
+  // bare green title text and near-invisible ghost buttons floating on an
+  // empty canvas: a jarring, unstyled-looking screen wedged between the
+  // Preloader's loading bar and the level actually appearing.
+  private show(title: string, message: string, resume: boolean, restart: boolean, retry: boolean, emptyCanvas: boolean): void {
     this.title.textContent = title;
     this.message.textContent = message;
     this.resume.classList.toggle('hidden', !resume);
     this.restart.classList.toggle('hidden', !restart);
     this.retry.classList.toggle('hidden', !retry);
     this.toggle.classList.add('hidden');
+    this.dialog.classList.toggle('gameplay-dialog-loading', emptyCanvas);
     for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = true;
     this.dialog.classList.remove('hidden');
   }

@@ -42,11 +42,7 @@
       <div id="run-result" class="hidden" aria-live="polite">
         <div id="run-result-panel">
           <div id="run-result-title">CLEAR!</div>
-          <div id="run-result-time"></div>
           <div id="run-result-stats">
-            <span id="run-result-rank"></span>
-            <span id="run-result-pb"></span>
-            <span id="run-result-wr"></span>
             <span id="run-result-streak"></span>
             <span id="run-result-currency"></span>
           </div>
@@ -58,21 +54,14 @@
           <div id="run-result-actions">
             <button
               type="button"
-              id="run-result-retry-btn"
-              class="editor-btn editor-btn-primary hidden"
+              id="run-result-curse-btn"
+              class="editor-btn editor-btn-curse hidden"
             >
-              Retry
+              Curse This Level?
             </button>
             <button type="button" id="run-result-next" class="editor-btn editor-btn-primary hidden">Next Level</button>
           </div>
           <div id="run-result-links">
-            <button
-              type="button"
-              id="run-result-curse-btn"
-              class="run-result-link run-result-link-curse hidden"
-            >
-              Curse This Level?
-            </button>
             <button type="button" id="run-result-browse" class="run-result-link">Browse</button>
             <button
               type="button"
@@ -106,6 +95,27 @@
               Close
             </button>
           </div>
+        </div>
+      </div>
+      <div id="discovery-overlay" class="editor-dialog hidden">
+        <div class="editor-dialog-panel">
+          <div id="discovery-header">
+            <button type="button" id="discovery-back" class="editor-btn editor-btn-compact editor-btn-ghost">
+              <span class="editor-btn-icon">&#8592;</span>
+            </button>
+            <div id="discovery-title">BROWSE LEVELS</div>
+            <button type="button" id="discovery-retry" class="editor-btn editor-btn-compact">
+              <span class="editor-btn-icon">&#8635;</span>
+            </button>
+          </div>
+          <div id="discovery-sorts" class="editor-row">
+            <button type="button" id="discovery-sort-trending" data-sort="trending" class="editor-btn discovery-sort-btn">Trending</button>
+            <button type="button" id="discovery-sort-deadliest" data-sort="deadliest" class="editor-btn discovery-sort-btn">Deadliest</button>
+            <button type="button" id="discovery-sort-speedrun" data-sort="speedrun" class="editor-btn discovery-sort-btn">Speedrun</button>
+            <button type="button" id="discovery-sort-new" data-sort="new" class="editor-btn discovery-sort-btn">New</button>
+          </div>
+          <div id="discovery-message" role="status"></div>
+          <div id="discovery-list"></div>
         </div>
       </div>
       <div id="game-menu" class="hidden">
@@ -385,7 +395,7 @@
           <div id="curse-toolbar-handle"></div>
           <div id="curse-row" class="editor-row">
             <button type="button" id="curse-category-hazard" class="editor-btn">
-              <img class="editor-btn-icon-img" src="/assets/hazards/spike.webp" alt="" />
+              <span class="editor-btn-icon">&#9888;</span>
               <span class="editor-btn-label">Hazard</span>
             </button>
             <button
@@ -401,7 +411,7 @@
               id="curse-category-powerUp"
               class="editor-btn"
             >
-              <img class="editor-btn-icon-img" src="/assets/powerups/shield.webp" alt="" />
+              <span class="editor-btn-icon">&#9889;</span>
               <span class="editor-btn-label">Power-Up</span>
             </button>
             <span class="editor-divider"></span>

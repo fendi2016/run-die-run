@@ -70,3 +70,16 @@ export const GHOST_PERIOD_MS = 1600;
 // texture's own aspect ratio, so every platform tile shares one collision
 // footprint regardless of which edge/center variant got picked.
 export const PLATFORM_DISPLAY_HEIGHT_PX = 52;
+
+// spike.webp's native art is a stubby 40x40 square that reads as a low
+// pebble rather than something you'd die on — stretched taller (width
+// unchanged) so it reads as a proper upright spike. Bottom-anchored origin
+// (see originFor) means the extra height grows upward from the ground, not
+// down into it.
+export const SPIKE_DISPLAY_HEIGHT_PX = 60;
+
+// bat.webp's canvas grew wider (37px -> 53px) when its missing second wing
+// was reconstructed — matches its original 40px-tall footprint (aspect
+// preserved, not stretched) so the in-level hazard's hitbox doesn't grow
+// just because the art got fixed.
+export const BAT_DISPLAY_HEIGHT_PX = 40;
