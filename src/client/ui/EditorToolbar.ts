@@ -17,6 +17,7 @@ export type EditorToolbarHandlers = {
   onUndo: () => void;
   onRedo: () => void;
   onDelete: () => void;
+  onExtend: () => void;
   onTest: () => void;
   onPublishRequested: () => void;
   onPublishConfirm: (title: string) => void;
@@ -77,6 +78,9 @@ export class EditorToolbar {
     this.undoBtn.addEventListener('click', () => this.handlers?.onUndo());
     this.redoBtn.addEventListener('click', () => this.handlers?.onRedo());
     this.deleteBtn.addEventListener('click', () => this.handlers?.onDelete());
+    requireButton('editor-extend').addEventListener('click', () =>
+      this.handlers?.onExtend()
+    );
     requireButton('editor-test').addEventListener('click', () =>
       this.handlers?.onTest()
     );

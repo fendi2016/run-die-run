@@ -13,6 +13,7 @@ import {
   isDraftObject,
   type DraftObject,
 } from '../../shared/editorApi';
+import type { LevelExtension } from '../../shared/levelExtend';
 import { isLevelObject, type LevelObject } from '../../shared/types';
 import { withTransaction } from '../core/transactions';
 import { editorCandidateKey } from '../core/redisKeys';
@@ -46,12 +47,18 @@ export type CreateCandidate = CandidateCommon & {
 // published configuration the curse was proposed against (frozen at
 // propose time so a later concurrent curse can't silently change what this
 // player is verifying), `newObject` is the single object they're adding.
+// `extension`: the level-extend feature (shared/levelExtend.ts), computed
+// once at propose time (from the same baseObjects frozen alongside it) and
+// reused as-is at publish — never recomputed a second time, matching how
+// `newObject` itself is trusted for the rest of this candidate's life once
+// propose has validated it.
 export type CurseCandidate = CandidateCommon & {
   kind: 'curse';
   levelId: string;
   parentVersion: number;
   baseObjects: LevelObject[];
   newObject: DraftObject;
+  extension: LevelExtension | undefined;
 };
 
 export type EditorCandidate = CreateCandidate | CurseCandidate;
@@ -110,19 +117,45 @@ function isEditorCandidate(value: unknown): value is EditorCandidate {
     );
   }
   if (value.kind === 'curse') {
-    return (
-      'levelId' in value &&
-      typeof value.levelId === 'string' &&
-      'parentVersion' in value &&
-      typeof value.parentVersion === 'number' &&
-      'baseObjects' in value &&
-      Array.isArray(value.baseObjects) &&
-      value.baseObjects.every(isLevelObject) &&
-      'newObject' in value &&
-      isDraftObject(value.newObject)
-    );
+    if (
+      !(
+        'levelId' in value &&
+        typeof value.levelId === 'string' &&
+        'parentVersion' in value &&
+        typeof value.parentVersion === 'number' &&
+        'baseObjects' in value &&
+        Array.isArray(value.baseObjects) &&
+        value.baseObjects.every(isLevelObject) &&
+        'newObject' in value &&
+        isDraftObject(value.newObject)
+      )
+    ) {
+      return false;
+    }
+    // A candidate proposed with no extension comes back from Redis with no
+    // `extension` key at all, not the key set to undefined — JSON
+    // .stringify drops undefined-valued properties entirely. So the key
+    // being absent is exactly as valid as it being present-and-undefined,
+    // both meaning "no extension" (same reasoning as CandidateCommon's own
+    // verifiedTimeMs, read directly rather than gated on an `in` check).
+    if (!('extension' in value)) {
+      return true;
+    }
+    return value.extension === undefined || isLevelExtension(value.extension);
   }
   return false;
+}
+
+function isLevelExtension(value: unknown): value is LevelExtension {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'groundTiles' in value &&
+    Array.isArray(value.groundTiles) &&
+    value.groundTiles.every(isDraftObject) &&
+    'finish' in value &&
+    isDraftObject(value.finish)
+  );
 }
 
 // Canonical ordering/shape so "the configuration verified" and "the
@@ -234,6 +267,60 @@ export function validatePlacement(objects: DraftObject[]): string[] {
   return errors;
 }
 
+// Curse-time validation (spec section 20): checks only what the new object
+// itself could have broken. The curse screen renders the base level's other
+// objects read-only (see CurseScene) — the player never touched them and
+// can't fix them from here, so re-running validatePlacement's full-level
+// checks across the whole combined list surfaced pre-existing issues in an
+// already-published level as if the player had just caused them, often many
+// at once for a level with a long object list.
+export function validateCurseObject(
+  baseObjects: DraftObject[],
+  newObject: DraftObject
+): string[] {
+  const errors: string[] = [];
+
+  if (baseObjects.length + 1 > EDITOR_MAX_OBJECTS) {
+    errors.push(`Level has too many objects (max ${EDITOR_MAX_OBJECTS}).`);
+  }
+
+  if (
+    newObject.x < MIN_X ||
+    newObject.x >= MAX_X ||
+    newObject.y < MIN_Y ||
+    newObject.y > MAX_Y
+  ) {
+    errors.push('Your object is outside the level boundaries.');
+  }
+
+  const collides = baseObjects.some(
+    (o) => o.type !== 'ground' && o.x === newObject.x && o.y === newObject.y
+  );
+  if (collides) {
+    errors.push('Something is already there — try another spot.');
+  }
+
+  const spawn = baseObjects.find((o) => o.type === 'spawn');
+  if (spawn) {
+    const bufferPx = EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE;
+    if (Math.abs(newObject.x - spawn.x) < bufferPx) {
+      errors.push('Your object is too close to the spawn point.');
+    }
+  }
+
+  const finish = baseObjects.find((o) => o.type === 'finish');
+  if (
+    finish &&
+    HAZARD_TYPES.has(newObject.type) &&
+    newObject.x === finish.x &&
+    newObject.y === finish.y
+  ) {
+    errors.push('That would block the finish portal.');
+  }
+
+  return errors;
+}
+
 export async function createCandidate(
   username: string,
   objects: DraftObject[]
@@ -260,7 +347,8 @@ export async function createCurseCandidate(
   levelId: string,
   parentVersion: number,
   baseObjects: LevelObject[],
-  newObject: DraftObject
+  newObject: DraftObject,
+  extension: LevelExtension | undefined
 ): Promise<string> {
   const candidate: EditorCandidate = {
     kind: 'curse',
@@ -269,6 +357,7 @@ export async function createCurseCandidate(
     parentVersion,
     baseObjects,
     newObject,
+    extension,
     verified: false,
     verifiedTimeMs: undefined,
     createdAt: Date.now(),

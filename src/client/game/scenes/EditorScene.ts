@@ -125,6 +125,11 @@ export class EditorScene extends Scene {
           () => this.controller.deleteSelected(),
           'Nothing selected.'
         ),
+      onExtend: () =>
+        this.applyMutation(
+          () => this.controller.extendLevel(),
+          'Level is already at the maximum length.'
+        ),
       onTest: () => void this.handleTest(),
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),

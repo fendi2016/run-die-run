@@ -35,6 +35,7 @@ export type CurseToolbarHandlers = {
   onTypeSelected: (type: ObjectType) => void;
   onPanLeft: () => void;
   onPanRight: () => void;
+  onExtend: () => void;
   onClear: () => void;
   onProve: () => void;
   onCancel: () => void;
@@ -58,6 +59,7 @@ export class CurseToolbar {
   private readonly messageEl = requireElement('curse-message');
   private readonly proveBtn = requireButton('curse-prove');
   private readonly clearBtn = requireButton('curse-clear');
+  private readonly extendBtn = requireButton('curse-extend');
   private readonly categoryButtons = new Map<
     CurseCategory,
     HTMLButtonElement
@@ -91,6 +93,7 @@ export class CurseToolbar {
     requireButton('curse-pan-right').addEventListener('click', () =>
       this.handlers?.onPanRight()
     );
+    this.extendBtn.addEventListener('click', () => this.handlers?.onExtend());
     this.clearBtn.addEventListener('click', () => this.handlers?.onClear());
     this.proveBtn.addEventListener('click', () => this.handlers?.onProve());
     requireButton('curse-cancel').addEventListener('click', () =>
@@ -137,6 +140,7 @@ export class CurseToolbar {
     }
     for (const button of this.typeButtons.values()) button.disabled = !enabled;
     this.clearBtn.disabled = !enabled;
+    this.extendBtn.disabled = !enabled;
   }
 
   setProveEnabled(enabled: boolean): void {

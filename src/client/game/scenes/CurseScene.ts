@@ -9,6 +9,12 @@ import {
   type ProposeCurseRequest,
 } from '../../../shared/editorApi';
 import {
+  computeLevelExtension,
+  tilesNeededToReach,
+  LEVEL_EXTEND_CHUNK_TILES,
+  type LevelExtension,
+} from '../../../shared/levelExtend';
+import {
   isLevelVersion,
   type LevelObject,
   type LevelVersion,
@@ -32,6 +38,7 @@ import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 type CursePreselect = {
   category: CurseCategory;
   object: DraftObject;
+  extendByTiles?: number;
 };
 
 type CurseSceneData = {
@@ -58,10 +65,20 @@ export class CurseScene extends Scene {
   private selectedType: ObjectType | undefined;
   private pending: DraftObject | undefined;
   private initialMessage: string | undefined;
+  // The level-extend add-on (shared/levelExtend.ts) — a requested tile
+  // count, not the computed ground/finish objects themselves (those are
+  // derived live via currentExtension() so there's exactly one place that
+  // does the math, same reasoning as the server recomputing it from this
+  // same count rather than trusting positions over the wire). Grows either
+  // from an explicit "Extend Level" tap (extendByChunk) or implicitly when
+  // the pending object is placed past the level's current end
+  // (growExtensionToReach) — never shrinks except via Clear.
+  private pendingExtendTiles = 0;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
   private baseImages: Phaser.GameObjects.Sprite[] = [];
+  private extensionImages: Phaser.GameObjects.Sprite[] = [];
   // Placement uses rexBoard's own tile math (Board.worldXYToTileXY /
   // tileXYToWorldXY — the same calls tap-to-place already used) for
   // snapping, and Phaser's native GameObject drag for the pointer gesture.
@@ -90,8 +107,10 @@ export class CurseScene extends Scene {
     this.category = data.preselected?.category;
     this.selectedType = data.preselected?.object.type;
     this.pending = data.preselected?.object;
+    this.pendingExtendTiles = data.preselected?.extendByTiles ?? 0;
     this.initialMessage = data.message;
     this.baseImages = [];
+    this.extensionImages = [];
     this.pendingImage = undefined;
   }
 
@@ -116,6 +135,7 @@ export class CurseScene extends Scene {
       onTypeSelected: (type) => this.selectType(type),
       onPanLeft: () => this.panZoom.panBy(-PAN_STEP_PX),
       onPanRight: () => this.panZoom.panBy(PAN_STEP_PX),
+      onExtend: () => this.extendByChunk(),
       onClear: () => this.clearPending(),
       onProve: () => void this.handleProve(),
       onCancel: () => this.scene.start('MainMenu'),
@@ -156,6 +176,7 @@ export class CurseScene extends Scene {
       this.baseLevel = body;
       this.redrawBase();
       this.redrawPending();
+      this.redrawExtension();
       this.updateProveEnabled();
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');
@@ -197,8 +218,12 @@ export class CurseScene extends Scene {
   private clearPending(): void {
     if (this.proposalRequest) return;
     this.pending = undefined;
+    this.pendingExtendTiles = 0;
     this.toolbar.setClearEnabled(false);
+    this.toolbar.hideMessage();
+    this.redrawBase();
     this.redrawPending();
+    this.redrawExtension();
     this.updateProveEnabled();
   }
 
@@ -223,12 +248,21 @@ export class CurseScene extends Scene {
     }
 
     this.toolbar.hideMessage();
+    this.growExtensionToReach(world.x);
     this.setPendingAt(world.x, world.y);
   }
 
   private isOccupiedByBase(x: number, y: number): boolean {
-    return (this.baseLevel?.objects ?? []).some(
-      (o) => o.type !== 'ground' && o.x === x && o.y === y
+    if (
+      (this.baseLevel?.objects ?? []).some(
+        (o) => o.type !== 'ground' && o.x === x && o.y === y
+      )
+    ) {
+      return true;
+    }
+    const extension = this.currentExtension();
+    return (
+      extension !== undefined && extension.finish.x === x && extension.finish.y === y
     );
   }
 
@@ -241,12 +275,84 @@ export class CurseScene extends Scene {
     this.toolbar.setProveEnabled(ready);
   }
 
+  private baseObjectsAsDraft(): DraftObject[] {
+    return (this.baseLevel?.objects ?? []).map((o) => ({
+      id: o.id,
+      type: o.type,
+      x: o.x,
+      y: o.y,
+    }));
+  }
+
+  // Computed fresh every call rather than cached — cheap at this object
+  // count, and it means every caller (rendering, collision checks, the
+  // Prove request) is always looking at the same live math instead of a
+  // snapshot that could drift from pendingExtendTiles. Preview-only ids
+  // (the server never sees them — see ProposeCurseRequest.extendByTiles's
+  // comment on why only the tile count crosses the wire).
+  private currentExtension(): LevelExtension | undefined {
+    if (this.pendingExtendTiles <= 0) {
+      return undefined;
+    }
+    let groundIndex = 0;
+    return computeLevelExtension(
+      this.baseObjectsAsDraft(),
+      this.pendingExtendTiles,
+      () => `ext-ground-${groundIndex++}`,
+      () => 'ext-finish'
+    );
+  }
+
+  // Grows the pending extension (never shrinks it) just far enough for a
+  // chunk of ground to reach world-x `x` — called when the player places
+  // their object past the level's current end, so dragging the trap out
+  // there "just works" without needing to also find and tap Extend Level
+  // first. tilesNeededToReach is measured from the level's original end
+  // (same reference point computeLevelExtension itself uses), so comparing
+  // it against pendingExtendTiles directly is safe.
+  private growExtensionToReach(x: number): void {
+    const needed = tilesNeededToReach(this.baseObjectsAsDraft(), x);
+    if (needed > this.pendingExtendTiles) {
+      this.pendingExtendTiles = needed;
+      this.redrawBase();
+      this.redrawExtension();
+    }
+  }
+
+  // The explicit "Extend Level" button — adds one fixed chunk on top of
+  // whatever's already pending. Reverts the increment (rather than just
+  // leaving pendingExtendTiles inflated past what computeLevelExtension
+  // will ever actually place) when the level's already at its max width,
+  // so a second tap doesn't show the same "at the maximum" message.
+  private extendByChunk(): void {
+    if (this.proposalRequest || !this.baseLevel) return;
+    const before = this.currentExtension()?.groundTiles.length ?? 0;
+    this.pendingExtendTiles += LEVEL_EXTEND_CHUNK_TILES;
+    const after = this.currentExtension()?.groundTiles.length ?? 0;
+    if (after === before) {
+      this.pendingExtendTiles -= LEVEL_EXTEND_CHUNK_TILES;
+      this.toolbar.showMessage('Level is already at the maximum length.');
+      return;
+    }
+    this.toolbar.showMessage('Extended the level — pan right to see it.');
+    this.redrawBase();
+    this.redrawExtension();
+    this.updateProveEnabled();
+  }
+
+  // Hides the base level's own finish while an extension is pending — it's
+  // being relocated, and redrawExtension() renders the new one in its
+  // place — so the player never sees two finish portals at once.
   private redrawBase(): void {
     for (const image of this.baseImages) {
       image.destroy();
     }
     this.baseImages = [];
+    const relocatingFinish = this.pendingExtendTiles > 0;
     for (const object of this.baseLevel?.objects ?? []) {
+      if (relocatingFinish && object.type === 'finish') {
+        continue;
+      }
       const image =
         object.type === 'spawn'
           ? renderSpawnMarker(this, object.x, object.y)
@@ -254,6 +360,33 @@ export class CurseScene extends Scene {
       if (image) {
         image.disableInteractive();
         this.baseImages.push(image);
+      }
+    }
+  }
+
+  private redrawExtension(): void {
+    for (const image of this.extensionImages) {
+      image.destroy();
+    }
+    this.extensionImages = [];
+    const extension = this.currentExtension();
+    if (!extension) {
+      return;
+    }
+    for (const tile of [...extension.groundTiles, extension.finish]) {
+      const previewObject: LevelObject = {
+        id: tile.id,
+        type: tile.type,
+        x: tile.x,
+        y: tile.y,
+        properties: {},
+        addedBy: 'you',
+        addedInVersion: 0,
+      };
+      const image = renderLevelObject(this, previewObject);
+      if (image) {
+        image.disableInteractive();
+        this.extensionImages.push(image);
       }
     }
   }
@@ -339,6 +472,7 @@ export class CurseScene extends Scene {
     }
 
     this.toolbar.hideMessage();
+    this.growExtensionToReach(snapped.x);
     this.setPendingAt(snapped.x, snapped.y);
   }
 
@@ -354,6 +488,7 @@ export class CurseScene extends Scene {
     const category = this.category;
     const pending = { ...this.pending };
     const levelId = this.levelId;
+    const extendByTiles = this.pendingExtendTiles;
     const requestId = {};
     this.proposalRequest = requestId;
     this.toolbar.setEditingEnabled(false);
@@ -363,6 +498,7 @@ export class CurseScene extends Scene {
       const request: ProposeCurseRequest = {
         levelId,
         object: pending,
+        extendByTiles: extendByTiles > 0 ? extendByTiles : undefined,
       };
       const response = await fetch('/api/curse/propose', {
         method: 'POST',
@@ -392,6 +528,7 @@ export class CurseScene extends Scene {
           levelId,
           category,
           object,
+          extendByTiles: extendByTiles > 0 ? extendByTiles : undefined,
         },
       });
     } catch {

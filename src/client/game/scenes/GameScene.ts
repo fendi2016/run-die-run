@@ -67,6 +67,7 @@ type PreviewReturn =
       levelId: string;
       category: CurseCategory;
       object: DraftObject;
+      extendByTiles?: number;
     };
 
 // Data passed in via `scene.start('GameScene', data)`. Absent (a normal
@@ -292,6 +293,7 @@ export class GameScene extends Scene {
             preselected: {
               category: previewReturn.category,
               object: previewReturn.object,
+              extendByTiles: previewReturn.extendByTiles,
             },
           });
         } else {
@@ -589,7 +591,11 @@ export class GameScene extends Scene {
         levelId: previewReturn.levelId,
         preselected: conflict
           ? undefined
-          : { category: previewReturn.category, object: previewReturn.object },
+          : {
+              category: previewReturn.category,
+              object: previewReturn.object,
+              extendByTiles: previewReturn.extendByTiles,
+            },
         message,
       });
     });

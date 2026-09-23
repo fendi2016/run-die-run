@@ -151,6 +151,14 @@ export function isPublishLevelResponse(
 export type ProposeCurseRequest = {
   levelId: string;
   object: DraftObject;
+  // Requested tile count for the level-extend feature (shared/levelExtend
+  // .ts) — an optional add-on alongside `object`, never a substitute for
+  // it (a curse always requires placing a trap; the leaderboard's kill
+  // attribution is built on that). Just a count, not the computed
+  // ground/finish positions themselves — the server recomputes those
+  // itself from the current published objects rather than trusting
+  // client-sent positions.
+  extendByTiles?: number;
 };
 
 export type ProposeCurseResponse =

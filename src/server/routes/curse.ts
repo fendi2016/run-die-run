@@ -8,6 +8,7 @@ import {
   type ProposeCurseResponse,
   type PublishCurseResponse,
 } from '../../shared/editorApi';
+import { computeLevelExtension, type LevelExtension } from '../../shared/levelExtend';
 import { levelRealtimeChannel, type VersionPublishedEvent } from '../../shared/realtimeApi';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
@@ -21,7 +22,7 @@ import {
   createCurseCandidate,
   getCandidate,
   isVerifiedCandidate,
-  validatePlacement,
+  validateCurseObject,
 } from '../services/VerificationService';
 
 type ErrorResponse = {
@@ -31,9 +32,11 @@ type ErrorResponse = {
 
 const CURSE_TYPES = new Set(Object.values(CURSE_CATEGORY_TYPES).flat());
 
-function isProposeCurseBody(
-  value: unknown
-): value is { levelId: string; object: DraftObject } {
+function isProposeCurseBody(value: unknown): value is {
+  levelId: string;
+  object: DraftObject;
+  extendByTiles?: number;
+} {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -41,8 +44,31 @@ function isProposeCurseBody(
     typeof value.levelId === 'string' &&
     value.levelId.length > 0 &&
     'object' in value &&
-    isDraftObject(value.object)
+    isDraftObject(value.object) &&
+    (!('extendByTiles' in value) ||
+      (typeof value.extendByTiles === 'number' &&
+        Number.isFinite(value.extendByTiles) &&
+        value.extendByTiles >= 0))
   );
+}
+
+// The extension objects, ready to fold into either the preview shown at
+// propose time or the real published object list — same shape either way,
+// only the addedInVersion/addedBy differ per call site.
+function extensionAsLevelObjects(
+  extension: LevelExtension,
+  username: string,
+  version: number
+): LevelObject[] {
+  return [...extension.groundTiles, extension.finish].map((o) => ({
+    id: o.id,
+    type: o.type,
+    x: o.x,
+    y: o.y,
+    properties: {},
+    addedBy: username,
+    addedInVersion: version,
+  }));
 }
 
 function isPublishCurseBody(
@@ -60,9 +86,12 @@ function isPublishCurseBody(
 export const curse = new Hono();
 
 // The curse UI (spec sections 14-15) is a deliberately smaller component
-// than the base editor: exactly one new object, chosen from a restricted
+// than the base editor: exactly one new trap, chosen from a restricted
 // category set, added on top of an existing published configuration it
-// cannot otherwise touch.
+// cannot otherwise touch — plus an optional level-extend add-on (ground
+// fill + relocated finish, shared/levelExtend.ts), which is always
+// alongside the trap, never a substitute for it, since the leaderboard's
+// kill attribution depends on every curse placing one.
 curse.post('/propose', async (c) => {
   const { username } = context;
   if (!username) {
@@ -112,11 +141,38 @@ curse.post('/propose', async (c) => {
     y: body.object.y,
   };
 
-  const combined: DraftObject[] = [
-    ...current.objects.map((o) => ({ id: o.id, type: o.type, x: o.x, y: o.y })),
-    newObject,
-  ];
-  const errors = validatePlacement(combined);
+  const baseObjects: DraftObject[] = current.objects.map((o) => ({
+    id: o.id,
+    type: o.type,
+    x: o.x,
+    y: o.y,
+  }));
+
+  // Recomputed from the tile count only — never from client-sent ground/
+  // finish positions (see ProposeCurseRequest.extendByTiles's own comment).
+  const extension = body.extendByTiles
+    ? computeLevelExtension(
+        baseObjects,
+        body.extendByTiles,
+        () => randomUUID(),
+        () => randomUUID()
+      )
+    : undefined;
+
+  // The trap's own placement is validated against what the level will
+  // actually look like once the extension (if any) is applied — its old
+  // finish removed, new ground/finish added — not the pre-extension
+  // configuration, so e.g. "that would block the finish portal" checks the
+  // *new* finish position.
+  const effectiveBaseObjects: DraftObject[] = extension
+    ? [
+        ...baseObjects.filter((o) => o.type !== 'finish'),
+        ...extension.groundTiles,
+        extension.finish,
+      ]
+    : baseObjects;
+
+  const errors = validateCurseObject(effectiveBaseObjects, newObject);
   if (errors.length > 0) {
     return c.json<ProposeCurseResponse>({ status: 'error', errors });
   }
@@ -126,8 +182,12 @@ curse.post('/propose', async (c) => {
     body.levelId,
     current.version,
     current.objects,
-    newObject
+    newObject,
+    extension
   );
+  const extensionObjects = extension
+    ? extensionAsLevelObjects(extension, username, current.version + 1)
+    : [];
   return c.json<ProposeCurseResponse>({
     status: 'ok',
     candidateToken,
@@ -138,7 +198,8 @@ curse.post('/propose', async (c) => {
       version: current.version + 1,
       parentVersion: current.version,
       objects: [
-        ...current.objects,
+        ...current.objects.filter((o) => !(extension && o.type === 'finish')),
+        ...extensionObjects,
         { ...newObject, properties: {}, addedBy: username, addedInVersion: current.version + 1 },
       ],
       contributorUsername: username,
@@ -185,7 +246,7 @@ curse.post('/publish', async (c) => {
     );
   }
 
-  const { levelId, parentVersion, baseObjects, newObject, verifiedTimeMs } =
+  const { levelId, parentVersion, baseObjects, newObject, extension, verifiedTimeMs } =
     candidate;
   const newVersionNumber = parentVersion + 1;
 
@@ -223,8 +284,12 @@ curse.post('/publish', async (c) => {
         };
       }
 
+      const extensionObjects = extension
+        ? extensionAsLevelObjects(extension, username, newVersionNumber)
+        : [];
       const objects: LevelObject[] = [
-        ...baseObjects,
+        ...baseObjects.filter((o) => !(extension && o.type === 'finish')),
+        ...extensionObjects,
         {
           id: newObject.id,
           type: newObject.type,
