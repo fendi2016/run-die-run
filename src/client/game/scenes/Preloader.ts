@@ -86,7 +86,14 @@ export class Preloader extends Scene {
     this.load.image('candle', 'hazards/candle.webp');
     this.load.image('bat', 'hazards/bat.webp');
     this.load.image('ghost', 'hazards/ghost.webp');
-    this.load.image('finish', 'markers/finish.webp');
+    // The finish bell (see ObjectRegistry/Juice.playFinishBellAnimation) is
+    // 4 separate frames rather than a spritesheet — each has its own
+    // hand-picked origin (FINISH_ORIGIN_X) so the post stays visually
+    // planted while the bell/motion-lines/ghosts around it change extent.
+    this.load.image('finish-idle', 'markers/finish-idle.webp');
+    this.load.image('finish-hit', 'markers/finish-hit.webp');
+    this.load.image('finish-ringing', 'markers/finish-ringing.webp');
+    this.load.image('finish-success', 'markers/finish-success.webp');
     this.load.image('spawn-marker', 'markers/spawn.webp');
     this.load.image('doubleJump', 'powerups/doubleJump.webp');
     this.load.image('shield', 'powerups/shield.webp');

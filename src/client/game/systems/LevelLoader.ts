@@ -31,6 +31,11 @@ export type LoadedLevel = {
   // reload the level) — a power-up collected once shouldn't be gone for
   // every subsequent attempt at the same run.
   powerUpImages: Phaser.GameObjects.Sprite[];
+  // The visible finish bell (VerificationService guarantees exactly one
+  // per level), exposed so GameScene can play the hit/ringing/success
+  // texture swap on it from onFinishReached — undefined for level data that
+  // (invalidly) has none, rather than throwing.
+  finishSprite: Phaser.GameObjects.Sprite | undefined;
 };
 
 export type LevelLoaderCallbacks = {
@@ -74,6 +79,7 @@ export function loadLevel(
   let maxX = 0;
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
+  let finishSprite: Phaser.GameObjects.Sprite | undefined;
   const movementResets: (() => void)[] = [];
   // Static groups query Arcade's spatial index instead of testing every
   // tile/hazard with a separate collider on every physics step.
@@ -253,6 +259,7 @@ export function loadLevel(
         scene.physics.add.existing(sensor, true);
         finishes.add(sensor);
         applyOutlineGlow(rendered, 0x39ff88, 6);
+        finishSprite = rendered;
         break;
       }
       case 'powerup':
@@ -273,5 +280,6 @@ export function loadLevel(
     levelWidth: maxX + LEVEL_WIDTH_MARGIN,
     movingObjectTweens,
     powerUpImages,
+    finishSprite,
   };
 }

@@ -49,7 +49,7 @@ import {
 } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
-import { burstParticles } from '../systems/Juice';
+import { burstParticles, playFinishBellAnimation, setFinishFrame } from '../systems/Juice';
 import { loadLevel, setPowerUpAvailable } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 
@@ -114,6 +114,7 @@ export class GameScene extends Scene {
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
+  private finishSprite: Phaser.GameObjects.Sprite | undefined;
   private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
 
   private previewLevel: LevelVersion | undefined;
@@ -153,6 +154,7 @@ export class GameScene extends Scene {
     this.movingObjectTweens = [];
     this.resetMovingObjects = undefined;
     this.powerUpImages = [];
+    this.finishSprite = undefined;
     this.slowTimeTimer = undefined;
     this.pendingVersionPublished = undefined;
     this.pendingWorldRecord = undefined;
@@ -402,6 +404,7 @@ export class GameScene extends Scene {
     this.movingObjectTweens = loaded.movingObjectTweens;
     this.resetMovingObjects = loaded.resetMovingObjects;
     this.powerUpImages = loaded.powerUpImages;
+    this.finishSprite = loaded.finishSprite;
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
     // Tiled rather than stretched, so the art keeps its native proportions
@@ -455,6 +458,9 @@ export class GameScene extends Scene {
       22
     );
     this.cameras.main.flash(150, 57, 255, 136, false);
+    if (this.finishSprite) {
+      playFinishBellAnimation(this, this.finishSprite);
+    }
 
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime();
@@ -790,6 +796,17 @@ export class GameScene extends Scene {
     this.slowTimeTimer?.remove();
     this.slowTimeTimer = undefined;
     this.resetMovingObjects?.();
+
+    // Defensive: onFinishReached leaves runEnded=true, and every normal
+    // path out of a finish is the result overlay's next-level/editor-return
+    // flow rather than restartRun — but if this ever does fire after a
+    // finish (e.g. a stray restart control), the bell shouldn't stay stuck
+    // mid-ding.
+    if (this.finishSprite) {
+      this.tweens.killTweensOf(this.finishSprite);
+      this.finishSprite.setRotation(0);
+      setFinishFrame(this.finishSprite, 'finish-idle');
+    }
   }
 
   private cleanup(): void {

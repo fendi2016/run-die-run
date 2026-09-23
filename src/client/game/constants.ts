@@ -83,3 +83,9 @@ export const SPIKE_DISPLAY_HEIGHT_PX = 60;
 // preserved, not stretched) so the in-level hazard's hitbox doesn't grow
 // just because the art got fixed.
 export const BAT_DISPLAY_HEIGHT_PX = 40;
+
+// The finish bell's 4 frames (idle/hit/ringing/success) are cropped to
+// different native pixel sizes (motion-lines and ghosts extend the canvas
+// unevenly), so they're scaled to a shared target height rather than a
+// fixed display size — width is left to each frame's own aspect ratio.
+export const FINISH_DISPLAY_HEIGHT_PX = 150;

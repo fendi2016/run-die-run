@@ -1,4 +1,6 @@
 import * as Phaser from 'phaser';
+import { FINISH_DISPLAY_HEIGHT_PX } from '../constants';
+import { finishOriginX } from '../objects/ObjectRegistry';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
 // death, celebration on finish) — a one-shot particle burst using the
@@ -96,4 +98,69 @@ export function applyOutlineGlow(
   }
   const glow = sprite.filters.internal.addGlow(color, outerStrength);
   glow.setPaddingOverride(null);
+}
+
+const FINISH_RING_STEP_MS = 70;
+const FINISH_RING_REPEAT = 2;
+
+// Sets one of the finish bell's reference-art frames, recalculating origin
+// (finishOriginX — see ObjectRegistry.FINISH_ORIGIN_X) and scale each time
+// so the gallows post stays visually planted while the bell/motion-lines/
+// ghosts around it change extent between frames. Exported so GameScene can
+// also use it to snap the bell back to its resting pose on a same-scene
+// restart (see restartRun) without duplicating this math.
+export function setFinishFrame(sprite: Phaser.GameObjects.Sprite, textureKey: string): number {
+  sprite.setTexture(textureKey);
+  sprite.setOrigin(finishOriginX(textureKey), 1);
+  const scale = FINISH_DISPLAY_HEIGHT_PX / sprite.height;
+  sprite.setScale(scale);
+  return scale;
+}
+
+// Swaps the finish bell through its hit -> ringing -> success frames instead
+// of tweening between poses that don't exist. Purely cosmetic, same as
+// burstParticles above — GameScene fires this once from onFinishReached and
+// never awaits it.
+export function playFinishBellAnimation(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite
+): void {
+  scene.tweens.killTweensOf(sprite);
+  sprite.setRotation(0);
+
+  const hitScale = setFinishFrame(sprite, 'finish-hit');
+  sprite.setScale(hitScale * 1.18);
+  scene.tweens.add({
+    targets: sprite,
+    scale: hitScale,
+    duration: 100,
+    ease: 'Back.easeOut',
+  });
+
+  scene.time.delayedCall(100, () => {
+    if (!sprite.active) return;
+    setFinishFrame(sprite, 'finish-ringing');
+    scene.tweens.add({
+      targets: sprite,
+      rotation: 0.08,
+      duration: FINISH_RING_STEP_MS,
+      yoyo: true,
+      repeat: FINISH_RING_REPEAT,
+      ease: 'Sine.easeInOut',
+    });
+  });
+
+  const ringingDurationMs = FINISH_RING_STEP_MS * 2 * (FINISH_RING_REPEAT + 1);
+  scene.time.delayedCall(100 + ringingDurationMs, () => {
+    if (!sprite.active) return;
+    sprite.setRotation(0);
+    const successScale = setFinishFrame(sprite, 'finish-success');
+    sprite.setScale(successScale * 0.8);
+    scene.tweens.add({
+      targets: sprite,
+      scale: successScale,
+      duration: 260,
+      ease: 'Back.easeOut',
+    });
+  });
 }
