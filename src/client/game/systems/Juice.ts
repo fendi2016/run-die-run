@@ -179,6 +179,119 @@ export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): v
   });
 }
 
+const SHIELD_ANIM_KEY = 'shield-electric';
+// The full 30-frame source loop, unlike the trimmed death VFX above — this
+// one is a genuine single revolution of the ring, so cutting it short would
+// visibly chop the rotation instead of just trimming a fade tail.
+const SHIELD_FRAME_RATE = 30;
+const SHIELD_SCALE = 0.5;
+const SHIELD_BREAK_DURATION_MS = 150;
+
+function ensureShieldAnim(scene: Phaser.Scene): void {
+  if (scene.anims.exists(SHIELD_ANIM_KEY)) {
+    return;
+  }
+  scene.anims.create({
+    key: SHIELD_ANIM_KEY,
+    frames: scene.anims.generateFrameNumbers('shield-electric'),
+    frameRate: SHIELD_FRAME_RATE,
+    repeat: -1,
+  });
+}
+
+// A persistent aura for as long as the Shield power-up is held, rather than
+// only showing feedback at the moment it's consumed (the pre-existing
+// flashSprite blink in Player.tryAbsorbHit) — otherwise there's no way to
+// tell at a glance whether a shield is currently banked. Caller (Player)
+// owns the returned sprite's lifetime: it doesn't follow anything on its
+// own, so Player repositions it every update() tick to track the player
+// sprite, and calls destroyElectricShield when the shield is lost.
+export function attachElectricShield(
+  scene: Phaser.Scene,
+  x: number,
+  y: number
+): Phaser.GameObjects.Sprite {
+  ensureShieldAnim(scene);
+  const shield = scene.add.sprite(x, y, 'shield-electric');
+  shield.setScale(SHIELD_SCALE);
+  shield.setBlendMode(Phaser.BlendModes.ADD);
+  shield.play(SHIELD_ANIM_KEY);
+  return shield;
+}
+
+// A quick pop-and-fade rather than an instant destroy() — reads as the
+// shield breaking instead of just vanishing.
+export function destroyElectricShield(
+  scene: Phaser.Scene,
+  shield: Phaser.GameObjects.Sprite
+): void {
+  scene.tweens.add({
+    targets: shield,
+    scale: shield.scale * 1.4,
+    alpha: 0,
+    duration: SHIELD_BREAK_DURATION_MS,
+    ease: 'Quad.easeOut',
+    onComplete: () => shield.destroy(),
+  });
+}
+
+const HYPERSPEED_ANIM_KEY = 'hyperspeed-lines';
+const HYPERSPEED_FRAME_RATE = 24;
+const HYPERSPEED_SCALE = 0.55;
+const HYPERSPEED_FADE_IN_MS = 120;
+const HYPERSPEED_FADE_OUT_MS = 220;
+const HYPERSPEED_ALPHA = 0.85;
+
+function ensureHyperspeedAnim(scene: Phaser.Scene): void {
+  if (scene.anims.exists(HYPERSPEED_ANIM_KEY)) {
+    return;
+  }
+  scene.anims.create({
+    key: HYPERSPEED_ANIM_KEY,
+    frames: scene.anims.generateFrameNumbers('hyperspeed-lines'),
+    frameRate: HYPERSPEED_FRAME_RATE,
+    repeat: -1,
+  });
+}
+
+// Speed lines trailing the player for the Speed Boost power-up's duration
+// (durationMs — matches SPEED_BOOST_DURATION_MS, passed in by the caller
+// rather than imported here so this stays reusable for any timed-multiplier
+// pickup rather than hardcoding Speed Boost's own constant). Self-contained
+// (fades itself out and destroys itself on a timer) except for position —
+// same as attachElectricShield, the caller repositions the returned sprite
+// every update() tick to keep it centered on the moving player.
+export function playHyperspeedTrail(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  durationMs: number
+): Phaser.GameObjects.Sprite {
+  ensureHyperspeedAnim(scene);
+  const trail = scene.add.sprite(x, y, 'hyperspeed-lines');
+  trail.setScale(HYPERSPEED_SCALE);
+  trail.setBlendMode(Phaser.BlendModes.ADD);
+  trail.setAlpha(0);
+  trail.play(HYPERSPEED_ANIM_KEY);
+  scene.tweens.add({
+    targets: trail,
+    alpha: HYPERSPEED_ALPHA,
+    duration: HYPERSPEED_FADE_IN_MS,
+    ease: 'Quad.easeOut',
+  });
+  scene.time.delayedCall(Math.max(0, durationMs - HYPERSPEED_FADE_OUT_MS), () => {
+    if (!trail.active) return;
+    scene.tweens.add({
+      targets: trail,
+      alpha: 0,
+      duration: HYPERSPEED_FADE_OUT_MS,
+      ease: 'Quad.easeIn',
+      onComplete: () => trail.destroy(),
+    });
+  });
+  return trail;
+}
+
 const FINISH_HIT_DURATION_MS = 180;
 const FINISH_RING_STEP_MS = 130;
 const FINISH_RING_REPEAT = 2;

@@ -5,7 +5,12 @@ import {
   JUMP_DOWN_EVENT,
   JUMP_UP_EVENT,
 } from '../systems/InputSystem';
-import { playDeathExplosion } from '../systems/Juice';
+import {
+  attachElectricShield,
+  destroyElectricShield,
+  playDeathExplosion,
+  playHyperspeedTrail,
+} from '../systems/Juice';
 import {
   COYOTE_TIME_MS,
   DASH_BURST_DURATION_MS,
@@ -238,6 +243,12 @@ export class Player {
   private shieldProtectionRemainingMs = 0;
   private speedMultiplier = 1;
   private speedBoostTimer: Phaser.Time.TimerEvent | undefined;
+  // Purely cosmetic escorts for the two power-ups above — neither drives
+  // gameplay state, just repositioned onto the player every update() tick
+  // (syncEffectSprites) for as long as they're active. undefined whenever
+  // not currently shown, so presence alone doubles as "is one showing".
+  private shieldSprite?: Phaser.GameObjects.Sprite;
+  private hyperspeedSprite?: Phaser.GameObjects.Sprite;
 
   // Tap-to-start (spec: don't auto-run the instant a level loads) — while
   // true, update() skips the auto-run velocity and jump handling entirely
@@ -304,7 +315,32 @@ export class Player {
     );
   }
 
+  // Neither effect sprite has any position logic of its own (Juice's
+  // attachElectricShield/playHyperspeedTrail just place-and-return) — this
+  // is what actually makes them "escort" the player. Runs unconditionally,
+  // ahead of update()'s alive/waitingToStart early-return, since a sprite
+  // can still be showing in the single frame death/freeze fires in (both
+  // explicitly destroy their own escorts, but only after this would've
+  // already run this frame).
+  private syncEffectSprites(): void {
+    const centerY = this.sprite.y - PLAYER_SIZE / 2;
+    this.shieldSprite?.setPosition(this.sprite.x, centerY);
+    this.hyperspeedSprite?.setPosition(this.sprite.x, centerY);
+  }
+
+  // Instant removal (no break/fade tween, unlike tryAbsorbHit's own use of
+  // destroyElectricShield) — called when the run itself is ending or
+  // restarting, where the escort disappearing a frame early is invisible
+  // next to the much bigger death/dance/reset transition already playing.
+  private clearEffectSprites(): void {
+    this.shieldSprite?.destroy();
+    this.shieldSprite = undefined;
+    this.hyperspeedSprite?.destroy();
+    this.hyperspeedSprite = undefined;
+  }
+
   update(deltaMs: number): void {
+    this.syncEffectSprites();
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
     this.msSinceGrounded = this.body.blocked.down
       ? 0
@@ -395,6 +431,10 @@ export class Player {
     this.hasShield = false;
     this.shieldProtectionRemainingMs = 350;
     this.flashSprite();
+    if (this.shieldSprite) {
+      destroyElectricShield(this.scene, this.shieldSprite);
+      this.shieldSprite = undefined;
+    }
     return true;
   }
 
@@ -415,6 +455,17 @@ export class Player {
 
   grantShield(): void {
     this.hasShield = true;
+    // Re-collecting while already shielded (the power-up is re-collectible
+    // — see the Power-up state comment above) shouldn't stack a second aura
+    // on top of the one already showing.
+    if (this.shieldSprite) {
+      return;
+    }
+    this.shieldSprite = attachElectricShield(
+      this.scene,
+      this.sprite.x,
+      this.sprite.y - PLAYER_SIZE / 2
+    );
   }
 
   applySpeedBoost(): void {
@@ -422,6 +473,27 @@ export class Player {
       SPEED_BOOST_MULTIPLIER,
       SPEED_BOOST_DURATION_MS
     );
+    // Re-collecting mid-boost cuts the old trail immediately rather than
+    // fading it — it's about to be replaced by a fresh one at full alpha
+    // anyway, so the fade would only ever be visible for a couple of
+    // frames.
+    this.hyperspeedSprite?.destroy();
+    const trail = playHyperspeedTrail(
+      this.scene,
+      this.sprite.x,
+      this.sprite.y - PLAYER_SIZE / 2,
+      SPEED_BOOST_DURATION_MS
+    );
+    // playHyperspeedTrail self-destroys on a timer — this just keeps
+    // syncEffectSprites from calling setPosition on it afterward. Guarded
+    // by identity since a re-trigger above may already have replaced
+    // `hyperspeedSprite` with a newer trail by the time this fires.
+    trail.once(Phaser.GameObjects.Events.DESTROY, () => {
+      if (this.hyperspeedSprite === trail) {
+        this.hyperspeedSprite = undefined;
+      }
+    });
+    this.hyperspeedSprite = trail;
   }
 
   // "Pickup -> immediate short forward burst" (spec section 21) — no
@@ -455,6 +527,7 @@ export class Player {
       return;
     }
     this.alive = false;
+    this.clearEffectSprites();
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
     this.sprite.anims.stop();
@@ -492,6 +565,7 @@ export class Player {
   // stopping mid-stride.
   freeze(): void {
     this.alive = false;
+    this.clearEffectSprites();
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
     // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — otherwise
@@ -506,6 +580,7 @@ export class Player {
   // still auto-runs immediately, preserving the fast retry loop (spec
   // section 6's ~0.3-0.6s death->retry target).
   reset(x: number, y: number, waiting = false): void {
+    this.clearEffectSprites();
     this.sprite.setPosition(x, y);
     this.sprite.setVelocity(0, 0);
     // setDisplaySize, not setScale(1, 1) — the sprite's native frame size
@@ -538,6 +613,7 @@ export class Player {
   }
 
   destroy(): void {
+    this.clearEffectSprites();
     this.speedBoostTimer?.remove();
     this.inputSystem.destroy();
     this.scene.events.off(JUMP_DOWN_EVENT, this.onJumpPressed, this);

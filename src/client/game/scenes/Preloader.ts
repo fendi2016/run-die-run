@@ -115,6 +115,22 @@ export class Preloader extends Scene {
       frameHeight: 355,
     });
     this.load.image('death-kaboom', 'vfx/death-kaboom.webp');
+
+    // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
+    // also from the VFX Free Pack. shield-electric is the source pack's
+    // full 30-frame loop (a genuine one-revolution rotation, unlike the
+    // death VFX above — trimming it would cut the rotation off mid-spin).
+    // hyperspeed-lines is trimmed to 18 of its 30 frames (same "no visual
+    // loss, just less file" reasoning as death-explosion — the streak
+    // pattern has no fade arc to preserve, just cycles).
+    this.load.spritesheet('shield-electric', 'vfx/shield-electric.webp', {
+      frameWidth: 265,
+      frameHeight: 265,
+    });
+    this.load.spritesheet('hyperspeed-lines', 'vfx/hyperspeed-lines.webp', {
+      frameWidth: 517,
+      frameHeight: 515,
+    });
   }
 
   create() {
