@@ -117,7 +117,7 @@ const PLAYER_FRAME_SIZE = 362;
 // and stride rather than a mechanical, evenly-spaced frame flip.
 const RUN_FRAME_DURATIONS_MS: readonly number[] = [70, 38, 52, 70, 38, 52];
 // Squash on contact, stretch through the passing/high point — synced to the
-// same six frames via ANIMATION_UPDATE (see onRunFrameUpdate). Multiplied
+// same six frames via ANIMATION_UPDATE (see onAnimFrameUpdate). Multiplied
 // against the base PLAYER_SIZE scale, not set absolutely.
 const RUN_SCALE_X_FACTORS: readonly number[] = [
   1.05, 0.99, 0.96, 1.05, 0.99, 0.96,
@@ -125,6 +125,38 @@ const RUN_SCALE_X_FACTORS: readonly number[] = [
 const RUN_SCALE_Y_FACTORS: readonly number[] = [
   0.94, 1.02, 1.06, 0.94, 1.02, 1.06,
 ];
+// Same trick as the run cycle's squash/stretch above, applied to the dance
+// loop — without it the dance is just a slideshow of static poses cut on
+// every frame, since none of the source art itself has any built-in
+// squash/stretch. Alternating compress/stretch every frame reads as a
+// bounce synced exactly to the beat the pose changes land on (a tween
+// wouldn't stay locked to that beat — see onAnimFrameUpdate).
+const DANCE_SCALE_X_FACTORS: readonly number[] = [
+  1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95,
+];
+const DANCE_SCALE_Y_FACTORS: readonly number[] = [
+  0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07,
+];
+type AnimScaleTable = {
+  keys: readonly string[];
+  scaleX: readonly number[];
+  scaleY: readonly number[];
+};
+// Keyed by animation key rather than branching in onAnimFrameUpdate itself
+// — keeps each pose list paired with its own matching scale arrays instead
+// of relying on three parallel ternaries staying in sync by hand.
+const ANIM_SCALE_TABLES: Record<string, AnimScaleTable> = {
+  [RUN_ANIM_KEY]: {
+    keys: RUN_KEYS,
+    scaleX: RUN_SCALE_X_FACTORS,
+    scaleY: RUN_SCALE_Y_FACTORS,
+  },
+  [DANCE_ANIM_KEY]: {
+    keys: DANCE_KEYS,
+    scaleX: DANCE_SCALE_X_FACTORS,
+    scaleY: DANCE_SCALE_Y_FACTORS,
+  },
+};
 // A vertical root-motion "bob" (translating sprite.y directly, on top of
 // the squash-stretch above) was tried here and reverted — Arcade Physics'
 // Body.preUpdate calls updateFromGameObject() *every frame*, which resyncs
@@ -173,7 +205,7 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (!scene.anims.exists(DANCE_ANIM_KEY)) {
     scene.anims.create({
       key: DANCE_ANIM_KEY,
-      frames: DANCE_KEYS.map((key) => ({ key, duration: 180 })),
+      frames: DANCE_KEYS.map((key) => ({ key, duration: 144 })),
       frameRate: 22,
       repeat: -1,
     });
@@ -246,27 +278,29 @@ export class Player {
     scene.events.on(JUMP_UP_EVENT, this.onJumpReleased, this);
     this.sprite.on(
       Phaser.Animations.Events.ANIMATION_UPDATE,
-      this.onRunFrameUpdate,
+      this.onAnimFrameUpdate,
       this
     );
   }
 
-  // Drives the run cycle's squash/stretch bounce frame-by-frame instead of a
-  // tween — a tween racing the animation's own frame timing would drift out
-  // of sync as soon as RUN_FRAME_DURATIONS_MS's asymmetric holds kick in.
-  // Keyed off the sprite's current texture rather than AnimationFrame.index
-  // since each run pose is its own texture, not a spritesheet index.
-  private onRunFrameUpdate(anim: Phaser.Animations.Animation): void {
-    if (anim.key !== RUN_ANIM_KEY) {
+  // Drives the run cycle's and dance loop's squash/stretch bounce
+  // frame-by-frame instead of a tween — a tween racing the animation's own
+  // frame timing would drift out of sync as soon as RUN_FRAME_DURATIONS_MS's
+  // asymmetric holds (or a future non-uniform dance timing) kick in. Keyed
+  // off the sprite's current texture rather than AnimationFrame.index since
+  // each pose is its own texture, not a spritesheet index.
+  private onAnimFrameUpdate(anim: Phaser.Animations.Animation): void {
+    const table = ANIM_SCALE_TABLES[anim.key];
+    if (!table) {
       return;
     }
-    const poseIndex = RUN_KEYS.indexOf(this.sprite.texture.key);
+    const poseIndex = table.keys.indexOf(this.sprite.texture.key);
     if (poseIndex === -1) {
       return;
     }
     this.sprite.setScale(
-      PLAYER_BASE_SCALE * (RUN_SCALE_X_FACTORS[poseIndex] ?? 1),
-      PLAYER_BASE_SCALE * (RUN_SCALE_Y_FACTORS[poseIndex] ?? 1)
+      PLAYER_BASE_SCALE * (table.scaleX[poseIndex] ?? 1),
+      PLAYER_BASE_SCALE * (table.scaleY[poseIndex] ?? 1)
     );
   }
 
@@ -326,7 +360,7 @@ export class Player {
       return;
     }
 
-    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
+    // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — otherwise
     // whichever pose was mid-bounce when the player left the ground stays
     // stretched/squashed for the entire jump, shared by both airborne cases
     // below.
@@ -425,7 +459,7 @@ export class Player {
     this.body.setAllowGravity(false);
     this.sprite.anims.stop();
     this.sprite.setTexture(DEATH_KEY);
-    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — dying
+    // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — dying
     // mid-bounce would otherwise compound that frame's scale into the death
     // squash tween below instead of squashing from a neutral pose.
     this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
@@ -456,7 +490,7 @@ export class Player {
     this.alive = false;
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
-    // Undo the run cycle's squash/stretch (onRunFrameUpdate) — otherwise
+    // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — otherwise
     // whichever pose was mid-bounce when the run ended stays
     // squashed/stretched underneath the dance animation.
     this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
@@ -506,7 +540,7 @@ export class Player {
     this.scene.events.off(JUMP_UP_EVENT, this.onJumpReleased, this);
     this.sprite.off(
       Phaser.Animations.Events.ANIMATION_UPDATE,
-      this.onRunFrameUpdate,
+      this.onAnimFrameUpdate,
       this
     );
   }
