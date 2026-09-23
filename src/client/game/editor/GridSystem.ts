@@ -20,11 +20,8 @@ export const PLACEABLE_TYPES = [
   'bat',
   'ghost',
   'movingPlatform',
-  'doubleJump',
   'shield',
   'speedBoost',
-  'slowTime',
-  'autoDash',
   'spawn',
   'finish',
 ] as const;

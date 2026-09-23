@@ -12,6 +12,7 @@ import { menu } from './routes/menu';
 import { publish } from './routes/publish';
 import { runs } from './routes/runs';
 import { triggers } from './routes/triggers';
+import { userStats } from './routes/userStats';
 
 const app = new Hono();
 const internal = new Hono();
@@ -29,6 +30,7 @@ app.route('/api/discovery', discovery);
 app.route('/api/follow', follow);
 app.route('/api/leaderboard', leaderboard);
 app.route('/api/currency', currency);
+app.route('/api/stats', userStats);
 
 serve({
   fetch: app.fetch,

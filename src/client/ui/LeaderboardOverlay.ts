@@ -1,12 +1,21 @@
 import { isCursersLeaderboardResponse } from '../../shared/leaderboardApi';
 import { requireButton, requireElement } from './domUtils';
 
-// DOM overlay for the one global leaderboard (spec section 24's "TOP
-// CURSERS") — ranked by trap kills, not time (this game is an auto-runner;
-// pace is set by the side-scroll, not player input speed, so clear time
-// isn't a meaningful competitive axis here) and not per-level (one board,
-// reachable identically from GameScene's result overlay and MainMenu). A
-// singleton like GameMenu/PreviewBackButton, not a per-GameScene instance.
+export type LeaderboardOverlayOptions = {
+  // Scopes the board to one level's contributor kills (levelContributorKillsKey)
+  // instead of the global cross-level one — shown from GameScene's result
+  // overlay, where "Leaderboard" means "for the level I just played," not
+  // the whole game.
+  levelId?: string;
+};
+
+// DOM overlay for the "TOP CURSERS" board (spec section 24) — ranked by
+// trap kills, not time (this game is an auto-runner; pace is set by the
+// side-scroll, not player input speed, so clear time isn't a meaningful
+// competitive axis here). Global by default (reachable from MainMenu), or
+// scoped to one level when opened with a levelId (GameScene's result
+// overlay). A singleton like GameMenu/PreviewBackButton, not a
+// per-GameScene instance.
 export class LeaderboardOverlay {
   private static singleton: LeaderboardOverlay | undefined;
 
@@ -15,6 +24,7 @@ export class LeaderboardOverlay {
   }
 
   private readonly root = requireElement('leaderboard-overlay');
+  private readonly titleEl = requireElement('leaderboard-title');
   private readonly bodyEl = requireElement('leaderboard-body');
   private readonly closeBtn = requireButton('leaderboard-close');
   // Guards against a slow response landing after the panel was reopened
@@ -25,20 +35,26 @@ export class LeaderboardOverlay {
     this.closeBtn.onclick = () => this.hide();
   }
 
-  show(): void {
+  show(options: LeaderboardOverlayOptions = {}): void {
     this.root.classList.remove('hidden');
-    void this.load();
+    this.titleEl.textContent = options.levelId
+      ? 'TOP CURSERS — THIS LEVEL'
+      : 'TOP CURSERS';
+    void this.load(options.levelId);
   }
 
   hide(): void {
     this.root.classList.add('hidden');
   }
 
-  private async load(): Promise<void> {
+  private async load(levelId: string | undefined): Promise<void> {
     const token = ++this.requestToken;
     this.renderMessage('Loading…');
     try {
-      const response = await fetch('/api/leaderboard');
+      const url = levelId
+        ? `/api/leaderboard/level/${encodeURIComponent(levelId)}`
+        : '/api/leaderboard';
+      const response = await fetch(url);
       const body: unknown = await response.json();
       if (token !== this.requestToken) return;
       if (!response.ok || !isCursersLeaderboardResponse(body)) {

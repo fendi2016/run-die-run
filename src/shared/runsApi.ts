@@ -1,7 +1,10 @@
-// Wire contract for POST /api/runs (spec sections 8–9). The client only
-// claims a level/version/time — rank, personal best, and world record are
-// always computed server-side (spec section 19: never trust the client to
-// assign rank).
+// Wire contract for POST /api/runs (spec sections 8–9). `timeMs` is still
+// submitted (server-validated, spec section 19) since the per-version
+// leaderboard still tracks it internally for world-record detection (see
+// runs.ts's realtime `newWorldRecord` event) — but the response no longer
+// surfaces rank/personal-best/world-record/top-ten. CURSED is an auto-run
+// game (only input is jump timing), so time-based competition doesn't fit
+// the core loop; that display was deliberately cut, not left unbuilt.
 export type SubmitRunRequest = {
   // Stable for retries of one clear; older clients may omit this.
   submissionId?: string;
@@ -10,18 +13,8 @@ export type SubmitRunRequest = {
   timeMs: number;
 };
 
-export type LeaderboardEntry = {
-  username: string;
-  timeMs: number;
-};
-
 export type SubmitRunResponse = {
   timeMs: number;
-  rank: number;
-  personalBestMs: number;
-  isNewPersonalBest: boolean;
-  worldRecordMs: number;
-  topTen: LeaderboardEntry[];
   // Clear Streaks (spec section 28): lifetime count of unique level
   // versions cleared, never reset. `isNewStreakIncrease` is false on a
   // replay of a version already cleared before — the streak count is still
@@ -47,16 +40,6 @@ export function isSubmitRunResponse(
     value !== null &&
     'timeMs' in value &&
     typeof value.timeMs === 'number' &&
-    'rank' in value &&
-    typeof value.rank === 'number' &&
-    'personalBestMs' in value &&
-    typeof value.personalBestMs === 'number' &&
-    'isNewPersonalBest' in value &&
-    typeof value.isNewPersonalBest === 'boolean' &&
-    'worldRecordMs' in value &&
-    typeof value.worldRecordMs === 'number' &&
-    'topTen' in value &&
-    Array.isArray(value.topTen) &&
     'streak' in value &&
     typeof value.streak === 'number' &&
     'isNewStreakIncrease' in value &&

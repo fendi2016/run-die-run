@@ -12,11 +12,8 @@ export type ObjectType =
   | 'bat'
   | 'ghost'
   | 'fallingBlock'
-  | 'doubleJump'
   | 'shield'
   | 'speedBoost'
-  | 'slowTime'
-  | 'autoDash'
   | 'spawn'
   | 'finish';
 

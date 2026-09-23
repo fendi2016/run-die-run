@@ -449,6 +449,21 @@ body {
   flex-shrink: 0;
 }
 
+/* Labels the button cluster that follows it within #editor-palette's single
+   scrollable row (Hazards/Platforms/Power-Ups/Markers) — grouping to match
+   the curse screen's hazard/platform/powerUp categories, without switching
+   the builder off its one-tap-to-place interaction. */
+.editor-palette-group-label {
+  align-self: center;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+}
+
 .editor-btn {
   display: flex;
   flex-direction: column;
@@ -684,6 +699,55 @@ body {
   font-weight: 700;
 }
 
+/* Stats overlay: same .editor-dialog chrome + title treatment as the
+   leaderboard above, with a plain label/value list instead of a table
+   (five numbers, no ranking to visually emphasize). */
+#stats-title {
+  font-family: 'Arial Black', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: #ffd166;
+  text-align: center;
+}
+
+#stats-message {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+#stats-message.hidden {
+  display: none;
+}
+
+#stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 240px;
+}
+
+.stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stats-row:last-child {
+  border-bottom: none;
+}
+
+.stats-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* Level browser overlay (spec sections 26-27): reuses .editor-dialog/
    .editor-dialog-panel (same modal chrome as leaderboard/publish/JSON), a
    fixed-height panel with its own scrollable list instead of the sort of
@@ -908,6 +972,17 @@ body {
   font-size: 12px;
   letter-spacing: 0.06em;
   text-shadow: 1px 1px 0 #000000;
+}
+
+/* Reset the default button chrome so this reads identically to the plain
+   #game-menu-chip span beside it — the only difference is it's tappable
+   (opens #stats-overlay, see GameMenu.ts). */
+#game-menu-currency-chip {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
 #game-menu-stat-value {

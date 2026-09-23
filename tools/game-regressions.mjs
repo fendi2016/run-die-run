@@ -113,7 +113,7 @@ try {
     const objects = [
       { id: 'spawn', type: 'spawn', x: 90, y: 480 },
       { id: 'finish', type: 'finish', x: 30000, y: 480 },
-      { id: 'pickup', type: 'doubleJump', x: 300, y: 420 },
+      { id: 'pickup', type: 'shield', x: 300, y: 420 },
       { id: 'trap', type: 'spike', x: 600, y: 420 },
       ...Array.from({ length: 500 }, (_, i) => ({ id: `tile-${i}`, type: 'ground', x: 30 + i * 60, y: 480 })),
     ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 }));
@@ -129,9 +129,9 @@ try {
     const pickup = scene.powerUpImages[0];
     scene.player.body.reset(300, 410);
     check();
-    const collected = !pickup.body.enable && scene.player.hasDoubleJump;
+    const collected = !pickup.body.enable && scene.player.hasShield;
     scene.restartRun();
-    const restored = pickup.body.enable && !scene.player.hasDoubleJump;
+    const restored = pickup.body.enable && !scene.player.hasShield;
     scene.player.body.reset(600, 410);
     check();
     const result = { colliders: colliders.length, collected, restored,

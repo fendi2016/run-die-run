@@ -10,11 +10,11 @@ import {
   destroyElectricShield,
   playDeathExplosion,
   playHyperspeedTrail,
+  playPlayerShatter,
 } from '../systems/Juice';
+import { playSfx } from '../systems/Sfx';
 import {
   COYOTE_TIME_MS,
-  DASH_BURST_DURATION_MS,
-  DASH_BURST_MULTIPLIER,
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
@@ -48,7 +48,6 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-jump-tuck',
   'player-jump-fall',
   'player-crouch',
-  'player-death',
   'player-dance-1',
   'player-dance-2',
   'player-dance-3',
@@ -76,7 +75,6 @@ const RUN_KEYS = [
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
-const DEATH_KEY = 'player-death';
 const DANCE_ANIM_KEY = 'player-dance';
 // Reordered from the source sheet's raster order (1 is a near-idle pose —
 // starting the loop on it would read as "nothing happened" for a beat)
@@ -114,6 +112,16 @@ const JUMP_ASCEND_ANIM_KEY = 'player-jump-ascend';
 // through the floor. Sizing off the source image instead scales down
 // correctly alongside the sprite.
 const PLAYER_FRAME_SIZE = 362;
+// How far left of the player's center the Speed Boost trail anchors (see
+// syncEffectSprites/applySpeedBoost) — not half of PLAYER_SIZE's display
+// box, which is where the box edge is, not where the character's actual
+// drawn pixels are: the run/idle poses have 36-66px of transparent padding
+// baked into their 362px source canvas (measured directly), ~8-15px at
+// PLAYER_SIZE's display scale, so anchoring at the true box edge left a
+// visible gap. This stays under that padding's smallest value across every
+// pose, so the trail always overlaps the visible character by a few px
+// rather than sometimes falling short.
+const HYPERSPEED_BACK_OFFSET_PX = 18;
 // Per-frame hold times (ms) for the run cycle, in place of a flat frameRate.
 // run-1/4 are the contact poses (foot planted) and read best with a beat of
 // hang time; run-2/5 are the fast mid-stride recoil; run-3/6 are the
@@ -237,8 +245,6 @@ export class Player {
 
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
-  private hasDoubleJump = false;
-  private hasUsedAirJump = false;
   private hasShield = false;
   private shieldProtectionRemainingMs = 0;
   private speedMultiplier = 1;
@@ -247,8 +253,8 @@ export class Player {
   // gameplay state, just repositioned onto the player every update() tick
   // (syncEffectSprites) for as long as they're active. undefined whenever
   // not currently shown, so presence alone doubles as "is one showing".
-  private shieldSprite?: Phaser.GameObjects.Sprite;
-  private hyperspeedSprite?: Phaser.GameObjects.Sprite;
+  private shieldSprite: Phaser.GameObjects.Sprite | undefined;
+  private hyperspeedSprite: Phaser.GameObjects.Sprite | undefined;
 
   // Tap-to-start (spec: don't auto-run the instant a level loads) — while
   // true, update() skips the auto-run velocity and jump handling entirely
@@ -325,7 +331,20 @@ export class Player {
   private syncEffectSprites(): void {
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
-    this.hyperspeedSprite?.setPosition(this.sprite.x, centerY);
+    // Anchored near the player's back, not their center — the player
+    // always auto-runs rightward, and combined with the trail's own
+    // trailing-edge origin (see Juice.playHyperspeedTrail) this reads as
+    // streaks coming off the character's backside instead of a burst
+    // plastered over their whole body. HYPERSPEED_BACK_OFFSET_PX, not
+    // PLAYER_SIZE / 2 — the run/idle frames themselves have 8-15px of
+    // transparent padding baked into their source art (measured directly),
+    // so anchoring at the true display-box edge left a visible gap between
+    // the trail and the actual visible character (user report: "not
+    // touching the character").
+    this.hyperspeedSprite?.setPosition(
+      this.sprite.x - HYPERSPEED_BACK_OFFSET_PX,
+      centerY
+    );
   }
 
   // Instant removal (no break/fade tween, unlike tryAbsorbHit's own use of
@@ -349,9 +368,6 @@ export class Player {
       this.msSinceJumpPressed === Number.POSITIVE_INFINITY
         ? this.msSinceJumpPressed
         : this.msSinceJumpPressed + deltaMs;
-    if (this.body.blocked.down) {
-      this.hasUsedAirJump = false;
-    }
 
     if (!this.alive || this.waitingToStart) {
       return;
@@ -362,19 +378,11 @@ export class Player {
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
-    // Double Jump (spec section 21): one extra mid-air jump, using the
-    // exact same jump input — refilled by touching the ground again, not
-    // by re-collecting the power-up every time.
-    const canAirJump =
-      this.hasDoubleJump && !canGroundJump && !this.hasUsedAirJump;
-    if (hasBufferedJump && (canGroundJump || canAirJump)) {
+    if (hasBufferedJump && canGroundJump) {
       this.sprite.setVelocityY(-JUMP_VELOCITY);
       this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-      if (canGroundJump) {
-        this.msSinceGrounded = Number.POSITIVE_INFINITY;
-      } else {
-        this.hasUsedAirJump = true;
-      }
+      this.msSinceGrounded = Number.POSITIVE_INFINITY;
+      playSfx(this.scene, 'jump');
     }
   }
 
@@ -386,12 +394,12 @@ export class Player {
       if (!this.sprite.anims.isPlaying) {
         this.sprite.play(RUN_ANIM_KEY);
       }
-      // Leg-cycle rate tracks actual ground speed — Speed Boost (1.6x) and
-      // Dash (2.4x) multiply RUN_SPEED but not the animation's own frame
-      // durations, so without this the character's feet would keep
-      // cycling at the normal-speed rate while sliding across the ground
-      // noticeably faster than the legs suggest (a skating/moonwalk
-      // artifact instead of a genuinely faster run).
+      // Leg-cycle rate tracks actual ground speed — Speed Boost (1.6x)
+      // multiplies RUN_SPEED but not the animation's own frame durations,
+      // so without this the character's feet would keep cycling at the
+      // normal-speed rate while sliding across the ground noticeably
+      // faster than the legs suggest (a skating/moonwalk artifact instead
+      // of a genuinely faster run).
       this.sprite.anims.timeScale = this.speedMultiplier;
       return;
     }
@@ -449,10 +457,6 @@ export class Player {
     plugin.add(this.sprite, { duration: 80, repeat: 3 }).flash();
   }
 
-  grantDoubleJump(): void {
-    this.hasDoubleJump = true;
-  }
-
   grantShield(): void {
     this.hasShield = true;
     // Re-collecting while already shielded (the power-up is re-collectible
@@ -480,7 +484,7 @@ export class Player {
     this.hyperspeedSprite?.destroy();
     const trail = playHyperspeedTrail(
       this.scene,
-      this.sprite.x,
+      this.sprite.x - HYPERSPEED_BACK_OFFSET_PX,
       this.sprite.y - PLAYER_SIZE / 2,
       SPEED_BOOST_DURATION_MS
     );
@@ -496,16 +500,6 @@ export class Player {
     this.hyperspeedSprite = trail;
   }
 
-  // "Pickup -> immediate short forward burst" (spec section 21) — no
-  // button, so the only way to make the burst readable at all is a brief,
-  // stronger version of the same timed speed multiplier Speed Boost uses.
-  applyDash(): void {
-    this.applyTimedSpeedMultiplier(
-      DASH_BURST_MULTIPLIER,
-      DASH_BURST_DURATION_MS
-    );
-  }
-
   private applyTimedSpeedMultiplier(
     multiplier: number,
     durationMs: number
@@ -518,10 +512,9 @@ export class Player {
     });
   }
 
-  // No completion callback: death used to auto-restart after this
-  // animation finished, but that's now gated on an explicit Retry tap
-  // (DeathPanel) instead, so nothing needs to know when the squash tween
-  // ends.
+  // No completion callback: death used to auto-restart after this VFX
+  // finished, but that's now gated on an explicit Retry tap (DeathPanel)
+  // instead, so nothing needs to know when it ends.
   die(): void {
     if (!this.alive) {
       return;
@@ -531,31 +524,17 @@ export class Player {
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
     this.sprite.anims.stop();
-    this.sprite.setTexture(DEATH_KEY);
-    // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — dying
-    // mid-bounce would otherwise compound that frame's scale into the death
-    // squash tween below instead of squashing from a neutral pose.
-    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
 
-    // "Quick and absurd" (user ask) rather than the small red particle
-    // puff this replaced — a fireball spritesheet burst plus a comic-book
-    // "KABOOM" pop-in, both fast and self-destroying. See
-    // Juice.playDeathExplosion.
+    // "Ripped apart, then explodes" (user ask, replacing the old single
+    // frozen player-death pose + squash tween): shatter whatever frame the
+    // player was actually on into flying pieces, hide the real sprite
+    // (reset() brings it back visible on retry), then let the fireball
+    // consume the spot. See Juice.playPlayerShatter/playDeathExplosion.
+    playPlayerShatter(this.scene, this.sprite.x, this.sprite.y, this.sprite.texture.key, PLAYER_SIZE);
+    this.sprite.setVisible(false);
     playDeathExplosion(this.scene, this.sprite.x, this.sprite.y);
     this.scene.cameras.main.shake(120, 0.006);
-
-    // Relative to the sprite's current (PLAYER_SIZE-scaled) base, not
-    // absolute scale values — the sheet's native frame is 362px, so an
-    // absolute scaleX of 1.4 would blow the sprite up to ~507px instead of
-    // squashing it.
-    this.scene.tweens.add({
-      targets: this.sprite,
-      scaleX: this.sprite.scaleX * 1.4,
-      scaleY: this.sprite.scaleY * 0.5,
-      angle: 25,
-      duration: 180,
-      ease: 'Quad.easeOut',
-    });
+    playSfx(this.scene, 'death');
   }
 
   // Called once, when the finish line is reached (see GameScene.onFinishReached
@@ -581,6 +560,10 @@ export class Player {
   // section 6's ~0.3-0.6s death->retry target).
   reset(x: number, y: number, waiting = false): void {
     this.clearEffectSprites();
+    // die() hides the real sprite behind the shatter/explosion VFX — undo
+    // that here so a retry (or the finish-line freeze() dance) shows the
+    // player again.
+    this.sprite.setVisible(true);
     this.sprite.setPosition(x, y);
     this.sprite.setVelocity(0, 0);
     // setDisplaySize, not setScale(1, 1) — the sprite's native frame size
@@ -603,8 +586,6 @@ export class Player {
     // Power-ups are re-collectible each attempt, not persistent across
     // deaths — the pickups themselves reappear too, since restarting a run
     // rebuilds the player but reuses the same already-loaded level world.
-    this.hasDoubleJump = false;
-    this.hasUsedAirJump = false;
     this.hasShield = false;
     this.shieldProtectionRemainingMs = 0;
     this.speedMultiplier = 1;

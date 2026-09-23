@@ -179,6 +179,63 @@ export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): v
   });
 }
 
+const SHATTER_GRID = 3;
+const SHATTER_DURATION_MS = 380;
+
+// "Ripped apart" death VFX (user ask, replacing the old single frozen
+// player-death pose): slices whatever frame the player was on at the
+// moment of death into a grid of pieces that fly outward and spin away,
+// pure runtime cropping of the already-loaded texture — no new art needed.
+// Player.die() fires this immediately before playDeathExplosion so the
+// fireball reads as consuming the pieces rather than the other way round.
+export function playPlayerShatter(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  textureKey: string,
+  displaySize: number
+): void {
+  const frame = scene.textures.getFrame(textureKey);
+  const scale = displaySize / frame.width;
+  const cellSourceW = frame.width / SHATTER_GRID;
+  const cellSourceH = frame.height / SHATTER_GRID;
+  // The player sprite's origin is bottom-center (0.5, 1), so the displayed
+  // square's top-left sits `displaySize` above and half its width left of
+  // (x, y) — see Player.ts.
+  const topLeftX = x - displaySize / 2;
+  const topLeftY = y - displaySize;
+  const center = (SHATTER_GRID - 1) / 2;
+
+  for (let row = 0; row < SHATTER_GRID; row++) {
+    for (let col = 0; col < SHATTER_GRID; col++) {
+      const piece = scene.add.image(0, 0, textureKey);
+      piece.setOrigin(0, 0);
+      piece.setCrop(col * cellSourceW, row * cellSourceH, cellSourceW, cellSourceH);
+      piece.setScale(scale);
+      const pieceX = topLeftX + col * cellSourceW * scale;
+      const pieceY = topLeftY + row * cellSourceH * scale;
+      piece.setPosition(pieceX, pieceY);
+
+      // Flies outward from the grid center — corner pieces go diagonally,
+      // the middle piece has no natural direction so it gets a random one.
+      const dirX = col - center || Phaser.Math.FloatBetween(-1, 1);
+      const dirY = row - center || Phaser.Math.FloatBetween(-1, 1);
+      const magnitude = Phaser.Math.Between(40, 90);
+
+      scene.tweens.add({
+        targets: piece,
+        x: pieceX + dirX * magnitude,
+        y: pieceY + dirY * magnitude + 30,
+        angle: Phaser.Math.Between(-240, 240),
+        alpha: 0,
+        duration: SHATTER_DURATION_MS,
+        ease: 'Quad.easeOut',
+        onComplete: () => piece.destroy(),
+      });
+    }
+  }
+}
+
 const SHIELD_ANIM_KEY = 'shield-electric';
 // The full 30-frame source loop, unlike the trimmed death VFX above — this
 // one is a genuine single revolution of the ring, so cutting it short would
@@ -237,7 +294,10 @@ export function destroyElectricShield(
 
 const HYPERSPEED_ANIM_KEY = 'hyperspeed-lines';
 const HYPERSPEED_FRAME_RATE = 24;
-const HYPERSPEED_SCALE = 0.55;
+// Small enough to read as a trail behind the player rather than a burst
+// that engulfs them (the source frame is 517x515 — full size dwarfed even
+// the player's own 80px sprite).
+const HYPERSPEED_SCALE = 0.22;
 const HYPERSPEED_FADE_IN_MS = 120;
 const HYPERSPEED_FADE_OUT_MS = 220;
 const HYPERSPEED_ALPHA = 0.85;
@@ -270,6 +330,11 @@ export function playHyperspeedTrail(
   ensureHyperspeedAnim(scene);
   const trail = scene.add.sprite(x, y, 'hyperspeed-lines');
   trail.setScale(HYPERSPEED_SCALE);
+  // Origin at the trailing (right) edge, not the center — (x, y) is the
+  // player's back edge (see Player.syncEffectSprites/applySpeedBoost), and
+  // this keeps the whole effect streaming away behind that point instead of
+  // straddling it and bleeding back onto the player's body.
+  trail.setOrigin(1, 0.5);
   trail.setBlendMode(Phaser.BlendModes.ADD);
   trail.setAlpha(0);
   trail.play(HYPERSPEED_ANIM_KEY);

@@ -1,5 +1,7 @@
 import { Scene } from 'phaser';
+import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
+import { SFX_KEYS } from '../systems/Sfx';
 
 const BAR_WIDTH = 460;
 
@@ -33,8 +35,16 @@ export class Preloader extends Scene {
     const onProgress = (progress: number) => {
       bar.width = Math.max(4, barWidth * progress);
     };
-    const onError = () => {
-      this.failed = true;
+    // Sound is pure polish (see Sfx.ts) and must never be able to block the
+    // game from loading — a failed/unsupported audio file only skips that
+    // one sound (Phaser just won't have it in its cache; Sfx.playSfx
+    // already no-ops safely on a missing key), unlike every other asset
+    // type, where a load failure means something actually required is
+    // missing and the whole game can't safely start.
+    const onError = (file: Phaser.Loader.File) => {
+      if (file.type !== 'audio') {
+        this.failed = true;
+      }
     };
     this.load.on('progress', onProgress);
     this.load.on('loaderror', onError);
@@ -95,11 +105,8 @@ export class Preloader extends Scene {
     this.load.image('finish-ringing', 'markers/finish-ringing.webp');
     this.load.image('finish-success', 'markers/finish-success.webp');
     this.load.image('spawn-marker', 'markers/spawn.webp');
-    this.load.image('doubleJump', 'powerups/doubleJump.webp');
     this.load.image('shield', 'powerups/shield.webp');
     this.load.image('speedBoost', 'powerups/speedBoost.webp');
-    this.load.image('slowTime', 'powerups/slowTime.webp');
-    this.load.image('autoDash', 'powerups/autoDash.webp');
     this.load.image('level-background', 'ui/scene-bg.webp');
 
     // Death VFX (see Juice.playDeathExplosion) — sourced from the VFX Free
@@ -131,6 +138,12 @@ export class Preloader extends Scene {
       frameWidth: 517,
       frameHeight: 515,
     });
+
+    // Short procedurally-synthesized SFX (see Sfx.ts) — a failure here
+    // never fails the whole load (onError above exempts 'audio' files).
+    for (const key of SFX_KEYS) {
+      this.load.audio(key, `sfx/${key}.wav`);
+    }
   }
 
   create() {

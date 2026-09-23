@@ -26,10 +26,9 @@ export const FINISH_RESTART_DELAY_MS = 2500;
 
 // The finish trigger's hitbox is grown to this height (LevelLoader) so a
 // jump can't clear it and sail past the level's edge — a single jump peaks
-// at JUMP_VELOCITY^2 / (2 * GRAVITY_Y) ≈ 107px above ground, and a double
-// jump timed at that apex can add nearly another 107px on top, so this
-// covers a full double-jump arc with margin. The visible trophy sprite
-// itself (64px tall) is left untouched; only the overlap sensor is taller.
+// at JUMP_VELOCITY^2 / (2 * GRAVITY_Y) ≈ 107px above ground, and this leaves
+// generous margin above that. The visible trophy sprite itself (64px tall)
+// is left untouched; only the overlap sensor is taller.
 export const FINISH_TRIGGER_HEIGHT_PX = 320;
 
 // How far from the left edge of the screen the player sits while running,
@@ -40,13 +39,6 @@ export const PLAYER_SCREEN_ANCHOR = 0.35;
 // deterministic (no randomness), none add a new input.
 export const SPEED_BOOST_MULTIPLIER = 1.6;
 export const SPEED_BOOST_DURATION_MS = 1400;
-// Dash is "an automatic effect when collected" (spec), not a button — an
-// immediate, short, stronger burst than Speed Boost rather than a sustained
-// buff, reusing the same timed-multiplier mechanism under the hood.
-export const DASH_BURST_MULTIPLIER = 2.4;
-export const DASH_BURST_DURATION_MS = 220;
-export const SLOW_TIME_HAZARD_SCALE = 0.35;
-export const SLOW_TIME_DURATION_MS = 3000;
 // Amplitude/period of a Moving Saw's deterministic back-and-forth path.
 export const MOVING_SAW_AMPLITUDE_PX = 90;
 export const MOVING_SAW_PERIOD_MS = 900;

@@ -4,6 +4,7 @@ import { isLevelStats } from '../../shared/discoveryApi';
 import { requireButton, requireElement } from './domUtils';
 import { initFollowButton } from './followButton';
 import { LeaderboardOverlay } from './LeaderboardOverlay';
+import { StatsOverlay } from './StatsOverlay';
 
 export type GameMenuHandlers = {
   onPlay: () => void;
@@ -42,6 +43,9 @@ export class GameMenu {
     );
     requireButton('game-menu-leaderboard').addEventListener('click', () =>
       LeaderboardOverlay.instance().show()
+    );
+    requireButton('game-menu-currency-chip').addEventListener('click', () =>
+      StatsOverlay.instance().show()
     );
     initFollowButton(requireButton('game-menu-follow-btn'));
   }

@@ -41,15 +41,11 @@ import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
-import {
-  FINISH_RESTART_DELAY_MS,
-  PLAYER_SCREEN_ANCHOR,
-  SLOW_TIME_DURATION_MS,
-  SLOW_TIME_HAZARD_SCALE,
-} from '../constants';
+import { FINISH_RESTART_DELAY_MS, PLAYER_SCREEN_ANCHOR } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
 import { burstParticles, playFinishBellAnimation, setFinishFrame } from '../systems/Juice';
+import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { triggerBatFlight } from '../objects/ObjectRegistry';
@@ -112,14 +108,11 @@ export class GameScene extends Scene {
   // true just means that block is correctly skipped for every restart).
   private runStarted = false;
 
-  // Slow Time (spec section 21) scales only these tweens' playback speed —
-  // never the run timer above, which is what `runElapsedMs` alone drives.
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private bats: LoadedBat[] = [];
   private finishSprite: Phaser.GameObjects.Sprite | undefined;
-  private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
 
   private previewLevel: LevelVersion | undefined;
   private candidateToken: string | undefined;
@@ -160,7 +153,6 @@ export class GameScene extends Scene {
     this.powerUpImages = [];
     this.bats = [];
     this.finishSprite = undefined;
-    this.slowTimeTimer = undefined;
     this.pendingVersionPublished = undefined;
     this.pendingWorldRecord = undefined;
   }
@@ -500,6 +492,7 @@ export class GameScene extends Scene {
     if (this.finishSprite) {
       playFinishBellAnimation(this, this.finishSprite);
     }
+    playSfx(this, 'clear');
 
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime();
@@ -509,7 +502,7 @@ export class GameScene extends Scene {
     } else {
       const levelVersion = this.levelVersion;
       this.resultOverlay.setLeaderboardHandler(() =>
-        LeaderboardOverlay.instance().show()
+        LeaderboardOverlay.instance().show({ levelId: levelVersion.levelId })
       );
       const request: SubmitRunRequest = {
         levelId: levelVersion.levelId,
@@ -709,40 +702,16 @@ export class GameScene extends Scene {
       return;
     }
     switch (type) {
-      case 'doubleJump':
-        this.player.grantDoubleJump();
-        break;
       case 'shield':
         this.player.grantShield();
         break;
       case 'speedBoost':
         this.player.applySpeedBoost();
         break;
-      case 'autoDash':
-        this.player.applyDash();
-        break;
-      case 'slowTime':
-        this.applySlowTime();
-        break;
       default:
         break;
     }
-  }
-
-  // Scales moving hazard/platform tweens only — `runElapsedMs`/the timer
-  // are untouched, so this can never leak into a submitted time (spec
-  // section 21: "Do NOT slow the actual run timer").
-  private applySlowTime(): void {
-    for (const tween of this.movingObjectTweens) {
-      tween.timeScale = SLOW_TIME_HAZARD_SCALE;
-    }
-    this.slowTimeTimer?.remove();
-    this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
-      for (const tween of this.movingObjectTweens) {
-        tween.timeScale = 1;
-      }
-      this.slowTimeTimer = undefined;
-    });
+    playSfx(this, 'pickup');
   }
 
   // `objectId` is absent for a fall-death (running off the level, not a
@@ -837,8 +806,6 @@ export class GameScene extends Scene {
     for (const image of this.powerUpImages) {
       setPowerUpAvailable(image, true);
     }
-    this.slowTimeTimer?.remove();
-    this.slowTimeTimer = undefined;
     this.resetMovingObjects?.();
 
     // Defensive: onFinishReached leaves runEnded=true, and every normal

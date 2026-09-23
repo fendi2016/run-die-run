@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { context, realtime, redis } from '@devvit/web/server';
-import { CURRENCY_PER_CLEAR, LEADERBOARD_TOP_N } from '../../shared/constants';
+import { CURRENCY_PER_CLEAR } from '../../shared/constants';
 import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
 import { queueDiscoveryActivity } from '../services/DiscoveryService';
 import { withTransaction } from '../core/transactions';
@@ -17,11 +17,11 @@ import {
   topCursersKey,
   trapKillsKey,
   userContributionsKey,
+  userStatsKey,
   versionLeaderboardKey,
 } from '../core/redisKeys';
 import { getCurrentLevelVersion } from '../services/LevelService';
 import type {
-  LeaderboardEntry,
   SubmitRunRequest,
   SubmitRunResponse,
   TrapKillRequest,
@@ -138,8 +138,6 @@ runs.post('/', async (c) => {
   const streaksKey = streaksLeaderboardKey();
 
   const {
-    personalBestMs,
-    isNewPersonalBest,
     isNewWorldRecord,
     streak,
     isNewStreakIncrease,
@@ -174,6 +172,7 @@ runs.post('/', async (c) => {
 
       if (!isDuplicate) {
         await queueDiscoveryActivity(tx, levelId, username, true);
+        await tx.hIncrBy(userStatsKey(username), 'totalClears', 1);
         if (body.submissionId) {
           await tx.set(dedupeKey, fingerprint);
         } else {
@@ -206,8 +205,6 @@ runs.post('/', async (c) => {
         return {
           commit: !isDuplicate,
           value: {
-            personalBestMs: existingScore,
-            isNewPersonalBest: false,
             isNewWorldRecord: false,
             streak,
             isNewStreakIncrease,
@@ -220,8 +217,6 @@ runs.post('/', async (c) => {
       return {
         commit: true,
         value: {
-          personalBestMs: timeMs,
-          isNewPersonalBest: true,
           isNewWorldRecord:
             !isDuplicate &&
             (previousWorldRecordMs === undefined || timeMs < previousWorldRecordMs),
@@ -233,17 +228,6 @@ runs.post('/', async (c) => {
       };
     }
   );
-
-  const [rankIndex, topTenRaw] = await Promise.all([
-    redis.zRank(leaderboardKey, username),
-    redis.zRange(leaderboardKey, 0, LEADERBOARD_TOP_N - 1, { by: 'rank' }),
-  ]);
-  const rank = (rankIndex ?? 0) + 1;
-  const topTen: LeaderboardEntry[] = topTenRaw.map((entry) => ({
-    username: entry.member,
-    timeMs: entry.score,
-  }));
-  const worldRecordMs = topTen[0]?.timeMs ?? personalBestMs;
 
   if (isNewWorldRecord) {
     const event: NewWorldRecordEvent = {
@@ -259,11 +243,6 @@ runs.post('/', async (c) => {
 
   return c.json<SubmitRunResponse>({
     timeMs,
-    rank,
-    personalBestMs,
-    isNewPersonalBest,
-    worldRecordMs,
-    topTen,
     streak,
     isNewStreakIncrease,
     currencyAwarded,

@@ -11,7 +11,7 @@ export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
   hazard: ['spike', 'saw', 'movingSaw', 'candle', 'bat', 'ghost'],
   platform: ['platform', 'movingPlatform'],
-  powerUp: ['doubleJump', 'shield', 'speedBoost', 'slowTime', 'autoDash'],
+  powerUp: ['shield', 'speedBoost'],
 };
 
 // Wire contract for the base level editor's test/publish flow (spec
