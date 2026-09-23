@@ -54,10 +54,13 @@ export const MOVING_SAW_PERIOD_MS = 900;
 // needs to be rideable/predictable, not a fast-twitch hazard.
 export const MOVING_PLATFORM_AMPLITUDE_PX = 160;
 export const MOVING_PLATFORM_PERIOD_MS = 2200;
-// A Bat patrols horizontally like a Moving Saw, but shorter and quicker —
-// a flappy, erratic-feeling flight path rather than a mechanical sweep.
-export const BAT_AMPLITUDE_PX = 60;
-export const BAT_PERIOD_MS = 500;
+// A Bat sits still until it enters the camera's view, then locks onto the
+// player's exact position at that instant and dashes straight at (and past,
+// and beyond) it forever — never re-aiming. Faster than the player's own
+// auto-run speed (RUN_SPEED) so it visibly closes the distance once
+// triggered, but only launched once it's already on screen, leaving real
+// reaction room instead of an unavoidable off-screen surprise.
+export const BAT_DASH_SPEED_PX = 480;
 // A Ghost drifts vertically instead of horizontally — a slow haunting float
 // rather than a patrol — so it reads as a different kind of threat than the
 // horizontal hazards above.

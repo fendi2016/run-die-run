@@ -2,9 +2,8 @@ import * as Phaser from 'phaser';
 import type { LevelObject, ObjectType } from '../../../shared/types';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
-  BAT_AMPLITUDE_PX,
+  BAT_DASH_SPEED_PX,
   BAT_DISPLAY_HEIGHT_PX,
-  BAT_PERIOD_MS,
   FINISH_DISPLAY_HEIGHT_PX,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
@@ -86,8 +85,17 @@ export function ensureHazardAnims(scene: Phaser.Scene): void {
 // of the manual `StaticBody.updateFromGameObject()` resync movingSaw uses,
 // which is fine for an overlap-only hazard but wouldn't compute correct
 // push/carry velocity for a collider) only exists on the dynamic Body
-// class, not StaticBody. Everything else here still renders as static.
-const DYNAMIC_BODY_TYPES = new Set<ObjectType>(['movingPlatform']);
+// class, not StaticBody.
+//
+// A bat needs one for a different reason: once triggered it flies on a real
+// Arcade Physics velocity (see triggerBatFlight below), and only a dynamic
+// Body has a settable velocity at all — a StaticBody's position never
+// changes on its own. LevelLoader keeps it out of the shared `hazards`
+// static group for the same reason (StaticGroup.add() would force its body
+// back to static) and registers its overlap directly instead.
+//
+// Everything else here still renders as static.
+const DYNAMIC_BODY_TYPES = new Set<ObjectType>(['movingPlatform', 'bat']);
 
 export function categoryOf(type: ObjectType): ObjectCategory {
   return CATEGORY_BY_TYPE[type] ?? 'unsupported';
@@ -111,7 +119,6 @@ const OSCILLATION_BY_TYPE: Partial<Record<ObjectType, OscillationConfig>> = {
     amplitude: MOVING_SAW_AMPLITUDE_PX,
     periodMs: MOVING_SAW_PERIOD_MS,
   },
-  bat: { axis: 'x', amplitude: BAT_AMPLITUDE_PX, periodMs: BAT_PERIOD_MS },
   // Floats upward from its placed position rather than side to side — a
   // vertical drift reads as haunting, not a patrol.
   ghost: {
@@ -174,6 +181,30 @@ export function motionTweenConfigFor(
       }
     },
   };
+}
+
+// Locks the bat onto (targetX, targetY) — the player's exact position at
+// the instant this is called — and sends it flying in that fixed direction
+// at a constant velocity forever, never re-aiming afterward. This only owns
+// the physics math once the decision to fire has already been made; the
+// decision itself (the moment the bat's x enters the camera's current view)
+// needs live per-frame camera/player state this module has no access to, so
+// it's GameScene's update() that decides *when* to call this.
+export function triggerBatFlight(
+  sprite: Phaser.GameObjects.Sprite,
+  targetX: number,
+  targetY: number
+): void {
+  if (!(sprite.body instanceof Phaser.Physics.Arcade.Body)) {
+    return;
+  }
+  const dx = targetX - sprite.x;
+  const dy = targetY - sprite.y;
+  const length = Math.hypot(dx, dy) || 1;
+  sprite.body.setVelocity(
+    (dx / length) * BAT_DASH_SPEED_PX,
+    (dy / length) * BAT_DASH_SPEED_PX
+  );
 }
 
 // ground and platform/movingPlatform are both "solid terrain, placed in

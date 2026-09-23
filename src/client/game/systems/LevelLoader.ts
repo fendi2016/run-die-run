@@ -13,6 +13,16 @@ import {
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow } from './Juice';
 
+// A bat that hasn't yet locked onto the player and dashed off (see
+// ObjectRegistry.triggerBatFlight). `triggered` is mutated in place by
+// GameScene's update() the one time it fires — this loader has no per-frame
+// camera/player state of its own, so it can only hand the bat back for
+// GameScene to drive and check on every tick.
+export type LoadedBat = {
+  sprite: Phaser.GameObjects.Sprite;
+  triggered: boolean;
+};
+
 export type LoadedLevel = {
   spawn: { x: number; y: number };
   levelWidth: number;
@@ -22,6 +32,10 @@ export type LoadedLevel = {
   // keeps it rideable instead of stranding the player mid-jump.
   movingObjectTweens: Phaser.Tweens.Tween[];
   resetMovingObjects: () => void;
+  // Bats waiting to trigger — see LoadedBat above. Reset back to
+  // home/untriggered by resetMovingObjects, same as every other moving
+  // object, so a restart doesn't leave a bat mid-flight or already spent.
+  bats: LoadedBat[];
   // Power-up pickups, exposed so GameScene can bring them back on a
   // same-scene restart (spec section 30 reuses the scene/world, it doesn't
   // reload the level) — a power-up collected once shouldn't be gone for
@@ -75,6 +89,7 @@ export function loadLevel(
   let maxX = 0;
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
+  const bats: LoadedBat[] = [];
   let finishSprite: Phaser.GameObjects.Sprite | undefined;
   const movementResets: (() => void)[] = [];
   // Static groups query Arcade's spatial index instead of testing every
@@ -85,11 +100,16 @@ export function loadLevel(
   const finishes = scene.physics.add.staticGroup();
   const sourceObjects = new Map<Phaser.GameObjects.Sprite, LevelObject>();
   scene.physics.add.collider(player, solids);
-  scene.physics.add.overlap(player, hazards, (_player, target) => {
-    if (!(target instanceof Phaser.GameObjects.Sprite)) return;
-    const object = sourceObjects.get(target);
-    if (object) callbacks.onHazardHit(object.id);
-  });
+  // Shared by the `hazards` static group below and each bat's own direct
+  // overlap (a bat can't join that group — see DYNAMIC_BODY_TYPES's comment
+  // in ObjectRegistry) so both report a hit through the exact same path.
+  const handleHazardOverlap: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback =
+    (_player, target) => {
+      if (!(target instanceof Phaser.GameObjects.Sprite)) return;
+      const object = sourceObjects.get(target);
+      if (object) callbacks.onHazardHit(object.id);
+    };
+  scene.physics.add.overlap(player, hazards, handleHazardOverlap);
   scene.physics.add.overlap(player, pickups, (_player, target) => {
     if (!(target instanceof Phaser.GameObjects.Sprite)) return;
     const object = sourceObjects.get(target);
@@ -205,6 +225,22 @@ export function loadLevel(
         }
         break;
       case 'hazard': {
+        if (object.type === 'bat') {
+          // Kept out of the `hazards` static group (see
+          // DYNAMIC_BODY_TYPES's comment in ObjectRegistry) — its overlap
+          // is registered directly against this one sprite instead, using
+          // the exact same handler.
+          scene.physics.add.overlap(player, rendered, handleHazardOverlap);
+          const bat: LoadedBat = { sprite: rendered, triggered: false };
+          bats.push(bat);
+          movementResets.push(() => {
+            bat.triggered = false;
+            if (rendered.body instanceof Phaser.Physics.Arcade.Body) {
+              rendered.body.reset(object.x, object.y);
+            }
+          });
+          break;
+        }
         const hazardTween = motionTweenConfigFor(rendered, object);
         if (hazardTween) {
           registerMovingTween(scene.tweens.add(hazardTween), rendered, object);
@@ -249,6 +285,7 @@ export function loadLevel(
     levelWidth: maxX + LEVEL_WIDTH_MARGIN,
     movingObjectTweens,
     powerUpImages,
+    bats,
     finishSprite,
   };
 }

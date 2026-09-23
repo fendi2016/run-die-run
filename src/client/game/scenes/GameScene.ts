@@ -50,8 +50,9 @@ import {
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
 import { burstParticles, playFinishBellAnimation, setFinishFrame } from '../systems/Juice';
-import { loadLevel, setPowerUpAvailable } from '../systems/LevelLoader';
+import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
+import { triggerBatFlight } from '../objects/ObjectRegistry';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 
@@ -115,6 +116,7 @@ export class GameScene extends Scene {
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
+  private bats: LoadedBat[] = [];
   private finishSprite: Phaser.GameObjects.Sprite | undefined;
   private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
 
@@ -155,6 +157,7 @@ export class GameScene extends Scene {
     this.movingObjectTweens = [];
     this.resetMovingObjects = undefined;
     this.powerUpImages = [];
+    this.bats = [];
     this.finishSprite = undefined;
     this.slowTimeTimer = undefined;
     this.pendingVersionPublished = undefined;
@@ -220,6 +223,24 @@ export class GameScene extends Scene {
       0,
       Math.max(0, this.levelWidth - visibleWorldWidth)
     );
+
+    // A bat fires the instant its x crosses into view (see BAT_DASH_SPEED_PX's
+    // comment on why that's the trigger, not proximity) — checked from the
+    // same locally-computed scrollX/visibleWorldWidth used above, not
+    // camera.worldView, since that's the one the zoom-pivot gotcha (see
+    // memory) warns isn't trustworthy synchronously after a same-tick
+    // scrollX change. Gated on runStarted so a bat visible from the spawn
+    // viewport doesn't lock on before the tap-to-start gate even lifts,
+    // same as every other moving hazard staying paused until then.
+    if (this.runStarted && !this.runEnded) {
+      const viewRightEdge = this.cameras.main.scrollX + visibleWorldWidth;
+      for (const bat of this.bats) {
+        if (!bat.triggered && bat.sprite.x <= viewRightEdge) {
+          bat.triggered = true;
+          triggerBatFlight(bat.sprite, this.player.sprite.x, this.player.sprite.y);
+        }
+      }
+    }
 
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
       this.onPlayerDied();
@@ -419,6 +440,7 @@ export class GameScene extends Scene {
     this.movingObjectTweens = loaded.movingObjectTweens;
     this.resetMovingObjects = loaded.resetMovingObjects;
     this.powerUpImages = loaded.powerUpImages;
+    this.bats = loaded.bats;
     this.finishSprite = loaded.finishSprite;
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
