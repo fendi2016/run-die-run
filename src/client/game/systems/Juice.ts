@@ -100,8 +100,89 @@ export function applyOutlineGlow(
   glow.setPaddingOverride(null);
 }
 
-const FINISH_RING_STEP_MS = 70;
+const DEATH_EXPLOSION_ANIM_KEY = 'death-explosion';
+// The spritesheet loaded in Preloader is already trimmed to the source
+// pack's first 24 frames (of 30) — this stops short of even those, at the
+// frame where the fireball's still a visible sparking ring rather than
+// riding it out to fully invisible, so the anim doesn't end on a dead
+// frame.
+const DEATH_EXPLOSION_FRAME_COUNT = 20;
+// Fast enough that all 20 frames clear in well under half a second — the
+// source pack's native ~1s pace reads as a slow cutscene, not a death in a
+// fast-retry punishing platformer (spec section 6's retry-loop target).
+const DEATH_EXPLOSION_FRAME_RATE = 50;
+const DEATH_EXPLOSION_SCALE = 0.62;
+const KABOOM_SCALE = 0.62;
+const KABOOM_POP_DURATION_MS = 90;
+const KABOOM_HOLD_MS = 220;
+const KABOOM_FADE_DURATION_MS = 160;
+
+function ensureDeathExplosionAnim(scene: Phaser.Scene): void {
+  if (scene.anims.exists(DEATH_EXPLOSION_ANIM_KEY)) {
+    return;
+  }
+  scene.anims.create({
+    key: DEATH_EXPLOSION_ANIM_KEY,
+    frames: scene.anims.generateFrameNumbers('death-explosion', {
+      start: 0,
+      end: DEATH_EXPLOSION_FRAME_COUNT - 1,
+    }),
+    frameRate: DEATH_EXPLOSION_FRAME_RATE,
+    repeat: 0,
+  });
+}
+
+// "Quick and absurd" death VFX (spec section 31's squish/pop/explosion,
+// escalated) — a fireball spritesheet burst layered with a comic-book
+// "KABOOM" pop-in, both one-shot and self-destroying like burstParticles
+// above. Two separate GameObjects (not one composited texture) since they
+// animate on entirely different mechanisms: the fireball is a genuine
+// frame-by-frame spritesheet anim, while the KABOOM source art is static
+// per-frame (see Preloader's comment) and gets its motion from a tween
+// instead.
+export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): void {
+  ensureDeathExplosionAnim(scene);
+
+  const fireball = scene.add.sprite(x, y, 'death-explosion', 0);
+  fireball.setScale(DEATH_EXPLOSION_SCALE);
+  // Additive blending so the bright core reads as a flash of light against
+  // the level's dark background scrim (GameScene's -0.5-depth rectangle)
+  // instead of a flat orange sticker.
+  fireball.setBlendMode(Phaser.BlendModes.ADD);
+  fireball.play(DEATH_EXPLOSION_ANIM_KEY);
+  fireball.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+    fireball.destroy();
+  });
+
+  // A slight random tilt per death — a perfectly axis-aligned comic burst
+  // reads as a UI element; a few degrees off reads as text slapped onto
+  // the scene in a hurry, which is the joke.
+  const kaboom = scene.add.image(x, y, 'death-kaboom');
+  kaboom.setAngle(Phaser.Math.Between(-8, 8));
+  kaboom.setAlpha(0);
+  kaboom.setScale(KABOOM_SCALE * 0.6);
+  scene.tweens.add({
+    targets: kaboom,
+    alpha: 1,
+    scale: KABOOM_SCALE,
+    duration: KABOOM_POP_DURATION_MS,
+    ease: 'Back.easeOut',
+  });
+  scene.tweens.add({
+    targets: kaboom,
+    alpha: 0,
+    scale: KABOOM_SCALE * 1.1,
+    delay: KABOOM_POP_DURATION_MS + KABOOM_HOLD_MS,
+    duration: KABOOM_FADE_DURATION_MS,
+    ease: 'Quad.easeIn',
+    onComplete: () => kaboom.destroy(),
+  });
+}
+
+const FINISH_HIT_DURATION_MS = 180;
+const FINISH_RING_STEP_MS = 130;
 const FINISH_RING_REPEAT = 2;
+const FINISH_SUCCESS_DURATION_MS = 400;
 
 // Sets one of the finish bell's reference-art frames, recalculating origin
 // (finishOriginX — see ObjectRegistry.FINISH_ORIGIN_X) and scale each time
@@ -133,11 +214,11 @@ export function playFinishBellAnimation(
   scene.tweens.add({
     targets: sprite,
     scale: hitScale,
-    duration: 100,
+    duration: FINISH_HIT_DURATION_MS,
     ease: 'Back.easeOut',
   });
 
-  scene.time.delayedCall(100, () => {
+  scene.time.delayedCall(FINISH_HIT_DURATION_MS, () => {
     if (!sprite.active) return;
     setFinishFrame(sprite, 'finish-ringing');
     scene.tweens.add({
@@ -151,7 +232,7 @@ export function playFinishBellAnimation(
   });
 
   const ringingDurationMs = FINISH_RING_STEP_MS * 2 * (FINISH_RING_REPEAT + 1);
-  scene.time.delayedCall(100 + ringingDurationMs, () => {
+  scene.time.delayedCall(FINISH_HIT_DURATION_MS + ringingDurationMs, () => {
     if (!sprite.active) return;
     sprite.setRotation(0);
     const successScale = setFinishFrame(sprite, 'finish-success');
@@ -159,7 +240,7 @@ export function playFinishBellAnimation(
     scene.tweens.add({
       targets: sprite,
       scale: successScale,
-      duration: 260,
+      duration: FINISH_SUCCESS_DURATION_MS,
       ease: 'Back.easeOut',
     });
   });

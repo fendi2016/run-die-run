@@ -5,7 +5,7 @@ import {
   JUMP_DOWN_EVENT,
   JUMP_UP_EVENT,
 } from '../systems/InputSystem';
-import { burstParticles } from '../systems/Juice';
+import { playDeathExplosion } from '../systems/Juice';
 import {
   COYOTE_TIME_MS,
   DASH_BURST_DURATION_MS,
@@ -464,7 +464,11 @@ export class Player {
     // squash tween below instead of squashing from a neutral pose.
     this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
 
-    burstParticles(this.scene, this.sprite.x, this.sprite.y, 0xff4d6d);
+    // "Quick and absurd" (user ask) rather than the small red particle
+    // puff this replaced — a fireball spritesheet burst plus a comic-book
+    // "KABOOM" pop-in, both fast and self-destroying. See
+    // Juice.playDeathExplosion.
+    playDeathExplosion(this.scene, this.sprite.x, this.sprite.y);
     this.scene.cameras.main.shake(120, 0.006);
 
     // Relative to the sprite's current (PLAYER_SIZE-scaled) base, not

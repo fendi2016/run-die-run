@@ -101,6 +101,20 @@ export class Preloader extends Scene {
     this.load.image('slowTime', 'powerups/slowTime.webp');
     this.load.image('autoDash', 'powerups/autoDash.webp');
     this.load.image('level-background', 'ui/scene-bg.webp');
+
+    // Death VFX (see Juice.playDeathExplosion) — sourced from the VFX Free
+    // Pack at repo root. death-explosion is a trimmed spritesheet (first 24
+    // of the source's 30 frames; the rest fade to nothing and just wasted
+    // space) played fast for a "quick" pop rather than its native ~1s
+    // runtime. death-kaboom is one hand-picked frame of the pack's
+    // (near-static, barely-animated) comic "KABOOM" burst, popped in and
+    // faded out with a tween instead of loading all 30 near-duplicate
+    // frames.
+    this.load.spritesheet('death-explosion', 'vfx/death-explosion.webp', {
+      frameWidth: 355,
+      frameHeight: 355,
+    });
+    this.load.image('death-kaboom', 'vfx/death-kaboom.webp');
   }
 
   create() {
