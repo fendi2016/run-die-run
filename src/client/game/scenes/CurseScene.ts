@@ -3,6 +3,7 @@ import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
 import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
+  CURSE_CATEGORY_TYPES,
   isProposeCurseResponse,
   type CurseCategory,
   type DraftObject,
@@ -40,6 +41,7 @@ type CursePreselect = {
   category: CurseCategory;
   object: DraftObject;
   extendByTiles?: number;
+  removeObjectId?: string;
 };
 
 type CurseSceneData = {
@@ -48,12 +50,24 @@ type CurseSceneData = {
   message?: string;
 };
 
+// The same "platform" family the curse UI's own category picker already
+// groups together (shared/editorApi.ts) — reused here rather than a second
+// hardcoded list, so a removable base-level object is always exactly
+// whatever the platform category can also place.
+const REMOVABLE_PLATFORM_TYPES = new Set<ObjectType>(
+  CURSE_CATEGORY_TYPES.platform
+);
+
 // The curse flow's placement screen (spec sections 14-15): a deliberately
 // smaller component than EditorScene. It renders the level's currently
 // published objects read-only — nothing here can select, move, or delete
-// them — and lets the player place exactly one new object from a
-// restricted category set before proving it's beatable in the real
-// GameScene (spec section 16).
+// them, except one add-on: tapping an existing platform/movingPlatform
+// marks it for removal (see toggleRemoveTarget) — and lets the player
+// place exactly one new object from a restricted category set before
+// proving it's beatable in the real GameScene (spec section 16). Removing
+// a platform is always alongside placing that object, never a substitute
+// for it, same "the leaderboard is gauged by curse kills" reasoning
+// pendingExtendTiles's own comment gives for Extend Level.
 export class CurseScene extends Scene {
   private rexBoard!: BoardPlugin;
   private board!: BoardPlugin.Board;
@@ -76,6 +90,12 @@ export class CurseScene extends Scene {
   // the pending object is placed past the level's current end
   // (growExtensionToReach) — never shrinks except via Clear.
   private pendingExtendTiles = 0;
+  // The id of an existing base-level platform/movingPlatform marked for
+  // removal (see toggleRemoveTarget) — at most one at a time, toggled by
+  // tapping it again or switched by tapping a different removable object,
+  // mirroring pendingExtendTiles's own "exactly one add-on" scope. Reset to
+  // undefined (never removed) except via Clear.
+  private pendingRemoveId: string | undefined;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
@@ -126,6 +146,7 @@ export class CurseScene extends Scene {
     this.selectedType = data.preselected?.object.type;
     this.pending = data.preselected?.object;
     this.pendingExtendTiles = data.preselected?.extendByTiles ?? 0;
+    this.pendingRemoveId = data.preselected?.removeObjectId;
     this.initialMessage = data.message;
     this.baseImages = [];
     this.extensionImages = [];
@@ -157,13 +178,14 @@ export class CurseScene extends Scene {
       onPanLeft: () => this.panZoom.panBy(-PAN_STEP_PX),
       onPanRight: () => this.panZoom.panBy(PAN_STEP_PX),
       onExtend: () => this.extendLevel(),
+      onRemove: () => this.showRemoveHint(),
       onClear: () => this.clearPending(),
       onProve: () => void this.handleProve(),
       onCancel: () => this.scene.start('MainMenu'),
     });
     this.toolbar.setActiveCategory(this.category);
     this.toolbar.setActiveType(this.selectedType);
-    this.toolbar.setClearEnabled(this.pending !== undefined);
+    this.updateClearEnabled();
     this.toolbar.setProveEnabled(false);
     this.toolbar.show();
     if (this.initialMessage) {
@@ -210,7 +232,7 @@ export class CurseScene extends Scene {
     this.selectedType = undefined;
     this.pending = undefined;
     this.toolbar.setActiveType(undefined);
-    this.toolbar.setClearEnabled(false);
+    this.updateClearEnabled();
     this.toolbar.hideMessage();
     this.redrawPending();
     this.updateProveEnabled();
@@ -221,7 +243,7 @@ export class CurseScene extends Scene {
     this.selectedType = type;
     this.pending = undefined;
     this.toolbar.hideMessage();
-    this.toolbar.setClearEnabled(false);
+    this.updateClearEnabled();
     this.redrawPending();
     this.updateProveEnabled();
     this.toolbar.showMessage('Tap an empty spot to place your curse.');
@@ -231,7 +253,7 @@ export class CurseScene extends Scene {
   private setPendingAt(x: number, y: number): void {
     if (!this.selectedType) return;
     this.pending = { id: 'pending', type: this.selectedType, x, y };
-    this.toolbar.setClearEnabled(true);
+    this.updateClearEnabled();
     this.redrawPending();
     this.updateProveEnabled();
   }
@@ -240,12 +262,22 @@ export class CurseScene extends Scene {
     if (this.proposalRequest) return;
     this.pending = undefined;
     this.pendingExtendTiles = 0;
-    this.toolbar.setClearEnabled(false);
+    this.pendingRemoveId = undefined;
+    this.updateClearEnabled();
     this.toolbar.hideMessage();
     this.redrawBase();
     this.redrawPending();
     this.redrawExtension();
     this.updateProveEnabled();
+  }
+
+  // Clear undoes either add-on (Extend Level or a marked-for-removal
+  // platform) as well as the pending object itself, so it has to stay
+  // enabled whenever any one of the three is set, not just `pending` alone.
+  private updateClearEnabled(): void {
+    this.toolbar.setClearEnabled(
+      this.pending !== undefined || this.pendingRemoveId !== undefined
+    );
   }
 
   private onBoardTileTap(
@@ -254,12 +286,23 @@ export class CurseScene extends Scene {
   ): void {
     if (this.panZoom.shouldIgnoreTap()) return;
     if (this.proposalRequest || !this.baseLevel) return;
+    const row = normalizeBoardRow(tileXY.y);
+    const world = this.board.tileXYToWorldXY(tileXY.x, row);
+
+    // Checked before the "choose a type first" gate below — removing a
+    // platform is its own action, independent of what (if anything) the
+    // player has picked to place, same as Extend Level needs no selected
+    // type either.
+    const removable = this.removablePlatformAt(world.x, world.y);
+    if (removable) {
+      this.toggleRemoveTarget(removable);
+      return;
+    }
+
     if (!this.selectedType) {
       this.toolbar.showMessage('Choose a curse type first.');
       return;
     }
-    const row = normalizeBoardRow(tileXY.y);
-    const world = this.board.tileXYToWorldXY(tileXY.x, row);
 
     if (this.isOccupiedByBase(world.x, world.y)) {
       this.toolbar.showMessage(
@@ -273,10 +316,21 @@ export class CurseScene extends Scene {
     this.setPendingAt(world.x, world.y);
   }
 
+  private removablePlatformAt(x: number, y: number): LevelObject | undefined {
+    return (this.baseLevel?.objects ?? []).find(
+      (o) => REMOVABLE_PLATFORM_TYPES.has(o.type) && o.x === x && o.y === y
+    );
+  }
+
+  // Marking a platform for removal frees up its cell — the player can then
+  // place their curse object right where it was, which is often the whole
+  // point (open up a gap, then put a hazard in it) — so this cell is
+  // excluded from `some` below whenever it's the current removal target.
   private isOccupiedByBase(x: number, y: number): boolean {
     if (
       (this.baseLevel?.objects ?? []).some(
-        (o) => o.type !== 'ground' && o.x === x && o.y === y
+        (o) =>
+          o.id !== this.pendingRemoveId && o.type !== 'ground' && o.x === x && o.y === y
       )
     ) {
       return true;
@@ -284,6 +338,37 @@ export class CurseScene extends Scene {
     const extension = this.currentExtension();
     return (
       extension !== undefined && extension.finish.x === x && extension.finish.y === y
+    );
+  }
+
+  // Tapping the same marked platform again un-marks it; tapping a
+  // different removable object switches the target — only one removal is
+  // ever pending, same "exactly one add-on" scope as pendingExtendTiles.
+  private toggleRemoveTarget(object: LevelObject): void {
+    if (this.proposalRequest) return;
+    if (this.pendingRemoveId === object.id) {
+      this.pendingRemoveId = undefined;
+      this.toolbar.hideMessage();
+    } else {
+      this.pendingRemoveId = object.id;
+      this.toolbar.showMessage(
+        "Platform marked for removal — now place a curse, then prove it's possible."
+      );
+    }
+    this.updateClearEnabled();
+    this.redrawBase();
+    this.updateProveEnabled();
+  }
+
+  // The Remove button (only visible under the Platform category, next to
+  // its type tiles) doesn't itself know which platform to remove — that's
+  // picked by tapping one directly (toggleRemoveTarget, which already
+  // works regardless of category/type selection) — so this only points the
+  // player at that gesture rather than performing a removal on its own.
+  private showRemoveHint(): void {
+    if (this.proposalRequest) return;
+    this.toolbar.showMessage(
+      'Tap an existing platform on the board to mark it for removal.'
     );
   }
 
@@ -385,6 +470,12 @@ export class CurseScene extends Scene {
           : renderLevelObject(this, object);
       if (image) {
         image.disableInteractive();
+        if (object.id === this.pendingRemoveId) {
+          // Same red as the pending-object outline (drawPendingOutline) —
+          // one "this is about to change" color across the scene.
+          image.setTint(0xff3966);
+          image.setAlpha(0.45);
+        }
         this.baseImages.push(image);
         const tweenConfig = motionTweenConfigFor(image, object);
         if (tweenConfig) {
@@ -544,6 +635,7 @@ export class CurseScene extends Scene {
     const pending = { ...this.pending };
     const levelId = this.levelId;
     const extendByTiles = this.pendingExtendTiles;
+    const removeObjectId = this.pendingRemoveId;
     const requestId = {};
     this.proposalRequest = requestId;
     this.toolbar.setEditingEnabled(false);
@@ -554,6 +646,7 @@ export class CurseScene extends Scene {
         levelId,
         object: pending,
         ...(extendByTiles > 0 ? { extendByTiles } : {}),
+        ...(removeObjectId ? { removeObjectId } : {}),
       };
       const response = await fetch('/api/curse/propose', {
         method: 'POST',
@@ -584,6 +677,7 @@ export class CurseScene extends Scene {
           category,
           object,
           extendByTiles: extendByTiles > 0 ? extendByTiles : undefined,
+          removeObjectId,
         },
       });
     } catch {

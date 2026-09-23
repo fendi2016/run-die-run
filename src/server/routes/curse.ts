@@ -32,10 +32,16 @@ type ErrorResponse = {
 
 const CURSE_TYPES = new Set(Object.values(CURSE_CATEGORY_TYPES).flat());
 
+// The only types `removeObjectId` may ever point at — the same "platform"
+// family the curse category picker itself groups together, reused rather
+// than a second hardcoded list.
+const REMOVABLE_TYPES = new Set(CURSE_CATEGORY_TYPES.platform);
+
 function isProposeCurseBody(value: unknown): value is {
   levelId: string;
   object: DraftObject;
   extendByTiles?: number;
+  removeObjectId?: string;
 } {
   return (
     typeof value === 'object' &&
@@ -48,7 +54,10 @@ function isProposeCurseBody(value: unknown): value is {
     (!('extendByTiles' in value) ||
       (typeof value.extendByTiles === 'number' &&
         Number.isFinite(value.extendByTiles) &&
-        value.extendByTiles >= 0))
+        value.extendByTiles >= 0)) &&
+    (!('removeObjectId' in value) ||
+      (typeof value.removeObjectId === 'string' &&
+        value.removeObjectId.length > 0))
   );
 }
 
@@ -88,10 +97,10 @@ export const curse = new Hono();
 // The curse UI (spec sections 14-15) is a deliberately smaller component
 // than the base editor: exactly one new trap, chosen from a restricted
 // category set, added on top of an existing published configuration it
-// cannot otherwise touch — plus an optional level-extend add-on (ground
-// fill + relocated finish, shared/levelExtend.ts), which is always
-// alongside the trap, never a substitute for it, since the leaderboard's
-// kill attribution depends on every curse placing one.
+// cannot otherwise touch — plus two optional add-ons, an extend (ground
+// fill + relocated finish, shared/levelExtend.ts) and a platform removal,
+// both always alongside the trap, never a substitute for it, since the
+// leaderboard's kill attribution depends on every curse placing one.
 curse.post('/propose', async (c) => {
   const { username } = context;
   if (!username) {
@@ -148,6 +157,23 @@ curse.post('/propose', async (c) => {
     y: o.y,
   }));
 
+  // Never trusted for *what* it is beyond the id (see
+  // ProposeCurseRequest.removeObjectId's own comment) — looked up in this
+  // level's own objects and checked against the same "platform" type set
+  // the curse category picker itself offers, so the client can't smuggle
+  // in the removal of a hazard, the spawn, or the finish portal.
+  let removedObjectId: string | undefined;
+  if (body.removeObjectId) {
+    const target = baseObjects.find((o) => o.id === body.removeObjectId);
+    if (!target || !REMOVABLE_TYPES.has(target.type)) {
+      return c.json<ProposeCurseResponse>({
+        status: 'error',
+        errors: ['That object cannot be removed.'],
+      });
+    }
+    removedObjectId = target.id;
+  }
+
   // Recomputed from the tile count only — never from client-sent ground/
   // finish positions (see ProposeCurseRequest.extendByTiles's own comment).
   const extension = body.extendByTiles
@@ -160,17 +186,20 @@ curse.post('/propose', async (c) => {
     : undefined;
 
   // The trap's own placement is validated against what the level will
-  // actually look like once the extension (if any) is applied — its old
-  // finish removed, new ground/finish added — not the pre-extension
-  // configuration, so e.g. "that would block the finish portal" checks the
-  // *new* finish position.
-  const effectiveBaseObjects: DraftObject[] = extension
-    ? [
-        ...baseObjects.filter((o) => o.type !== 'finish'),
-        ...extension.groundTiles,
-        extension.finish,
-      ]
-    : baseObjects;
+  // actually look like once both add-ons are applied — the extension (old
+  // finish removed, new ground/finish added) and the removed platform
+  // dropped entirely — not the pre-add-on configuration, so e.g. "that
+  // would block the finish portal" checks the *new* finish position, and a
+  // spot the removed platform used to occupy is free to place on.
+  const effectiveBaseObjects: DraftObject[] = (
+    extension
+      ? [
+          ...baseObjects.filter((o) => o.type !== 'finish'),
+          ...extension.groundTiles,
+          extension.finish,
+        ]
+      : baseObjects
+  ).filter((o) => o.id !== removedObjectId);
 
   const errors = validateCurseObject(effectiveBaseObjects, newObject);
   if (errors.length > 0) {
@@ -183,7 +212,8 @@ curse.post('/propose', async (c) => {
     current.version,
     current.objects,
     newObject,
-    extension
+    extension,
+    removedObjectId
   );
   const extensionObjects = extension
     ? extensionAsLevelObjects(extension, username, current.version + 1)
@@ -198,7 +228,9 @@ curse.post('/propose', async (c) => {
       version: current.version + 1,
       parentVersion: current.version,
       objects: [
-        ...current.objects.filter((o) => !(extension && o.type === 'finish')),
+        ...current.objects.filter(
+          (o) => !(extension && o.type === 'finish') && o.id !== removedObjectId
+        ),
         ...extensionObjects,
         { ...newObject, properties: {}, addedBy: username, addedInVersion: current.version + 1 },
       ],
@@ -246,8 +278,15 @@ curse.post('/publish', async (c) => {
     );
   }
 
-  const { levelId, parentVersion, baseObjects, newObject, extension, verifiedTimeMs } =
-    candidate;
+  const {
+    levelId,
+    parentVersion,
+    baseObjects,
+    newObject,
+    extension,
+    removedObjectId,
+    verifiedTimeMs,
+  } = candidate;
   const newVersionNumber = parentVersion + 1;
 
   // Simultaneous edits (spec section 18): the parent version this candidate
@@ -288,7 +327,9 @@ curse.post('/publish', async (c) => {
         ? extensionAsLevelObjects(extension, username, newVersionNumber)
         : [];
       const objects: LevelObject[] = [
-        ...baseObjects.filter((o) => !(extension && o.type === 'finish')),
+        ...baseObjects.filter(
+          (o) => !(extension && o.type === 'finish') && o.id !== removedObjectId
+        ),
         ...extensionObjects,
         {
           id: newObject.id,

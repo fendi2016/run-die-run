@@ -23,11 +23,8 @@ const TYPE_BUTTON_ENTRIES: [ObjectType, string][] = [
   ['ghost', 'curse-type-ghost'],
   ['platform', 'curse-type-platform'],
   ['movingPlatform', 'curse-type-movingPlatform'],
-  ['doubleJump', 'curse-type-doubleJump'],
   ['shield', 'curse-type-shield'],
   ['speedBoost', 'curse-type-speedBoost'],
-  ['slowTime', 'curse-type-slowTime'],
-  ['autoDash', 'curse-type-autoDash'],
 ];
 
 export type CurseToolbarHandlers = {
@@ -36,6 +33,7 @@ export type CurseToolbarHandlers = {
   onPanLeft: () => void;
   onPanRight: () => void;
   onExtend: () => void;
+  onRemove: () => void;
   onClear: () => void;
   onProve: () => void;
   onCancel: () => void;
@@ -59,7 +57,13 @@ export class CurseToolbar {
   private readonly messageEl = requireElement('curse-message');
   private readonly proveBtn = requireButton('curse-prove');
   private readonly clearBtn = requireButton('curse-clear');
+  // Live in the palette next to the Platform type tiles, not the generic
+  // action row — visible only while the Platform category is active (see
+  // setActiveCategory), same discoverability reasoning as extendBtn always
+  // having its own explicit button rather than only ever triggering
+  // implicitly (see CurseScene.growExtensionToReach's comment).
   private readonly extendBtn = requireButton('curse-extend');
+  private readonly removeBtn = requireButton('curse-remove');
   private readonly categoryButtons = new Map<
     CurseCategory,
     HTMLButtonElement
@@ -94,6 +98,7 @@ export class CurseToolbar {
       this.handlers?.onPanRight()
     );
     this.extendBtn.addEventListener('click', () => this.handlers?.onExtend());
+    this.removeBtn.addEventListener('click', () => this.handlers?.onRemove());
     this.clearBtn.addEventListener('click', () => this.handlers?.onClear());
     this.proveBtn.addEventListener('click', () => this.handlers?.onProve());
     requireButton('curse-cancel').addEventListener('click', () =>
@@ -119,6 +124,13 @@ export class CurseToolbar {
       button.classList.toggle('active', c === category);
     }
     this.setTypesForCategory(category);
+    // Extend/Remove only make sense once Platform is the active category —
+    // they live right beside its type tiles and stay hidden otherwise,
+    // rather than cluttering the hazard/power-up screens with buttons that
+    // don't apply there.
+    const showPlatformActions = category === 'platform';
+    this.extendBtn.classList.toggle('hidden', !showPlatformActions);
+    this.removeBtn.classList.toggle('hidden', !showPlatformActions);
   }
 
   setTypesForCategory(category: CurseCategory | undefined): void {
@@ -141,6 +153,7 @@ export class CurseToolbar {
     for (const button of this.typeButtons.values()) button.disabled = !enabled;
     this.clearBtn.disabled = !enabled;
     this.extendBtn.disabled = !enabled;
+    this.removeBtn.disabled = !enabled;
   }
 
   setProveEnabled(enabled: boolean): void {

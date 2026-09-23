@@ -69,6 +69,7 @@ type PreviewReturn =
       category: CurseCategory;
       object: DraftObject;
       extendByTiles?: number;
+      removeObjectId?: string;
     };
 
 // Data passed in via `scene.start('GameScene', data)`. Absent (a normal
@@ -315,6 +316,7 @@ export class GameScene extends Scene {
               category: previewReturn.category,
               object: previewReturn.object,
               extendByTiles: previewReturn.extendByTiles,
+              removeObjectId: previewReturn.removeObjectId,
             },
           });
         } else {
@@ -617,6 +619,7 @@ export class GameScene extends Scene {
               category: previewReturn.category,
               object: previewReturn.object,
               extendByTiles: previewReturn.extendByTiles,
+              removeObjectId: previewReturn.removeObjectId,
             },
         message,
       });

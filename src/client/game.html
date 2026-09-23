@@ -227,16 +227,16 @@
               <img class="editor-btn-icon-img" src="/assets/tiles/platform/platform-top-center-1.webp" alt="" />
               <span class="editor-btn-label">Moving Platform</span>
             </button>
-            <span class="editor-divider"></span>
-            <span class="editor-palette-group-label">Power-Ups</span>
             <button
               type="button"
-              id="editor-tool-doubleJump"
-              class="editor-btn"
+              id="editor-extend"
+              class="editor-btn editor-btn-compact"
             >
-              <img class="editor-btn-icon-img" src="/assets/powerups/doubleJump.webp" alt="" />
-              <span class="editor-btn-label">Double Jump</span>
+              <span class="editor-btn-icon">&#8596;</span>
+              <span class="editor-btn-label">Extend</span>
             </button>
+            <span class="editor-divider"></span>
+            <span class="editor-palette-group-label">Power-Ups</span>
             <button type="button" id="editor-tool-shield" class="editor-btn">
               <img class="editor-btn-icon-img" src="/assets/powerups/shield.webp" alt="" />
               <span class="editor-btn-label">Shield</span>
@@ -248,14 +248,6 @@
             >
               <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.webp" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
-            </button>
-            <button type="button" id="editor-tool-slowTime" class="editor-btn">
-              <img class="editor-btn-icon-img" src="/assets/powerups/slowTime.webp" alt="" />
-              <span class="editor-btn-label">Slow Time</span>
-            </button>
-            <button type="button" id="editor-tool-autoDash" class="editor-btn">
-              <img class="editor-btn-icon-img" src="/assets/powerups/autoDash.webp" alt="" />
-              <span class="editor-btn-label">Auto Dash</span>
             </button>
             <span class="editor-divider"></span>
             <span class="editor-palette-group-label">Markers</span>
@@ -282,15 +274,6 @@
               class="editor-btn editor-btn-compact"
             >
               <span class="editor-btn-icon">&#8250;</span>
-            </button>
-            <span class="editor-divider"></span>
-            <button
-              type="button"
-              id="editor-extend"
-              class="editor-btn editor-btn-compact"
-            >
-              <span class="editor-btn-icon">&#8596;</span>
-              <span class="editor-btn-label">Extend</span>
             </button>
             <span class="editor-divider"></span>
             <button
@@ -492,11 +475,19 @@
             </button>
             <button
               type="button"
-              id="curse-type-doubleJump"
-              class="editor-btn hidden"
+              id="curse-extend"
+              class="editor-btn editor-btn-compact hidden"
             >
-              <img class="editor-btn-icon-img" src="/assets/powerups/doubleJump.webp" alt="" />
-              <span class="editor-btn-label">Double Jump</span>
+              <span class="editor-btn-icon">&#8596;</span>
+              <span class="editor-btn-label">Extend</span>
+            </button>
+            <button
+              type="button"
+              id="curse-remove"
+              class="editor-btn editor-btn-compact hidden"
+            >
+              <span class="editor-btn-icon">&#8854;</span>
+              <span class="editor-btn-label">Remove</span>
             </button>
             <button
               type="button"
@@ -514,22 +505,6 @@
               <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.webp" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
             </button>
-            <button
-              type="button"
-              id="curse-type-slowTime"
-              class="editor-btn hidden"
-            >
-              <img class="editor-btn-icon-img" src="/assets/powerups/slowTime.webp" alt="" />
-              <span class="editor-btn-label">Slow Time</span>
-            </button>
-            <button
-              type="button"
-              id="curse-type-autoDash"
-              class="editor-btn hidden"
-            >
-              <img class="editor-btn-icon-img" src="/assets/powerups/autoDash.webp" alt="" />
-              <span class="editor-btn-label">Auto Dash</span>
-            </button>
           </div>
           <div id="curse-actions" class="editor-row">
             <button
@@ -545,15 +520,6 @@
               class="editor-btn editor-btn-compact"
             >
               <span class="editor-btn-icon">&#8250;</span>
-            </button>
-            <span class="editor-divider"></span>
-            <button
-              type="button"
-              id="curse-extend"
-              class="editor-btn editor-btn-compact"
-            >
-              <span class="editor-btn-icon">&#8596;</span>
-              <span class="editor-btn-label">Extend</span>
             </button>
             <span class="editor-divider"></span>
             <button

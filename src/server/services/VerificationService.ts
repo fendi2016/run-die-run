@@ -51,7 +51,10 @@ export type CreateCandidate = CandidateCommon & {
 // once at propose time (from the same baseObjects frozen alongside it) and
 // reused as-is at publish — never recomputed a second time, matching how
 // `newObject` itself is trusted for the rest of this candidate's life once
-// propose has validated it.
+// propose has validated it. `removedObjectId`: the id of a platform/
+// movingPlatform to drop from `baseObjects` at publish time — validated
+// once at propose (curse.ts checks it exists and is a removable type) and
+// trusted from then on, same as everything else here.
 export type CurseCandidate = CandidateCommon & {
   kind: 'curse';
   levelId: string;
@@ -59,6 +62,7 @@ export type CurseCandidate = CandidateCommon & {
   baseObjects: LevelObject[];
   newObject: DraftObject;
   extension: LevelExtension | undefined;
+  removedObjectId: string | undefined;
 };
 
 export type EditorCandidate = CreateCandidate | CurseCandidate;
@@ -132,16 +136,23 @@ function isEditorCandidate(value: unknown): value is EditorCandidate {
     ) {
       return false;
     }
-    // A candidate proposed with no extension comes back from Redis with no
-    // `extension` key at all, not the key set to undefined — JSON
-    // .stringify drops undefined-valued properties entirely. So the key
+    // A candidate proposed with no extension/removal comes back from Redis
+    // with no key at all for that field, not the key set to undefined —
+    // JSON.stringify drops undefined-valued properties entirely. So the key
     // being absent is exactly as valid as it being present-and-undefined,
-    // both meaning "no extension" (same reasoning as CandidateCommon's own
+    // both meaning "none" (same reasoning as CandidateCommon's own
     // verifiedTimeMs, read directly rather than gated on an `in` check).
-    if (!('extension' in value)) {
-      return true;
-    }
-    return value.extension === undefined || isLevelExtension(value.extension);
+    // Neither check can early-return on its own the way a single-field
+    // check could, since both fields share this same branch.
+    const extensionValid =
+      !('extension' in value) ||
+      value.extension === undefined ||
+      isLevelExtension(value.extension);
+    const removedObjectIdValid =
+      !('removedObjectId' in value) ||
+      value.removedObjectId === undefined ||
+      typeof value.removedObjectId === 'string';
+    return extensionValid && removedObjectIdValid;
   }
   return false;
 }
@@ -348,7 +359,8 @@ export async function createCurseCandidate(
   parentVersion: number,
   baseObjects: LevelObject[],
   newObject: DraftObject,
-  extension: LevelExtension | undefined
+  extension: LevelExtension | undefined,
+  removedObjectId: string | undefined
 ): Promise<string> {
   const candidate: EditorCandidate = {
     kind: 'curse',
@@ -358,6 +370,7 @@ export async function createCurseCandidate(
     baseObjects,
     newObject,
     extension,
+    removedObjectId,
     verified: false,
     verifiedTimeMs: undefined,
     createdAt: Date.now(),

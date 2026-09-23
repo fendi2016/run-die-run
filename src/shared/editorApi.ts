@@ -159,6 +159,13 @@ export type ProposeCurseRequest = {
   // itself from the current published objects rather than trusting
   // client-sent positions.
   extendByTiles?: number;
+  // The id of an existing platform/movingPlatform to remove — another
+  // optional add-on alongside `object`, never a substitute, same reasoning
+  // as extendByTiles above. Only an id: the server looks the object up in
+  // the current published level and validates its type itself (must be
+  // one of CURSE_CATEGORY_TYPES.platform) rather than trusting the client
+  // on *what* it's removing.
+  removeObjectId?: string;
 };
 
 export type ProposeCurseResponse =
