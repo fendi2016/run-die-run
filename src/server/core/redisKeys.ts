@@ -115,7 +115,9 @@ export const levelPostKey = (levelId: string): string =>
 
 // Level of the Day (services/DailyService.ts): how many have been posted
 // (the #N in the title), the UTC day of the last one (so a scheduler retry
-// can't double-post), and levelId -> day it was last featured.
+// can't double-post), levelId -> day it was last featured, and the levelId
+// featured most recently (what a hub post plays).
 export const dailyCountKey = (): string => 'daily:count';
 export const dailyLastPostedDayKey = (): string => 'daily:lastPostedDay';
 export const dailyFeaturedKey = (): string => 'daily:featured';
+export const dailyCurrentKey = (): string => 'daily:current';

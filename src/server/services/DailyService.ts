@@ -1,7 +1,9 @@
 import { redis } from '@devvit/web/server';
+import { DEFAULT_LEVEL_ID, HUB_LEVEL_ID } from '../../shared/constants';
 import { createLevelPost } from '../core/post';
 import {
   dailyCountKey,
+  dailyCurrentKey,
   dailyFeaturedKey,
   dailyLastPostedDayKey,
 } from '../core/redisKeys';
@@ -45,6 +47,14 @@ export async function postLevelOfTheDay(force: boolean): Promise<DailyPostResult
     redis.set(dailyCountKey(), String(number)),
     redis.set(dailyLastPostedDayKey(), String(today)),
     redis.hSet(dailyFeaturedKey(), { [pick.levelId]: String(today) }),
+    redis.set(dailyCurrentKey(), pick.levelId),
   ]);
   return { status: 'posted', number, levelId: pick.levelId, url: post.url };
+}
+
+// A hub post asks for HUB_LEVEL_ID instead of a real level; this swaps in
+// the current Level of the Day. Any other id passes through unchanged.
+export async function resolveLevelId(levelId: string): Promise<string> {
+  if (levelId !== HUB_LEVEL_ID) return levelId;
+  return (await redis.get(dailyCurrentKey())) ?? DEFAULT_LEVEL_ID;
 }

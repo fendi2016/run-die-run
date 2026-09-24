@@ -1,6 +1,6 @@
 import { requestExpandedMode } from '@devvit/web/client';
 import {
-  DEFAULT_LEVEL_ID,
+  HUB_LEVEL_ID,
   SEED_AUTHOR,
   SPLASH_AUTOSTART_KEY,
   type SplashAutostart,
@@ -44,11 +44,11 @@ buildButton.addEventListener('click', (e) => expandInto(e, 'editor'));
 browseButton.addEventListener('click', (e) => expandInto(e, 'browse'));
 
 // The level this post plays (its postData; a hub post has none and plays
-// the default level). Fetched after the interactive content is already up,
+// today's Level of the Day). Fetched after the interactive content is already up,
 // so a slow/failed request never blocks PLAY.
 const rawPostData = currentPostData();
 const postData = isCursedPostData(rawPostData) ? rawPostData : undefined;
-const levelId = postData?.levelId ?? DEFAULT_LEVEL_ID;
+const levelId = postData?.levelId ?? HUB_LEVEL_ID;
 
 if (postData?.daily !== undefined) {
   const daily = requireElement('level-daily');

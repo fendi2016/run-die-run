@@ -5,6 +5,7 @@ import {
   type DiscoveryResponse,
   type LevelSummary,
 } from '../../shared/discoveryApi';
+import { resolveLevelId } from '../services/DailyService';
 import { discoverLevels, getLevelStats } from '../services/DiscoveryService';
 
 export const discovery = new Hono();
@@ -31,7 +32,7 @@ function cachedLevels(sort: DiscoverySort): Promise<LevelSummary[]> {
   return levels;
 }
 discovery.get('/stats/:levelId', async (c) => {
-  const stats = await getLevelStats(c.req.param('levelId'));
+  const stats = await getLevelStats(await resolveLevelId(c.req.param('levelId')));
   if (!stats) return c.json({ status: 'error', message: 'Unknown level' }, 404);
   return c.json(stats);
 });

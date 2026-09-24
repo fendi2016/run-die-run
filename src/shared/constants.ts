@@ -18,6 +18,12 @@ export const FALL_DEATH_Y = GROUND_TOP_Y + 400;
 // Phase 3: one hardcoded default while there's no discovery UI yet).
 export const DEFAULT_LEVEL_ID = 'meat-grinder';
 
+// What a hub post (one with no postData) asks the server for: the current
+// Level of the Day, or DEFAULT_LEVEL_ID until the first one is posted.
+// Resolved server-side (DailyService.resolveLevelId). The '@' keeps it from
+// ever colliding with a published level's slug, which is [a-z0-9-] only.
+export const HUB_LEVEL_ID = '@today';
+
 // Editor grid bounds (spec section 12). A soft cap, not a hard "this is too
 // long" validator — spec section 38's phase notes call for enforcing
 // "levels should be short" (rule 15) softly via the editor's own grid size
