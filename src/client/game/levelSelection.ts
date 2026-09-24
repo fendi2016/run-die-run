@@ -1,6 +1,6 @@
-import { context } from '@devvit/web/client';
 import { DEFAULT_LEVEL_ID } from '../../shared/constants';
 import { levelIdFromPostData } from '../../shared/postData';
+import { currentPostData } from '../devvitContext';
 
 // Which level this post plays: `?level=<id>` (manual testing) wins, then
 // the level the post was created for (its Devvit postData — one post per
@@ -10,7 +10,7 @@ export function getRequestedLevelId(): string {
   const params = new URLSearchParams(window.location.search);
   return (
     params.get('level') ||
-    levelIdFromPostData(context.postData) ||
+    levelIdFromPostData(currentPostData()) ||
     DEFAULT_LEVEL_ID
   );
 }

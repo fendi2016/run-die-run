@@ -1,4 +1,4 @@
-import { context, requestExpandedMode } from '@devvit/web/client';
+import { requestExpandedMode } from '@devvit/web/client';
 import {
   DEFAULT_LEVEL_ID,
   SEED_AUTHOR,
@@ -7,6 +7,7 @@ import {
 } from '../shared/constants';
 import { isLevelStats } from '../shared/discoveryApi';
 import { isCursedPostData } from '../shared/postData';
+import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { clearRateText, versionText } from './ui/levelStatsText';
@@ -45,7 +46,8 @@ browseButton.addEventListener('click', (e) => expandInto(e, 'browse'));
 // The level this post plays (its postData; a hub post has none and plays
 // the default level). Fetched after the interactive content is already up,
 // so a slow/failed request never blocks PLAY.
-const postData = isCursedPostData(context.postData) ? context.postData : undefined;
+const rawPostData = currentPostData();
+const postData = isCursedPostData(rawPostData) ? rawPostData : undefined;
 const levelId = postData?.levelId ?? DEFAULT_LEVEL_ID;
 
 if (postData?.daily !== undefined) {

@@ -2,7 +2,6 @@ import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
 import {
   connectRealtime,
-  context,
   disconnectRealtime,
   showShareSheet,
 } from '@devvit/web/client';
@@ -18,6 +17,7 @@ import {
   isLevelStats,
   type LevelStats,
 } from '../../../shared/discoveryApi';
+import { currentSubredditName } from '../../devvitContext';
 import { withTimeout } from '../../net';
 import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
@@ -276,7 +276,7 @@ export class GameScene extends Scene {
     // result overlay) there — triggering in place left the camera (which
     // just follows the player's x) nowhere near the bell. Dev subreddit
     // only: anywhere else it would verify unbeaten levels and farm clears.
-    if (event.key === '7' && context.subredditName === DEV_SUBREDDIT) {
+    if (event.key === '7' && currentSubredditName() === DEV_SUBREDDIT) {
       event.preventDefault();
       if (this.finishSprite) {
         this.player.reset(this.finishSprite.x, this.finishSprite.y, false);

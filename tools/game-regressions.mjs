@@ -34,7 +34,8 @@ try {
     const objects = [
       { id: 'spawn', type: 'spawn', x: 90, y: 480 },
       { id: 'finish', type: 'finish', x: 2000, y: 480 },
-      ...['movingSaw', 'bat', 'ghost', 'movingPlatform'].map((type, i) => ({
+      // The bat has no patrol tween (it dashes once on sight), so it's not here.
+      ...['movingSaw', 'ghost', 'movingPlatform'].map((type, i) => ({
         id: type, type, x: 400 + i * 200, y: 360,
       })),
     ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 }));
@@ -66,7 +67,7 @@ try {
     game.loop.wake();
     return { start, retry, first, second };
   });
-  assert.equal(movement.start.length, 4);
+  assert.equal(movement.start.length, 3);
   assert.deepEqual(movement.retry, movement.start);
   assert.deepEqual(movement.second, movement.first);
   assert.notDeepEqual(movement.first, movement.start);

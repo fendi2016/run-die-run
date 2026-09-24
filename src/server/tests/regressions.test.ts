@@ -46,6 +46,11 @@ function hSet(key: string, fieldValues: Record<string, string>) {
   bump(key);
   return added;
 }
+function hIncrBy(key: string, field: string, increment: number) {
+  const value = Number(hashes.get(key)?.get(field) ?? 0) + increment;
+  hSet(key, { [field]: String(value) });
+  return value;
+}
 function zRangeSorted(
   key: string,
   start: number,
@@ -85,6 +90,8 @@ const redis = {
   ) => zRangeSorted(key, start, end, options),
   hGet: async (key: string, field: string) => hashes.get(key)?.get(field),
   hLen: async (key: string) => hashes.get(key)?.size ?? 0,
+  hIncrBy: async (key: string, field: string, increment: number) =>
+    hIncrBy(key, field, increment),
   expire: async () => 1,
   watch: async (...keys: string[]) => {
     activeTransactions++;
@@ -117,6 +124,9 @@ const redis = {
       },
       hSet: async (key: string, fieldValues: Record<string, string>) => {
         commands.push(() => hSet(key, fieldValues));
+      },
+      hIncrBy: async (key: string, field: string, increment: number) => {
+        commands.push(() => hIncrBy(key, field, increment));
       },
       del: async (key: string) => {
         commands.push(() => {
@@ -157,7 +167,6 @@ mock.module('@devvit/web/server', {
 const { publish } = await import('../routes/publish');
 const { curse } = await import('../routes/curse');
 const { runs } = await import('../routes/runs');
-const { menu } = await import('../routes/menu');
 const { leaderboard } = await import('../routes/leaderboard');
 const { currency } = await import('../routes/currency');
 const { createCandidate, markCandidateVerified, getCandidate } =
