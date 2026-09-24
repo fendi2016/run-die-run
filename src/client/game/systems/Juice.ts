@@ -372,69 +372,135 @@ export function playHyperspeedTrail(
   return trail;
 }
 
-const FINISH_HIT_DURATION_MS = 180;
-const FINISH_RING_STEP_MS = 130;
-const FINISH_RING_REPEAT = 2;
-const FINISH_SUCCESS_DURATION_MS = 400;
+// Swing poses in order, each held for its ms: the two tilted frames
+// alternate like a pendulum, slowing as the swing dies down, then settle on
+// the resting frame before the success frame fades in over it.
+const FINISH_SWINGS: readonly [string, number][] = [
+  ['finish-hit', 110],
+  ['finish-ringing', 110],
+  ['finish-hit', 130],
+  ['finish-ringing', 150],
+  ['finish-hit', 180],
+  ['finish-ringing', 220],
+  ['finish-idle', 160],
+];
+const FINISH_SUCCESS_FADE_MS = 320;
+const FINISH_RING_COLOR = 0x39ff88;
 
-// Sets one of the finish bell's reference-art frames, recalculating origin
-// (finishOriginX — see ObjectRegistry.FINISH_ORIGIN_X) and scale each time
-// so the gallows post stays visually planted while the bell/motion-lines/
-// ghosts around it change extent between frames. Exported so GameScene can
-// also use it to snap the bell back to its resting pose on a same-scene
-// restart (see restartRun) without duplicating this math.
+// Sets one of the finish bell's reference-art frames. Origin comes from
+// finishOriginX (see ObjectRegistry.FINISH_ORIGIN_X) so the gallows post
+// stays planted while the bell/motion-lines/ghosts around it change extent.
+// Scale is the SAME for every frame (fit from the resting frame's height):
+// the frames share one pixel scale, and fitting each to the display height
+// separately shrank the taller success frame (its ghosts add headroom) by
+// ~30%, making the whole bell jump. Exported so GameScene can snap the bell
+// back to rest on a same-scene restart without duplicating this math.
 export function setFinishFrame(sprite: Phaser.GameObjects.Sprite, textureKey: string): number {
   sprite.setTexture(textureKey);
   sprite.setOrigin(finishOriginX(textureKey), 1);
-  const scale = FINISH_DISPLAY_HEIGHT_PX / sprite.height;
+  const restHeight = sprite.scene.textures.getFrame('finish-idle')?.height ?? sprite.height;
+  const scale = FINISH_DISPLAY_HEIGHT_PX / restHeight;
   sprite.setScale(scale);
   return scale;
 }
 
-// Swaps the finish bell through its hit -> ringing -> success frames instead
-// of tweening between poses that don't exist. Purely cosmetic, same as
+// Pending timers/overlay per bell, so a restart mid-animation can cancel it
+// (stopFinishBellAnimation) instead of a late timer flipping frames on a
+// bell that's supposed to be back at rest.
+const bellRuns = new WeakMap<
+  Phaser.GameObjects.Sprite,
+  { timers: Phaser.Time.TimerEvent[]; overlay: Phaser.GameObjects.Sprite | undefined }
+>();
+
+export function stopFinishBellAnimation(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite
+): void {
+  const run = bellRuns.get(sprite);
+  if (!run) return;
+  for (const timer of run.timers) timer.remove(false);
+  if (run.overlay) {
+    scene.tweens.killTweensOf(run.overlay);
+    run.overlay.destroy();
+  }
+  bellRuns.delete(sprite);
+}
+
+// An expanding, fading ring from the bell — the "sound" of each strike.
+// `strength` (0..1) shrinks and fades later rings as the swing dies down.
+function ringPulse(scene: Phaser.Scene, x: number, y: number, depth: number, strength: number): void {
+  const ring = scene.add
+    .circle(x, y, 22)
+    .setStrokeStyle(4, FINISH_RING_COLOR, 0.9 * strength)
+    .setDepth(depth - 0.1);
+  scene.tweens.add({
+    targets: ring,
+    scale: 1 + 3.5 * strength,
+    alpha: 0,
+    duration: 520,
+    ease: 'Cubic.easeOut',
+    onComplete: () => ring.destroy(),
+  });
+}
+
+// Plays the bell's swing -> success sequence. Purely cosmetic, same as
 // burstParticles above — GameScene fires this once from onFinishReached and
-// never awaits it.
+// never awaits it; the post itself never moves or scales.
 export function playFinishBellAnimation(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite
 ): void {
+  stopFinishBellAnimation(scene, sprite);
   scene.tweens.killTweensOf(sprite);
-  sprite.setRotation(0);
+  sprite.setRotation(0).setAlpha(1);
+  setFinishFrame(sprite, 'finish-idle');
 
-  const hitScale = setFinishFrame(sprite, 'finish-hit');
-  sprite.setScale(hitScale * 1.18);
-  scene.tweens.add({
-    targets: sprite,
-    scale: hitScale,
-    duration: FINISH_HIT_DURATION_MS,
-    ease: 'Back.easeOut',
+  // The bell hangs right of the post, a bit below the crossbar.
+  const bellX = sprite.x + sprite.displayWidth * (0.62 - sprite.originX);
+  const bellY = sprite.y - sprite.displayHeight * 0.45;
+  const depth = sprite.depth;
+  const run: { timers: Phaser.Time.TimerEvent[]; overlay: Phaser.GameObjects.Sprite | undefined } = {
+    timers: [],
+    overlay: undefined,
+  };
+  bellRuns.set(sprite, run);
+
+  let at = 0;
+  FINISH_SWINGS.forEach(([frame, holdMs], index) => {
+    const strength = 1 - index / FINISH_SWINGS.length;
+    run.timers.push(
+      scene.time.delayedCall(at, () => {
+        if (!sprite.active) return;
+        setFinishFrame(sprite, frame);
+        if (frame !== 'finish-idle') ringPulse(scene, bellX, bellY, depth, strength);
+      })
+    );
+    at += holdMs;
   });
 
-  scene.time.delayedCall(FINISH_HIT_DURATION_MS, () => {
-    if (!sprite.active) return;
-    setFinishFrame(sprite, 'finish-ringing');
-    scene.tweens.add({
-      targets: sprite,
-      rotation: 0.08,
-      duration: FINISH_RING_STEP_MS,
-      yoyo: true,
-      repeat: FINISH_RING_REPEAT,
-      ease: 'Sine.easeInOut',
-    });
-  });
-
-  const ringingDurationMs = FINISH_RING_STEP_MS * 2 * (FINISH_RING_REPEAT + 1);
-  scene.time.delayedCall(FINISH_HIT_DURATION_MS + ringingDurationMs, () => {
-    if (!sprite.active) return;
-    sprite.setRotation(0);
-    const successScale = setFinishFrame(sprite, 'finish-success');
-    sprite.setScale(successScale * 0.8);
-    scene.tweens.add({
-      targets: sprite,
-      scale: successScale,
-      duration: FINISH_SUCCESS_DURATION_MS,
-      ease: 'Back.easeOut',
-    });
-  });
+  run.timers.push(
+    scene.time.delayedCall(at, () => {
+      if (!sprite.active) return;
+      // Cross-fade rather than swap, so the ghosts and glowing eyes rise
+      // out of the resting bell instead of popping in.
+      const overlay = scene.add.sprite(sprite.x, sprite.y, 'finish-success').setDepth(depth + 0.01);
+      setFinishFrame(overlay, 'finish-success');
+      overlay.setAlpha(0);
+      run.overlay = overlay;
+      burstParticles(scene, bellX, bellY, FINISH_RING_COLOR, 18);
+      ringPulse(scene, bellX, bellY, depth, 1);
+      scene.tweens.add({
+        targets: overlay,
+        alpha: 1,
+        duration: FINISH_SUCCESS_FADE_MS,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          if (sprite.active) setFinishFrame(sprite, 'finish-success');
+          overlay.destroy();
+          run.overlay = undefined;
+          bellRuns.delete(sprite);
+        },
+      });
+    })
+  );
 }

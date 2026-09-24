@@ -55,7 +55,12 @@ import { FINISH_RESTART_DELAY_MS, PLAYER_SCREEN_ANCHOR } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
 import { takePrefetchedLevel } from '../levelPrefetch';
-import { burstParticles, playFinishBellAnimation, setFinishFrame } from '../systems/Juice';
+import {
+  burstParticles,
+  playFinishBellAnimation,
+  setFinishFrame,
+  stopFinishBellAnimation,
+} from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
@@ -909,6 +914,7 @@ export class GameScene extends Scene {
     // finish (e.g. a stray restart control), the bell shouldn't stay stuck
     // mid-ding.
     if (this.finishSprite) {
+      stopFinishBellAnimation(this, this.finishSprite);
       this.tweens.killTweensOf(this.finishSprite);
       this.finishSprite.setRotation(0);
       setFinishFrame(this.finishSprite, 'finish-idle');
