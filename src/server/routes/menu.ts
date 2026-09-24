@@ -6,19 +6,6 @@ import { reseedBuiltInLevels } from '../services/LevelService';
 
 export const menu = new Hono();
 
-menu.post('/example-form', (c) =>
-  c.json<UiResponse>({
-    showForm: {
-      name: 'exampleForm',
-      form: {
-        title: 'Example form',
-        acceptLabel: 'Submit',
-        fields: [{ name: 'message', label: 'Message', type: 'string' }],
-      },
-    },
-  })
-);
-
 // Dev utility (see LevelService.reseedBuiltInLevels): a source edit to a
 // seed level in seedLevels.ts never reaches a subreddit where that level
 // was already requested once, since levels only seed on first request.

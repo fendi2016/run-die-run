@@ -2,9 +2,11 @@ import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
 import {
   connectRealtime,
+  context,
   disconnectRealtime,
 } from '@devvit/web/client';
 import {
+  DEV_SUBREDDIT,
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
   SEED_AUTHOR,
@@ -253,8 +255,9 @@ export class GameScene extends Scene {
     // Dev shortcut: warp to the finish sprite, then trigger the real finish
     // sequence (particles, camera flash, bell animation, player's dance,
     // result overlay) there — triggering in place left the camera (which
-    // just follows the player's x) nowhere near the bell.
-    if (event.key === '7') {
+    // just follows the player's x) nowhere near the bell. Dev subreddit
+    // only: anywhere else it would verify unbeaten levels and farm clears.
+    if (event.key === '7' && context.subredditName === DEV_SUBREDDIT) {
       event.preventDefault();
       if (this.finishSprite) {
         this.player.reset(this.finishSprite.x, this.finishSprite.y, false);

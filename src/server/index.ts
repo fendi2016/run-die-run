@@ -5,7 +5,6 @@ import { currency } from './routes/currency';
 import { curse } from './routes/curse';
 import { discovery } from './routes/discovery';
 import { follow } from './routes/follow';
-import { forms } from './routes/forms';
 import { leaderboard } from './routes/leaderboard';
 import { levels } from './routes/levels';
 import { menu } from './routes/menu';
@@ -18,7 +17,6 @@ const app = new Hono();
 const internal = new Hono();
 
 internal.route('/menu', menu);
-internal.route('/form', forms);
 internal.route('/triggers', triggers);
 
 app.route('/internal', internal);

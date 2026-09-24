@@ -45,6 +45,18 @@ export type SplashAutostart = 'game' | 'editor' | 'browse';
 // not-yet-community-created levels.
 export const SEED_AUTHOR = 'cursed_seed';
 
+// The playtest subreddit from devvit.json's `dev.subreddit`. Debug-only
+// affordances (the finish-line warp key) check this at runtime instead of
+// a Vite DEV flag — `devvit playtest` ships a production build too, so a
+// build-time flag would be off in the one place those tools are needed.
+export const DEV_SUBREDDIT = 'cursed_game_dev';
+
+// Per-user daily caps on the two actions that write to Reddit on the
+// player's behalf (a new post per level, a comment per curse), so one
+// account can't flood the subreddit.
+export const LEVEL_PUBLISHES_PER_DAY = 10;
+export const CURSES_PER_DAY = 30;
+
 // Earn-only reward currency (no shop yet — the balance/plumbing exists so a
 // future shop has something to spend). Flat amount per non-duplicate clear,
 // regardless of level difficulty or whether it's a first-time or repeat

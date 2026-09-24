@@ -98,3 +98,11 @@ export const currencyKey = (username: string): string =>
 // Keep receipts for explicit submissions so a delayed retry remains safe.
 export const runSubmissionKey = (username: string, submissionId: string): string =>
   `run:submission:${username}:${submissionId}`;
+
+// Per-user, per-UTC-day action counter backing the publish/curse caps
+// (core/quota.ts). Expires on its own a day after the window closes.
+export const dailyQuotaKey = (
+  action: string,
+  username: string,
+  day: number
+): string => `quota:${action}:${day}:${username}`;

@@ -16,6 +16,8 @@ import {
   levelCurrentVersionKey,
   levelVersionKey,
 } from '../core/redisKeys';
+import { CURSES_PER_DAY } from '../../shared/constants';
+import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { withTransaction } from '../core/transactions';
 import { getCurrentLevelVersion } from '../services/LevelService';
 import {
@@ -123,6 +125,15 @@ curse.post('/propose', async (c) => {
     return c.json<ErrorResponse>(
       { status: 'error', message: 'Invalid curse request' },
       400
+    );
+  }
+  if (!(await hasDailyQuota('curse', username, CURSES_PER_DAY))) {
+    return c.json<ProposeCurseResponse>(
+      {
+        status: 'error',
+        errors: [`You've used all ${CURSES_PER_DAY} curses for today — come back tomorrow.`],
+      },
+      429
     );
   }
   if (!CURSE_TYPES.has(body.object.type)) {
@@ -366,6 +377,7 @@ curse.post('/publish', async (c) => {
   );
 
   if (result.status === 'ok') {
+    await recordDailyUse('curse', username);
     // A curse always lands on an already-live level (unlike the base
     // editor's first publish, which has no one subscribed yet) — this is
     // the one place spec section 29's "new version published"/"new

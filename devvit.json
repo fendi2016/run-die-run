@@ -20,21 +20,14 @@
   "menu": {
     "items": [
       {
-        "label": "Create a new post",
-        "description": "cursed",
+        "label": "Create a CURSED post",
+        "description": "Post the CURSED hub (play, build, browse)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
       },
       {
-        "label": "Example form",
-        "description": "Show a simple form",
-        "location": "subreddit",
-        "forUserType": "moderator",
-        "endpoint": "/internal/menu/example-form"
-      },
-      {
-        "label": "Reseed built-in levels",
+        "label": "CURSED: reseed built-in levels (dev)",
         "description": "Sync meat-grinder with seedLevels.ts",
         "location": "subreddit",
         "forUserType": "moderator",
@@ -42,16 +35,15 @@
       }
     ]
   },
-  "forms": {
-    "exampleForm": "/internal/form/example-submit"
-  },
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install"
   },
   "permissions": {
     "realtime": true,
     "reddit": {
-      "asUser": ["SUBSCRIBE_TO_SUBREDDIT"]
+      "asUser": [
+        "SUBSCRIBE_TO_SUBREDDIT"
+      ]
     }
   },
   "scripts": {

@@ -85,6 +85,7 @@ const redis = {
   ) => zRangeSorted(key, start, end, options),
   hGet: async (key: string, field: string) => hashes.get(key)?.get(field),
   hLen: async (key: string) => hashes.get(key)?.size ?? 0,
+  expire: async () => 1,
   watch: async (...keys: string[]) => {
     activeTransactions++;
     let closed = false;
@@ -333,21 +334,6 @@ await test('transaction exceptions release the transaction without committing', 
   );
   assert.equal(activeTransactions, 0);
   assert.equal(values.has('key'), false);
-});
-
-await test('example form menu action returns the configured form', async () => {
-  const response = await menu.request('/example-form', { method: 'POST' });
-  assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {
-    showForm: {
-      name: 'exampleForm',
-      form: {
-        title: 'Example form',
-        acceptLabel: 'Submit',
-        fields: [{ name: 'message', label: 'Message', type: 'string' }],
-      },
-    },
-  });
 });
 
 await test('a transaction conflict reported as an error is retried', async () => {

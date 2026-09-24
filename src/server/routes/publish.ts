@@ -10,7 +10,10 @@ import {
   type VerifyLevelRequest,
   type VerifyLevelResponse,
 } from '../../shared/editorApi';
+import { LEVEL_PUBLISHES_PER_DAY } from '../../shared/constants';
+import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { SEED_LEVELS } from '../core/seedLevels';
+import { sanitizeLevelTitle } from '../core/titles';
 import { withTransaction } from '../core/transactions';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
@@ -208,6 +211,23 @@ publish.post('/publish', async (c) => {
     );
   }
 
+  const title = sanitizeLevelTitle(body.title, MAX_TITLE_LENGTH);
+  if (title.length === 0) {
+    return c.json<PublishLevelResponse>(
+      { status: 'error', message: 'Please choose a different level title.' },
+      400
+    );
+  }
+  if (!(await hasDailyQuota('publish', username, LEVEL_PUBLISHES_PER_DAY))) {
+    return c.json<PublishLevelResponse>(
+      {
+        status: 'error',
+        message: `You can publish ${LEVEL_PUBLISHES_PER_DAY} levels a day — come back tomorrow.`,
+      },
+      429
+    );
+  }
+
   const candidate = await getCandidate(username);
   if (!isVerifiedCandidate(candidate, 'create', body.candidateToken)) {
     return c.json<PublishLevelResponse>(
@@ -243,7 +263,7 @@ publish.post('/publish', async (c) => {
     );
   }
 
-  const slug = slugify(body.title);
+  const slug = slugify(title);
   const createdAt = Date.now();
   const objects: LevelObject[] = body.objects.map((o) => ({
     id: randomUUID(),
@@ -265,7 +285,6 @@ publish.post('/publish', async (c) => {
     createdAt,
   };
 
-  const title = body.title.trim().slice(0, MAX_TITLE_LENGTH);
   for (let suffix = 1; suffix <= 100; suffix++) {
     const levelId = suffix === 1 ? slug : `${slug}-${suffix}`;
     // Reserve seed IDs even before their first lazy initialization.
@@ -327,6 +346,9 @@ publish.post('/publish', async (c) => {
         return { commit: true, value: { status: 'ok', levelId, version: 1 } };
       }
     );
+    if (result?.status === 'ok') {
+      await recordDailyUse('publish', username);
+    }
     if (result)
       return c.json<PublishLevelResponse>(
         result,
