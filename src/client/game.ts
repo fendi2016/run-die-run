@@ -10,6 +10,7 @@ import FlashPlugin from 'phaser4-rex-plugins/plugins/flash-plugin.js';
 import { Preloader } from './game/scenes/Preloader';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../shared/constants';
 import { GRAVITY_Y } from './game/constants';
+import { initSound } from './ui/SoundToggle';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -82,6 +83,7 @@ declare global {
 const StartGame = (parent: string) => {
   const game = new Game({ ...config, parent });
   window.__PHASER_GAME__ = game;
+  initSound(game);
   return game;
 };
 

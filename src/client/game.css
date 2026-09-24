@@ -975,7 +975,8 @@ body {
   justify-content: space-between;
   gap: 8px;
   height: 44px;
-  padding: 0 14px;
+  /* Right side leaves room for #sound-toggle. */
+  padding: 0 58px 0 14px;
   padding-top: env(safe-area-inset-top);
   background: #0d0d16;
   border-bottom: 2px solid #000000;
@@ -1229,10 +1230,71 @@ body {
 }
 
 /* Gameplay navigation remains usable on short landscape and narrow touch screens. */
-#gameplay-menu {
+/* Global sound toggle, pinned top-right on every screen (menu, level,
+   editor, overlays), so anything else that lives in that corner sits to
+   its left: #gameplay-menu below, #game-menu-header's padding. */
+#sound-toggle {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: #181824;
+  color: #ffffff;
+  box-shadow: 0 3px 0 #000000;
+  cursor: pointer;
+}
+
+#sound-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+#sound-toggle .sound-off-icon,
+#sound-toggle.muted .sound-on-icon {
+  display: none;
+}
+
+#sound-toggle.muted .sound-off-icon {
+  display: block;
+}
+
+#sound-toggle.muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* On the menu, sit inside #game-menu-header's 44px bar next to the chips
+   instead of hanging below it over the corner buttons. */
+#app:has(#game-menu:not(.hidden)) #sound-toggle {
+  top: calc(env(safe-area-inset-top) + 5px);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  box-shadow: 0 2px 0 #000000;
+}
+
+#app:has(#game-menu:not(.hidden)) #sound-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+#sound-toggle:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #000000;
+}
+
+#gameplay-menu {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: calc(max(12px, env(safe-area-inset-right)) + 52px);
   z-index: 3;
   min-height: 44px;
   padding: 8px 14px;

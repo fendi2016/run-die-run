@@ -24,6 +24,11 @@ These commands do not upload or publish to Reddit.
 - `/api/discovery/levels` (Browse, and Next Level after every clear) is
   cached per sort for 15 s in each server instance, so the full catalog scan
   doesn't scale with player count.
+- Background music (`assets/music/evening-mood.m4a`, 96 kbps AAC, 2.0 MB)
+  streams through an `<audio>` element after the first tap instead of going
+  through the Phaser loader, so it never delays the loading bar and isn't
+  decoded to PCM in memory. AAC rather than the delivered Ogg Vorbis, which
+  iOS webviews don't reliably play.
 - Unused dependencies removed (phaser-runtime-editor, toolkit,
   command-history, nanoid, zod).
 - Feed/menu statistics read a handful of plain Redis keys for one level. Discovery retains its

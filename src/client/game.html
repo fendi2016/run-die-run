@@ -10,6 +10,10 @@
   <body>
     <div id="app">
       <div id="game-container"></div>
+      <button type="button" id="sound-toggle" aria-label="Turn sound off" aria-pressed="true">
+        <svg class="sound-on-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        <svg class="sound-off-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16.5 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+      </button>
       <button type="button" id="gameplay-menu" class="editor-btn hidden" aria-label="Pause and open game menu">Pause / Menu</button>
       <div id="gameplay-dialog" class="editor-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="gameplay-dialog-title">
         <div class="editor-dialog-panel gameplay-dialog-panel">
