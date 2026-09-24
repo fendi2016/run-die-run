@@ -11,6 +11,7 @@ import {
   type VerifyLevelResponse,
 } from '../../shared/editorApi';
 import { LEVEL_PUBLISHES_PER_DAY } from '../../shared/constants';
+import { createLevelPost } from '../core/post';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { SEED_LEVELS } from '../core/seedLevels';
 import { sanitizeLevelTitle } from '../core/titles';
@@ -348,6 +349,19 @@ publish.post('/publish', async (c) => {
     );
     if (result?.status === 'ok') {
       await recordDailyUse('publish', username);
+      // After the commit, and best-effort: the level is already live and
+      // playable from Browse, so a Reddit API failure here must not turn a
+      // successful publish into an error.
+      try {
+        const levelPost = await createLevelPost({
+          levelId: result.levelId,
+          title,
+          creatorUsername: username,
+        });
+        return c.json<PublishLevelResponse>({ ...result, postUrl: levelPost.url });
+      } catch (error) {
+        console.error(`Level ${result.levelId} published but its post failed: ${error}`);
+      }
     }
     if (result)
       return c.json<PublishLevelResponse>(

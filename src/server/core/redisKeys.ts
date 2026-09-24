@@ -106,3 +106,9 @@ export const dailyQuotaKey = (
   username: string,
   day: number
 ): string => `quota:${action}:${day}:${username}`;
+
+// The level's canonical Reddit post (the one made when it was published,
+// or its first daily feature for a seed level). Set once, never replaced,
+// so curse comments always land on the same thread.
+export const levelPostKey = (levelId: string): string =>
+  `level:${levelId}:postId`;

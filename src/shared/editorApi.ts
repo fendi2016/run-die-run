@@ -49,8 +49,10 @@ export type PublishLevelRequest = {
   objects: DraftObject[];
 };
 
+// `postUrl` is the level's new Reddit post — absent if the post couldn't
+// be created (the level itself is still published and playable).
 export type PublishLevelResponse =
-  | { status: 'ok'; levelId: string; version: number }
+  | { status: 'ok'; levelId: string; version: number; postUrl?: string }
   | { status: 'error'; message: string };
 
 // Shape guard for JSON crossing an untyped boundary (AGENTS.md: never cast
@@ -133,7 +135,8 @@ export function isPublishLevelResponse(
       'levelId' in value &&
       typeof value.levelId === 'string' &&
       'version' in value &&
-      typeof value.version === 'number'
+      typeof value.version === 'number' &&
+      (!('postUrl' in value) || typeof value.postUrl === 'string')
     );
   }
   if (value.status === 'error') {

@@ -1,12 +1,15 @@
-import { requestExpandedMode } from '@devvit/web/client';
+import { context, requestExpandedMode } from '@devvit/web/client';
 import {
   DEFAULT_LEVEL_ID,
+  SEED_AUTHOR,
   SPLASH_AUTOSTART_KEY,
   type SplashAutostart,
 } from '../shared/constants';
 import { isLevelStats } from '../shared/discoveryApi';
-import { requireButton } from './ui/domUtils';
+import { isCursedPostData } from '../shared/postData';
+import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
+import { clearRateText, versionText } from './ui/levelStatsText';
 
 const playButton = document.getElementById('play-button') as HTMLButtonElement;
 const buildButton = document.getElementById(
@@ -39,15 +42,22 @@ playButton.addEventListener('click', (e) => expandInto(e, 'game'));
 buildButton.addEventListener('click', (e) => expandInto(e, 'editor'));
 browseButton.addEventListener('click', (e) => expandInto(e, 'browse'));
 
-// Real stats for the one level this build actually points new players at
-// (there's no per-post level binding yet — every post shares
-// DEFAULT_LEVEL_ID) rather than a made-up number. Fetched after the
-// interactive content is already up, so a slow/failed request never blocks
-// PLAY.
+// The level this post plays (its postData; a hub post has none and plays
+// the default level). Fetched after the interactive content is already up,
+// so a slow/failed request never blocks PLAY.
+const postData = isCursedPostData(context.postData) ? context.postData : undefined;
+const levelId = postData?.levelId ?? DEFAULT_LEVEL_ID;
+
+if (postData?.daily !== undefined) {
+  const daily = requireElement('level-daily');
+  daily.textContent = `Level of the Day #${postData.daily}`;
+  daily.classList.remove('hidden');
+}
+
 async function loadStats(): Promise<void> {
   try {
     const response = await fetch(
-      `/api/discovery/stats/${encodeURIComponent(DEFAULT_LEVEL_ID)}`,
+      `/api/discovery/stats/${encodeURIComponent(levelId)}`,
       { signal: AbortSignal.timeout(8000) }
     );
     const body: unknown = await response.json();
@@ -56,7 +66,13 @@ async function loadStats(): Promise<void> {
     }
 
     statValue.textContent = body.attempts.toLocaleString();
-    creatorName.textContent = `u/${body.creatorUsername}`;
+    creatorName.textContent =
+      body.creatorUsername === SEED_AUTHOR ? 'CURSED' : `u/${body.creatorUsername}`;
+    requireElement('level-title').textContent = body.title;
+    requireElement('level-difficulty').textContent = body.difficulty;
+    requireElement('level-version').textContent = versionText(body);
+    requireElement('level-clear-rate').textContent = clearRateText(body);
+    requireElement('level-card').classList.remove('hidden');
   } catch {
     // Leave the placeholder dashes — PLAY already works either way.
   }

@@ -16,16 +16,36 @@ export type LevelSummary = {
 };
 export type DiscoveryResponse = { levels: LevelSummary[] };
 
-export type LevelStats = { attempts: number; creatorUsername: string };
+// What a post's feed card (splash) and the in-game menu show about the
+// one level that post plays. `postId` is the level's canonical post, used
+// as the share-sheet target.
+export type LevelStats = {
+  title: string;
+  creatorUsername: string;
+  version: number;
+  attempts: number;
+  clears: number;
+  difficulty: Difficulty;
+  postId?: string;
+};
 
 export function isLevelStats(value: unknown): value is LevelStats {
   return (
     typeof value === 'object' &&
     value !== null &&
+    'title' in value &&
+    typeof value.title === 'string' &&
+    'creatorUsername' in value &&
+    typeof value.creatorUsername === 'string' &&
+    'version' in value &&
+    isCount(value.version) &&
     'attempts' in value &&
     isCount(value.attempts) &&
-    'creatorUsername' in value &&
-    typeof value.creatorUsername === 'string'
+    'clears' in value &&
+    isCount(value.clears) &&
+    'difficulty' in value &&
+    isDifficulty(value.difficulty) &&
+    (!('postId' in value) || typeof value.postId === 'string')
   );
 }
 

@@ -1251,12 +1251,14 @@ await test('menu stats reads only its level counters and metadata without scanni
     values.set(levelMetaKey('stats-fixture'), JSON.stringify({
       title: 'Fixture', creatorUsername: 'builder', createdAt: 1,
     }));
-    assert.deepEqual(await getLevelStats('stats-fixture'), {
-      attempts: 123, creatorUsername: 'builder',
-    });
+    const expected = {
+      title: 'Fixture', creatorUsername: 'builder', version: 1,
+      attempts: 123, clears: 0, difficulty: 'NIGHTMARE',
+    };
+    assert.deepEqual(await getLevelStats('stats-fixture'), expected);
     const response = await discovery.request('/stats/stats-fixture');
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { attempts: 123, creatorUsername: 'builder' });
+    assert.deepEqual(await response.json(), expected);
     assert.equal((await discovery.request('/stats/not-a-level')).status, 404);
     assert.equal(scan.mock.callCount(), 0);
   } finally {

@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
-import { context } from '@devvit/web/server';
-import { createPost } from '../core/post';
+import { createHubPost } from '../core/post';
 import { reseedBuiltInLevels } from '../services/LevelService';
 
 export const menu = new Hono();
@@ -27,11 +26,11 @@ menu.post('/reseed-levels', async (c) => {
 
 menu.post('/post-create', async (c) => {
   try {
-    const post = await createPost();
+    const post = await createHubPost();
 
     return c.json<UiResponse>(
       {
-        navigateTo: `https://reddit.com/r/${context.subredditName}/comments/${post.id}`,
+        navigateTo: post.url,
       },
       200
     );

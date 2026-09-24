@@ -1,4 +1,5 @@
-import { DEFAULT_LEVEL_ID } from '../../shared/constants';
+import { SEED_AUTHOR } from '../../shared/constants';
+import { getRequestedLevelId } from '../game/levelSelection';
 import { isCurrencyBalanceResponse } from '../../shared/currencyApi';
 import { isLevelStats } from '../../shared/discoveryApi';
 import { requireButton, requireElement } from './domUtils';
@@ -64,19 +65,20 @@ export class GameMenu {
     this.root.classList.add('hidden');
   }
 
-  // Mirrors splash.ts's loadStats: real stats for the one level this build
-  // actually points new players at, fetched after the menu is already up
+  // Mirrors splash.ts's loadStats: real stats for the level this post
+  // plays, fetched after the menu is already up
   // so a slow/failed request never blocks Play/Build/Browse.
   private async refreshStats(): Promise<void> {
     try {
-      const response = await fetch(`/api/discovery/stats/${encodeURIComponent(DEFAULT_LEVEL_ID)}`, { signal: AbortSignal.timeout(8000) });
+      const response = await fetch(`/api/discovery/stats/${encodeURIComponent(getRequestedLevelId())}`, { signal: AbortSignal.timeout(8000) });
       const body: unknown = await response.json();
       if (!response.ok || !isLevelStats(body)) {
         return;
       }
 
       this.statValueEl.textContent = body.attempts.toLocaleString();
-      this.creatorNameEl.textContent = `u/${body.creatorUsername}`;
+      this.creatorNameEl.textContent =
+        body.creatorUsername === SEED_AUTHOR ? 'CURSED' : `u/${body.creatorUsername}`;
     } catch {
       // Leave the placeholder dashes — the menu already works either way.
     }

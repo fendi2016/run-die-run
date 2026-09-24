@@ -202,3 +202,58 @@ body {
   transform: none;
   box-shadow: 0 3px 0 #000000;
 }
+
+/* The level this post plays — the hook that makes a feed card worth
+   stopping on ("2% clear rate", "NIGHTMARE"), instead of a generic menu. */
+.level-card {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  z-index: 1;
+  width: calc(100% - 32px);
+  max-width: 420px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #000000;
+}
+
+.level-card.hidden,
+.level-daily.hidden {
+  display: none;
+}
+
+.level-daily {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 3px 10px;
+  background: #ff4500;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+.level-title {
+  font-size: clamp(22px, 7vw, 34px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.level-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.level-difficulty {
+  color: #ff3b5c;
+}

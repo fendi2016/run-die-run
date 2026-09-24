@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { showToast } from '@devvit/web/client';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
 import {
@@ -388,6 +389,12 @@ export class EditorScene extends Scene {
         return;
       }
       this.toolbar.hidePublishDialog();
+      showToast({
+        text: json.postUrl
+          ? 'Published! Your level has its own post now — share it.'
+          : 'Published! Find it under Browse.',
+        appearance: 'success',
+      });
       this.scene.start('GameScene', { levelId: json.levelId });
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');

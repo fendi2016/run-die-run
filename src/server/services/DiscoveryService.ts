@@ -9,9 +9,11 @@ import {
   allLevelsByDateKey,
   levelAttemptsKey,
   levelClearsKey,
+  levelCurrentVersionKey,
   levelDailyPlayersKey,
   levelDailyClearsKey,
   levelMetaKey,
+  levelPostKey,
   versionLeaderboardKey,
 } from '../core/redisKeys';
 import { SEED_LEVELS } from '../core/seedLevels';
@@ -79,22 +81,34 @@ function metadata(
   return undefined;
 }
 
-// Feed impressions need only two small keys, never every level's objects,
-// daily players, and leaderboards.
+// Feed impressions need only a handful of plain keys, never every level's
+// objects, daily players, and leaderboards.
 export async function getLevelStats(
   levelId: string
 ): Promise<LevelStats | undefined> {
-  const [rawMeta, rawAttempts] = await Promise.all([
-    redis.get(levelMetaKey(levelId)),
-    redis.get(levelAttemptsKey(levelId)),
-  ]);
+  const [rawMeta, rawAttempts, rawClears, rawVersion, postId] =
+    await Promise.all([
+      redis.get(levelMetaKey(levelId)),
+      redis.get(levelAttemptsKey(levelId)),
+      redis.get(levelClearsKey(levelId)),
+      redis.get(levelCurrentVersionKey(levelId)),
+      redis.get(levelPostKey(levelId)),
+    ]);
   const meta = metadata(rawMeta);
   const seed = SEED_LEVELS[levelId];
   if (!meta && !seed) return undefined;
-  return {
-    attempts: Number(rawAttempts ?? 0),
+  const attempts = Number(rawAttempts ?? 0);
+  const clears = Number(rawClears ?? 0);
+  const stats: LevelStats = {
+    title: meta?.title ?? levelId.replaceAll('-', ' '),
     creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
+    // A seed level has no current-version key until its first load.
+    version: Number(rawVersion ?? 1),
+    attempts,
+    clears,
+    difficulty: difficultyFor(attempts, clears),
   };
+  return postId ? { ...stats, postId } : stats;
 }
 
 export async function discoverLevels(
