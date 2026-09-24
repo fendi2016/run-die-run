@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { FINISH_DISPLAY_HEIGHT_PX } from '../constants';
+import { DANCE_FRAME_MS, FINISH_DISPLAY_HEIGHT_PX } from '../constants';
 import { finishOriginX } from '../objects/ObjectRegistry';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
@@ -372,19 +372,20 @@ export function playHyperspeedTrail(
   return trail;
 }
 
-// Swing poses in order, each held for its ms: the two tilted frames
-// alternate like a pendulum, slowing as the swing dies down, then settle on
-// the resting frame before the success frame fades in over it.
-const FINISH_SWINGS: readonly [string, number][] = [
-  ['finish-hit', 110],
-  ['finish-ringing', 110],
-  ['finish-hit', 130],
-  ['finish-ringing', 150],
-  ['finish-hit', 180],
-  ['finish-ringing', 220],
-  ['finish-idle', 160],
+// Swing poses in order, one per victory-dance beat (DANCE_FRAME_MS) so the
+// bell rings in time with the player's dance: the two tilted frames
+// alternate like a pendulum (rings fading as the swing dies down), settle on
+// the resting frame, then the success frame fades in over two beats.
+const FINISH_SWINGS: readonly string[] = [
+  'finish-hit',
+  'finish-ringing',
+  'finish-hit',
+  'finish-ringing',
+  'finish-hit',
+  'finish-ringing',
+  'finish-idle',
 ];
-const FINISH_SUCCESS_FADE_MS = 320;
+const FINISH_SUCCESS_FADE_MS = DANCE_FRAME_MS * 2;
 const FINISH_RING_COLOR = 0x39ff88;
 
 // Sets one of the finish bell's reference-art frames. Origin comes from
@@ -466,7 +467,7 @@ export function playFinishBellAnimation(
   bellRuns.set(sprite, run);
 
   let at = 0;
-  FINISH_SWINGS.forEach(([frame, holdMs], index) => {
+  FINISH_SWINGS.forEach((frame, index) => {
     const strength = 1 - index / FINISH_SWINGS.length;
     run.timers.push(
       scene.time.delayedCall(at, () => {
@@ -475,7 +476,7 @@ export function playFinishBellAnimation(
         if (frame !== 'finish-idle') ringPulse(scene, bellX, bellY, depth, strength);
       })
     );
-    at += holdMs;
+    at += DANCE_FRAME_MS;
   });
 
   run.timers.push(

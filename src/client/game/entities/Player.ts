@@ -15,6 +15,7 @@ import {
 import { playSfx } from '../systems/Sfx';
 import {
   COYOTE_TIME_MS,
+  DANCE_FRAME_MS,
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
@@ -218,7 +219,7 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (!scene.anims.exists(DANCE_ANIM_KEY)) {
     scene.anims.create({
       key: DANCE_ANIM_KEY,
-      frames: DANCE_KEYS.map((key) => ({ key, duration: 144 })),
+      frames: DANCE_KEYS.map((key) => ({ key, duration: DANCE_FRAME_MS })),
       frameRate: 22,
       repeat: -1,
     });

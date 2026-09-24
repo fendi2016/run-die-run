@@ -84,3 +84,8 @@ export const BAT_DISPLAY_HEIGHT_PX = 40;
 // unevenly), so they're scaled to a shared target height rather than a
 // fixed display size — width is left to each frame's own aspect ratio.
 export const FINISH_DISPLAY_HEIGHT_PX = 150;
+
+// One beat of the finish-line victory dance (ms per pose). The finish bell's
+// swing (Juice.playFinishBellAnimation) is timed on the same beat so the
+// two read as one celebration.
+export const DANCE_FRAME_MS = 144;
