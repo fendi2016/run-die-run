@@ -38,7 +38,7 @@ import {
 } from '../../../shared/types';
 import { DeathPanel } from '../../ui/DeathPanel';
 import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
-import { labelFor } from '../../ui/objectLabels';
+import { labelFor } from '../../../shared/objectLabels';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';

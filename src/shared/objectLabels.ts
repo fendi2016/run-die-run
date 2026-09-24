@@ -1,4 +1,4 @@
-import type { ObjectType } from '../../shared/types';
+import type { ObjectType } from './types';
 
 const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
   spike: 'Spike',
@@ -7,7 +7,7 @@ const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
   fallingBlock: 'Falling Block',
 };
 
-// Shared by DeathPanel's "Killed by u/X's Saw" attribution and
+// Shared (client + server) by DeathPanel's "Killed by u/X's Saw" attribution and
 // RealtimeToast's "u/X added a Saw" version-published notice — both need
 // the same human-readable object-type text.
 export function labelFor(type: ObjectType): string {

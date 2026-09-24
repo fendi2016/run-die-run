@@ -1,6 +1,6 @@
 import type { ObjectType } from '../../shared/types';
 import { requireButton, requireElement } from './domUtils';
-import { labelFor } from './objectLabels';
+import { labelFor } from '../../shared/objectLabels';
 
 // DOM-based death screen, shown on every death instead of the old
 // auto-restart timer — the run only resumes once the player taps Retry.
