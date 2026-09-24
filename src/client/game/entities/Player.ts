@@ -8,6 +8,7 @@ import {
 import {
   attachElectricShield,
   destroyElectricShield,
+  fitHyperspeedTrail,
   playHyperspeedTrail,
   playSlideDust,
   playSlideImpact,
@@ -140,16 +141,62 @@ const JUMP_ASCEND_ANIM_KEY = 'player-jump-ascend';
 // through the floor. Sizing off the source image instead scales down
 // correctly alongside the sprite.
 const PLAYER_FRAME_SIZE = 362;
-// How far left of the player's center the Speed Boost trail anchors (see
-// syncEffectSprites/applySpeedBoost) — not half of PLAYER_SIZE's display
-// box, which is where the box edge is, not where the character's actual
-// drawn pixels are: the run/idle poses have 36-66px of transparent padding
-// baked into their 362px source canvas (measured directly), ~8-15px at
-// PLAYER_SIZE's display scale, so anchoring at the true box edge left a
-// visible gap. This stays under that padding's smallest value across every
-// pose, so the trail always overlaps the visible character by a few px
-// rather than sometimes falling short.
-const HYPERSPEED_BACK_OFFSET_PX = 18;
+// How far the Speed Boost trail's leading tips tuck into the character's
+// back (see fitHyperspeedSprite). The trail is fitted to the current pose's
+// actual drawn pixels (opaqueFrameBounds), not the 80px display box, but
+// the leftmost opaque column is often a trailing foot or elbow — without a
+// few px of overlap the streaks at head/torso height would stop short of
+// the body instead of hugging it.
+const HYPERSPEED_BODY_OVERLAP_PX = 4;
+// Alpha above which a source pixel counts as "part of the character" when
+// measuring a pose's drawn bounds (skips faint antialiasing fringe).
+const OPAQUE_ALPHA_THRESHOLD = 20;
+
+type OpaqueBounds = { left: number; top: number; bottom: number };
+
+// Per-frame cache — each pose is measured once, the first time it's shown
+// during a boost, then read every tick after.
+const opaqueBoundsCache = new Map<string, OpaqueBounds>();
+
+// The drawn (non-transparent) extent of a frame, in unscaled frame pixels.
+// Every player pose sits on a padded canvas (run/idle: 32-80px empty on the
+// left and 33-48px above the head out of 362; slide: ~100px above), so the
+// display box badly overstates where the body actually is. Falls back to
+// the full frame if the source can't be read back (e.g. a render texture).
+function opaqueFrameBounds(frame: Phaser.Textures.Frame): OpaqueBounds {
+  const cacheKey = `${frame.texture.key}:${frame.name}`;
+  const cached = opaqueBoundsCache.get(cacheKey);
+  if (cached) return cached;
+  const width = frame.cutWidth;
+  const height = frame.cutHeight;
+  let bounds: OpaqueBounds = { left: 0, top: 0, bottom: height };
+  const image = frame.texture.getSourceImage(frame.name);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (
+    ctx &&
+    (image instanceof HTMLImageElement || image instanceof HTMLCanvasElement)
+  ) {
+    ctx.drawImage(image, frame.cutX, frame.cutY, width, height, 0, 0, width, height);
+    const data = ctx.getImageData(0, 0, width, height).data;
+    let left = width;
+    let top = height;
+    let bottom = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if ((data[(y * width + x) * 4 + 3] ?? 0) <= OPAQUE_ALPHA_THRESHOLD) continue;
+        if (x < left) left = x;
+        if (y < top) top = y;
+        bottom = y + 1;
+      }
+    }
+    if (bottom > 0) bounds = { left, top, bottom };
+  }
+  opaqueBoundsCache.set(cacheKey, bounds);
+  return bounds;
+}
 // Per-frame hold times (ms) for the run cycle, in place of a flat frameRate.
 // run-1/4 are the contact poses (foot planted) and read best with a beat of
 // hang time; run-2/5 are the fast mid-stride recoil; run-3/6 are the
@@ -381,19 +428,28 @@ export class Player {
   private syncEffectSprites(): void {
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
-    // Anchored near the player's back, not their center — the player
-    // always auto-runs rightward, and combined with the trail's own
-    // trailing-edge origin (see Juice.playHyperspeedTrail) this reads as
-    // streaks coming off the character's backside instead of a burst
-    // plastered over their whole body. HYPERSPEED_BACK_OFFSET_PX, not
-    // PLAYER_SIZE / 2 — the run/idle frames themselves have 8-15px of
-    // transparent padding baked into their source art (measured directly),
-    // so anchoring at the true display-box edge left a visible gap between
-    // the trail and the actual visible character (user report: "not
-    // touching the character").
-    this.hyperspeedSprite?.setPosition(
-      this.sprite.x - HYPERSPEED_BACK_OFFSET_PX,
-      centerY
+    this.fitHyperspeedSprite();
+  }
+
+  // Streams the Speed Boost trail straight off the character's back, head
+  // to toes and no taller: the trail's trailing-edge origin (see
+  // Juice.playHyperspeedTrail) sits at the pose's leftmost drawn pixel
+  // (the player always auto-runs rightward), and its height is squeezed to
+  // the pose's drawn top-to-bottom span. Re-fit every tick since the run
+  // cycle's squash/stretch and the jump/slide poses all change the body's
+  // extent — a fixed box put streaks above the head (user report).
+  private fitHyperspeedSprite(): void {
+    if (!this.hyperspeedSprite) return;
+    const sprite = this.sprite;
+    const bounds = opaqueFrameBounds(sprite.frame);
+    // Origin is (0.5, 1): x is the frame's horizontal center, y its bottom.
+    const frameLeft = sprite.x - sprite.width * sprite.originX * sprite.scaleX;
+    const frameTop = sprite.y - sprite.height * sprite.originY * sprite.scaleY;
+    fitHyperspeedTrail(
+      this.hyperspeedSprite,
+      frameLeft + bounds.left * sprite.scaleX + HYPERSPEED_BODY_OVERLAP_PX,
+      frameTop + bounds.top * sprite.scaleY,
+      frameTop + bounds.bottom * sprite.scaleY
     );
   }
 
@@ -625,7 +681,7 @@ export class Player {
     this.hyperspeedSprite?.destroy();
     const trail = playHyperspeedTrail(
       this.scene,
-      this.sprite.x - HYPERSPEED_BACK_OFFSET_PX,
+      this.sprite.x,
       this.sprite.y - PLAYER_SIZE / 2,
       SPEED_BOOST_DURATION_MS
     );
@@ -639,6 +695,7 @@ export class Player {
       }
     });
     this.hyperspeedSprite = trail;
+    this.fitHyperspeedSprite();
   }
 
   private applyTimedSpeedMultiplier(

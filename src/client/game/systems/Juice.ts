@@ -444,6 +444,21 @@ export function playHyperspeedTrail(
   return trail;
 }
 
+// Pins a playHyperspeedTrail sprite to the player's body: its trailing
+// (right) edge at backX, squeezed vertically to exactly span topY..bottomY
+// (the character's drawn head-to-toes extent) so no streaks show above or
+// below them. Width keeps HYPERSPEED_SCALE — only the height is fitted, so
+// the streaks stay the same length whatever pose they're squeezed to.
+export function fitHyperspeedTrail(
+  trail: Phaser.GameObjects.Sprite,
+  backX: number,
+  topY: number,
+  bottomY: number
+): void {
+  trail.setPosition(backX, (topY + bottomY) / 2);
+  trail.setScale(HYPERSPEED_SCALE, Math.max(0, bottomY - topY) / trail.height);
+}
+
 // Swing poses in order, one per victory-dance beat (DANCE_FRAME_MS) so the
 // bell rings in time with the player's dance: the two tilted frames
 // alternate like a pendulum (rings fading as the swing dies down), settle on
