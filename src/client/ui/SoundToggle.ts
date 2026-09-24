@@ -57,15 +57,22 @@ export function initSound(game: Phaser.Game): void {
   // Try to play on load: when the Play tap that opened this view still
   // counts as user activation, the music starts with the game. Otherwise
   // the browser blocks it and the first tap/key anywhere starts it.
-  const unlock = (): void => {
-    if (!music.paused) return;
+  // Gate on the 'playing' event, not `music.paused` — a play() the
+  // browser blocked can still leave `paused` false in some webviews,
+  // which made every later tap skip the retry.
+  const unlockEvents = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
+  const unlock = (event: Event): void => {
+    // The toggle runs its own sync() after flipping mute; starting the
+    // music here first would make a first-tap mute blip the track.
+    if (event.target instanceof Node && button.contains(event.target)) return;
     sync();
   };
   music.addEventListener(
     'playing',
     () => {
-      window.removeEventListener('pointerdown', unlock, { capture: true });
-      window.removeEventListener('keydown', unlock, { capture: true });
+      for (const type of unlockEvents) {
+        window.removeEventListener(type, unlock, { capture: true });
+      }
     },
     { once: true },
   );
@@ -78,8 +85,11 @@ export function initSound(game: Phaser.Game): void {
     sync();
   });
   button.addEventListener('pointerdown', (event) => event.stopPropagation());
-  window.addEventListener('pointerdown', unlock, { capture: true });
-  window.addEventListener('keydown', unlock, { capture: true });
+  // Touch browsers only grant audio permission on the tap's release
+  // (pointerup/touchend), not on pointerdown — listen for all of them.
+  for (const type of unlockEvents) {
+    window.addEventListener(type, unlock, { capture: true });
+  }
   // Leaving the app (tab switch, Reddit backgrounded) pauses the music;
   // coming back resumes it unless muted.
   document.addEventListener('visibilitychange', sync);
