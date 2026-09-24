@@ -38,16 +38,13 @@ export function initSound(game: Phaser.Game): void {
   // Browsers block audio until the player interacts; the first tap/key
   // anywhere (almost always Play, or the tap-to-start jump) unlocks it.
   let unlocked = false;
-  // Build mode is quiet: the music pauses while the level editor is open
-  // and picks back up on the way out (menu or test-play).
-  let inEditor = false;
 
   const sync = (): void => {
     game.sound.mute = muted;
     button.classList.toggle('muted', muted);
     button.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
     button.setAttribute('aria-pressed', String(!muted));
-    if (muted || !unlocked || inEditor || document.hidden) {
+    if (muted || !unlocked || document.hidden) {
       music.pause();
     } else {
       music.play().catch(() => {
@@ -79,17 +76,6 @@ export function initSound(game: Phaser.Game): void {
   document.addEventListener('visibilitychange', sync);
   // Phaser's sound manager finishes booting after this runs; re-apply the
   // saved mute once it's ready so a muted player's SFX stay muted too.
-  game.events.once('ready', () => {
-    const editor = game.scene.getScene('EditorScene');
-    editor.events.on('start', () => {
-      inEditor = true;
-      sync();
-    });
-    editor.events.on('shutdown', () => {
-      inEditor = false;
-      sync();
-    });
-    sync();
-  });
+  game.events.once('ready', sync);
   sync();
 }
