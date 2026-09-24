@@ -60,8 +60,8 @@ function roomTiles(objects: readonly DraftObject[]): number {
 }
 
 // The most tiles a single "Extend Level" action can add right now — one
-// tap always maxes out to this (see EditorController.extendLevel and
-// CurseScene.extendLevel), rather than a small re-tappable chunk, so
+// tap always maxes out to this (see CurseScene.extendLevel — the only
+// place a level can be extended), rather than a small re-tappable chunk, so
 // extending only ever takes one click.
 export function maxExtendableTiles(objects: readonly DraftObject[]): number {
   return roomTiles(objects);

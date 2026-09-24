@@ -7,6 +7,7 @@ import {
 } from '../systems/InputSystem';
 import {
   attachElectricShield,
+  burstParticles,
   destroyElectricShield,
   playDeathExplosion,
   playHyperspeedTrail,
@@ -16,11 +17,14 @@ import { playSfx } from '../systems/Sfx';
 import {
   COYOTE_TIME_MS,
   DANCE_FRAME_MS,
+  DOUBLE_TAP_MS,
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
   PLAYER_SIZE,
   RUN_SPEED,
+  SLIDE_DURATION_MS,
+  SLIDE_HITBOX_HEIGHT,
   SPEED_BOOST_DURATION_MS,
   SPEED_BOOST_MULTIPLIER,
 } from '../constants';
@@ -34,9 +38,7 @@ import {
 // leg/arm contact poses, not near-duplicates — unlike the original 4x2
 // sheet, which only had one distinct leg pose and no way to fake a second
 // one that didn't look like the character spinning to face backwards).
-// player-jump-tuck and player-crouch are extracted and loaded but unused
-// for now — there's no airborne-tuck or landing-recovery state in the
-// state machine yet.
+// player-crouch is the slide pose (see Player.startSlide).
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -76,6 +78,12 @@ const RUN_KEYS = [
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
+const SLIDE_KEY = 'player-crouch';
+// Standing hitbox, in source-frame fractions (see PLAYER_FRAME_SIZE):
+// forgiving width, bottom flush with the feet. The slide variant keeps the
+// same width and bottom, just shorter (SLIDE_HITBOX_HEIGHT).
+const HITBOX_WIDTH = 0.7;
+const HITBOX_HEIGHT = 0.85;
 const DANCE_ANIM_KEY = 'player-dance';
 // Reordered from the source sheet's raster order (1 is a near-idle pose —
 // starting the loop on it would read as "nothing happened" for a beat)
@@ -243,6 +251,12 @@ export class Player {
   private alive = true;
   private msSinceGrounded = Number.POSITIVE_INFINITY;
   private msSinceJumpPressed = Number.POSITIVE_INFINITY;
+  // Slide: `lastTapAtMs` detects a double-tap from JUMP_DOWN_EVENT timing;
+  // `slidePending` means a double-tap happened mid-air (slide on landing);
+  // `slideRemainingMs` > 0 while actually sliding.
+  private lastTapAtMs = Number.NEGATIVE_INFINITY;
+  private slidePending = false;
+  private slideRemainingMs = 0;
 
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
@@ -288,8 +302,7 @@ export class Player {
 
     // Forgiving hitbox: smaller than the visible sprite so near-misses read
     // as survivable rather than cheap deaths (spec section 3).
-    this.body.setSize(PLAYER_FRAME_SIZE * 0.7, PLAYER_FRAME_SIZE * 0.85);
-    this.body.setOffset(PLAYER_FRAME_SIZE * 0.15, PLAYER_FRAME_SIZE * 0.15);
+    this.setHitboxHeight(HITBOX_HEIGHT);
 
     this.inputSystem = new InputSystem(scene);
     scene.events.on(JUMP_DOWN_EVENT, this.onJumpPressed, this);
@@ -375,11 +388,14 @@ export class Player {
     }
 
     this.sprite.setVelocityX(RUN_SPEED * this.speedMultiplier);
+    this.updateSlide(deltaMs);
     this.updateAnimation();
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
     if (hasBufferedJump && canGroundJump) {
+      // Tapping mid-slide jumps straight out of it.
+      this.endSlide();
       this.sprite.setVelocityY(-JUMP_VELOCITY);
       this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
       this.msSinceGrounded = Number.POSITIVE_INFINITY;
@@ -387,10 +403,74 @@ export class Player {
     }
   }
 
+  private get isSliding(): boolean {
+    return this.slideRemainingMs > 0;
+  }
+
+  // Bottom stays at the feet (offset + height = the full frame), so
+  // shrinking for a slide never lifts the player off the ground or sinks
+  // them into it.
+  private setHitboxHeight(fraction: number): void {
+    this.body.setSize(PLAYER_FRAME_SIZE * HITBOX_WIDTH, PLAYER_FRAME_SIZE * fraction);
+    this.body.setOffset(
+      (PLAYER_FRAME_SIZE * (1 - HITBOX_WIDTH)) / 2,
+      PLAYER_FRAME_SIZE * (1 - fraction)
+    );
+  }
+
+  // Second tap of a double-tap. On the ground: slide now. Mid-air (the
+  // first tap's jump already fired): slide as soon as the player lands.
+  // Upward velocity counts as mid-air even while physics hasn't stepped
+  // the player off the ground yet (blocked.down still reads true).
+  private requestSlide(): void {
+    this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
+    if (this.body.blocked.down && this.body.velocity.y >= 0) {
+      this.startSlide();
+      return;
+    }
+    this.slidePending = true;
+  }
+
+  private startSlide(): void {
+    this.slidePending = false;
+    this.slideRemainingMs = SLIDE_DURATION_MS;
+    this.setHitboxHeight(SLIDE_HITBOX_HEIGHT);
+    burstParticles(this.scene, this.sprite.x - 10, this.sprite.y, 0xd9d2ff, 8);
+  }
+
+  private endSlide(): void {
+    const wasSliding = this.isSliding;
+    this.slidePending = false;
+    this.slideRemainingMs = 0;
+    if (wasSliding) this.setHitboxHeight(HITBOX_HEIGHT);
+  }
+
+  private updateSlide(deltaMs: number): void {
+    if (this.slidePending && this.body.blocked.down) this.startSlide();
+    if (!this.isSliding) return;
+    // Sliding off a ledge ends it — a crouched hitbox mid-fall would only
+    // make hazards in the air easier to dodge.
+    if (this.msSinceGrounded > COYOTE_TIME_MS) {
+      this.endSlide();
+      return;
+    }
+    if (this.slideRemainingMs <= deltaMs) {
+      this.endSlide();
+    } else {
+      this.slideRemainingMs -= deltaMs;
+    }
+  }
+
   // Airborne swaps between the rising-leap and falling-sprawl poses off
   // velocity direction — the run cycle only plays while grounded, so it
   // never fights either airborne frame for control of the sprite.
   private updateAnimation(): void {
+    if (this.isSliding) {
+      this.sprite.anims.stop();
+      this.sprite.setTexture(SLIDE_KEY);
+      this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+      return;
+    }
     if (this.body.blocked.down) {
       if (!this.sprite.anims.isPlaying) {
         this.sprite.play(RUN_ANIM_KEY);
@@ -575,6 +655,8 @@ export class Player {
     this.body.setAllowGravity(true);
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
+    this.lastTapAtMs = Number.NEGATIVE_INFINITY;
+    this.endSlide();
     this.alive = true;
     this.waitingToStart = waiting;
     if (waiting) {
@@ -638,8 +720,18 @@ export class Player {
       this.sprite.play(RUN_ANIM_KEY);
       return;
     }
+    const now = this.scene.time.now;
+    if (now - this.lastTapAtMs <= DOUBLE_TAP_MS) {
+      // Second tap of a double-tap: slide instead of a second jump. Reset
+      // so a triple-tap doesn't read as two double-taps.
+      this.lastTapAtMs = Number.NEGATIVE_INFINITY;
+      this.requestSlide();
+      return;
+    }
+    this.lastTapAtMs = now;
     this.msSinceJumpPressed = 0;
   }
+
 
   private onJumpReleased(): void {
     if (!this.scene.sys.isActive() || !this.alive) return;

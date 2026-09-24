@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
   gridViewBottomY,
   gridViewHeightPx,
@@ -34,6 +35,7 @@ import {
 // immediately after a same-tick zoom/scroll change).
 const DRAG_THRESHOLD_PX = 4;
 export const PAN_STEP_PX = 240;
+const TRAILING_OVERHANG_PX = GRID_CELL_SIZE * 3;
 
 export class PanZoomCamera {
   private pointerDownAt: { x: number; y: number } | undefined;
@@ -161,8 +163,15 @@ export class PanZoomCamera {
     return { left, right: left + this.visibleWorldWidth() };
   }
 
+  // The finish bell is anchored at its post and hangs ~2 cells right of
+  // its own tile, so with the camera clamped to the grid's last column a
+  // finish placed there was cut in half. Panning may run this far past
+  // the level's end (empty, gridless space) so the whole bell shows.
   private maxScrollX(): number {
-    return Math.max(0, levelWidthPx() - this.visibleWorldWidth());
+    return Math.max(
+      0,
+      levelWidthPx() + TRAILING_OVERHANG_PX - this.visibleWorldWidth()
+    );
   }
 
   panBy(deltaPx: number): void {

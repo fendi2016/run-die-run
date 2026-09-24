@@ -1,8 +1,4 @@
 import type { DraftObject } from '../../../shared/editorApi';
-import {
-  computeLevelExtension,
-  maxExtendableTiles,
-} from '../../../shared/levelExtend';
 import type { ObjectType } from '../../../shared/types';
 import type { PlaceableObjectType } from './GridSystem';
 
@@ -108,34 +104,6 @@ export class EditorController {
     );
     target.x = x;
     target.y = y;
-    return true;
-  }
-
-  // Maxes out the ground past whatever's currently the rightmost tile in
-  // one shot (not a re-tappable small chunk — one click is meant to be
-  // enough) and relocates the finish to sit at the new end — see
-  // shared/levelExtend.ts for why this lives there (the curse flow's own
-  // "Extend Level" needs the exact same computation). Returns false with
-  // no-op when the level is already at its max width (EDITOR_MAX_COLUMNS),
-  // same "tell the caller nothing changed" contract as every other mutator
-  // here.
-  extendLevel(): boolean {
-    const extension = computeLevelExtension(
-      this.objects,
-      maxExtendableTiles(this.objects),
-      () => generateObjectId('ground'),
-      () => generateObjectId('finish')
-    );
-    if (!extension) {
-      return false;
-    }
-    this.pushUndoSnapshot();
-    this.objects = [
-      ...this.objects.filter((o) => o.type !== 'finish'),
-      ...extension.groundTiles,
-      extension.finish,
-    ];
-    this.selectedId = undefined;
     return true;
   }
 

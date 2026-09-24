@@ -8,9 +8,14 @@ import { labelFor } from '../../shared/objectLabels';
 // the Retry button when a hazard is to blame. Follow-the-subreddit lives
 // on the main menus (splash.html's card and game.html's #game-menu) only,
 // not here — dying isn't the moment to ask.
-// Onboarding: the first few deaths of a session carry a one-line tip. Kept
-// at module scope because GameScene builds a fresh DeathPanel per create().
-const TIP_DEATHS = 3;
+// Onboarding: the first few deaths of a session each carry one control
+// tip, in this order. Kept at module scope because GameScene builds a fresh
+// DeathPanel per create().
+const TIPS = [
+  'Tip: hold to jump higher.',
+  'Tip: double-tap to slide under hazards at head height.',
+  'Tip: tap mid-slide to jump straight out of it.',
+];
 let sessionDeaths = 0;
 
 export class DeathPanel {
@@ -35,12 +40,10 @@ export class DeathPanel {
       this.attributionEl.classList.add('hidden');
     }
     this.killsEl.textContent = '';
+    const tip = TIPS[sessionDeaths] ?? '';
     sessionDeaths++;
-    this.tipEl.textContent =
-      sessionDeaths <= TIP_DEATHS
-        ? 'Tip: tap to jump, hold to jump higher.'
-        : '';
-    this.tipEl.classList.toggle('hidden', sessionDeaths > TIP_DEATHS);
+    this.tipEl.textContent = tip;
+    this.tipEl.classList.toggle('hidden', tip === '');
     this.root.classList.remove('hidden');
     return shownToken;
   }
