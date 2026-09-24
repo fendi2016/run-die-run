@@ -488,7 +488,7 @@ export class GameScene extends Scene {
 
     // The background art is busy/saturated enough to compete with hazard
     // sprites for attention — a flat dark scrim between it and the level
-    // geometry dims it down so spikes/saws/candles read clearly on top.
+    // geometry dims it down so saws/candles read clearly on top.
     this.add
       .rectangle(0, 0, this.levelWidth, LOGICAL_HEIGHT, 0x0a0714, 0.5)
       .setOrigin(0, 0)

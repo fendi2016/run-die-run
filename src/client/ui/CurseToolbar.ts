@@ -15,7 +15,6 @@ const CATEGORIES: CurseCategory[] = ['hazard', 'platform', 'powerUp'];
 // `ObjectType` at every call site without a cast (AGENTS.md: never cast
 // TypeScript types).
 const TYPE_BUTTON_ENTRIES: [ObjectType, string][] = [
-  ['spike', 'curse-type-spike'],
   ['saw', 'curse-type-saw'],
   ['movingSaw', 'curse-type-movingSaw'],
   ['candle', 'curse-type-candle'],

@@ -41,7 +41,7 @@ export type SplashAutostart = 'game' | 'editor' | 'browse';
 // The placeholder "creator" of the hand-authored seed levels (spec section
 // 38, Phase 3) — not a real Reddit account. Shared so the client's death
 // attribution UI (spec section 23) can recognize it and skip showing a
-// fake "Killed by u/cursed_seed's Spike" attribution for these
+// fake "Killed by u/cursed_seed's Candle" attribution for these
 // not-yet-community-created levels.
 export const SEED_AUTHOR = 'cursed_seed';
 

@@ -62,14 +62,14 @@ function level(
   };
 }
 
-// The default level: two gaps, two spikes, plus one of each new Halloween
-// hazard — a static candle, a bat patrolling at head height (must be jumped
-// over, the same dodge a spike or movingSaw asks for), and a ghost drifting
+// The default level: two gaps, three candles, a bat patrolling at head
+// height (must be jumped over, the same dodge a candle or movingSaw asks
+// for), and a ghost drifting
 // well above the ground (only a threat if the player jumps into its band —
 // GROUND_TOP_Y - 80 stays out of reach of a grounded player's ~68px-tall
 // hitbox, so it punishes jumping here instead of rewarding it).
 //
-// Ground/spike/saw/spawn/finish are all bottom-anchored objects that SIT ON
+// Ground/candle/saw/spawn/finish are all bottom-anchored objects that SIT ON
 // the surface at GROUND_TOP_Y (ObjectRegistry.originFor: everything but
 // 'solid' → origin 0.5,1), so they're all placed flush AT GROUND_TOP_Y —
 // spawn included, so the run starts with the player already standing on
@@ -83,11 +83,11 @@ const meatGrinder = level(
     ...groundStrip(2110, 1090),
     placed('spawn-1', 'spawn', 80, GROUND_TOP_Y),
     placed('candle-1', 'candle', 400, GROUND_TOP_Y),
-    placed('spike-1', 'spike', 1100, GROUND_TOP_Y),
+    placed('candle-2', 'candle', 1100, GROUND_TOP_Y),
     // Patrols ±BAT_AMPLITUDE_PX (60px) around x=1250, so its sweep stays
-    // clear of spike-1 behind it and the gap at x=1400 ahead of it.
+    // clear of candle-2 behind it and the gap at x=1400 ahead of it.
     placed('bat-1', 'bat', 1250, GROUND_TOP_Y - 45),
-    placed('spike-2', 'spike', 1850, GROUND_TOP_Y),
+    placed('candle-3', 'candle', 1850, GROUND_TOP_Y),
     // Drifts ±GHOST_AMPLITUDE_PX (50px) around y = GROUND_TOP_Y - 130, on
     // the long clear run-up to the finish.
     placed('ghost-1', 'ghost', 2400, GROUND_TOP_Y - 130),

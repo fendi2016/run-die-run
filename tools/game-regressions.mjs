@@ -82,11 +82,11 @@ try {
     await route.fulfill({ json: { status: 'ok', candidateToken: 'fixture' } }).catch(() => {});
   });
   await page.click('#editor-test');
-  await page.waitForFunction(() => document.querySelector('#editor-tool-spike').disabled);
+  await page.waitForFunction(() => document.querySelector('#editor-tool-candle').disabled);
   const duringRequest = await page.evaluate(() => {
     const scene = window.__PHASER_GAME__.scene.getScene('EditorScene');
     const before = scene.controller.getObjects();
-    scene.currentTool = 'spike';
+    scene.currentTool = 'candle';
     scene.onBoardTileTap(null, { x: 5, y: 0 });
     void scene.handleTest();
     return { before, after: scene.controller.getObjects() };
@@ -105,7 +105,7 @@ try {
   await page.click('#editor-test');
   await page.waitForFunction(() => document.querySelector('#editor-message').textContent === 'Invalid fixture');
   assert.equal(await page.isDisabled('#editor-test'), false);
-  assert.equal(await page.isDisabled('#editor-tool-spike'), false);
+  assert.equal(await page.isDisabled('#editor-tool-candle'), false);
   // A dense level still has a fixed number of static collision handlers.
   // Exercise actual overlap callbacks at a narrow mobile viewport.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -115,7 +115,7 @@ try {
       { id: 'spawn', type: 'spawn', x: 90, y: 480 },
       { id: 'finish', type: 'finish', x: 30000, y: 480 },
       { id: 'pickup', type: 'shield', x: 300, y: 420 },
-      { id: 'trap', type: 'spike', x: 600, y: 420 },
+      { id: 'trap', type: 'candle', x: 600, y: 420 },
       ...Array.from({ length: 500 }, (_, i) => ({ id: `tile-${i}`, type: 'ground', x: 30 + i * 60, y: 480 })),
     ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 }));
     game.scene.start('GameScene', { previewLevel: {

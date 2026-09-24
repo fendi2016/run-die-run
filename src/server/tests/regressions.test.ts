@@ -412,7 +412,7 @@ await test('curse propose -> verify -> publish appends a new version with attrib
   await getCurrentLevelVersion('meat-grinder');
   const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
     id: 'ignored-client-id',
-    type: 'spike',
+    type: 'candle',
     x: 700,
     y: 480,
   });
@@ -433,7 +433,7 @@ await test('curse propose -> verify -> publish appends a new version with attrib
   assert.equal(publishBody.version, 2);
 
   const updated = await getCurrentLevelVersion('meat-grinder');
-  const added = updated?.objects.find((o) => o.type === 'spike' && o.x === 700);
+  const added = updated?.objects.find((o) => o.type === 'candle' && o.x === 700);
   assert.equal(added?.addedBy, 'bob');
   assert.equal(added?.addedInVersion, 2);
   assert.equal(added?.id, proposeBody.objectId);
@@ -456,7 +456,7 @@ await test('curse propose rejects a disallowed type and a hazard that blocks the
   assert.ok(finish);
   const { body: onFinish } = await proposeCurse('alice', 'meat-grinder', {
     id: 'y',
-    type: 'spike',
+    type: 'candle',
     x: finish.x,
     y: finish.y,
   });
@@ -473,7 +473,7 @@ await test('simultaneous curses against the same parent version: only one publis
   const baseObjectCount = base?.objects.length ?? 0;
   const { body: aBody } = await proposeCurse('alice', 'meat-grinder', {
     id: 'a',
-    type: 'spike',
+    type: 'candle',
     x: 700,
     y: 480,
   });
@@ -516,13 +516,13 @@ await test('simultaneous curses against the same parent version: only one publis
   assert.equal(current?.version, 2);
   assert.equal(current?.objects.length, baseObjectCount + 1);
 
-  // The loser's object is preserved (spec section 18: "Your Spike has been
+  // The loser's object is preserved (spec section 18: "Your Candle has been
   // preserved") — re-proposing against the now-current version and
   // re-verifying must still succeed.
   const loserUsername = winner === aResult.body ? 'bob' : 'alice';
   const sawObject: DraftObject = { id: 'b2', type: 'saw', x: 760, y: 480 };
-  const spikeObject: DraftObject = { id: 'a2', type: 'spike', x: 700, y: 480 };
-  const loserObject = loserUsername === 'bob' ? sawObject : spikeObject;
+  const candleObject: DraftObject = { id: 'a2', type: 'candle', x: 700, y: 480 };
+  const loserObject = loserUsername === 'bob' ? sawObject : candleObject;
   const { body: retryPropose } = await proposeCurse(
     loserUsername,
     'meat-grinder',
@@ -667,7 +667,7 @@ await test('reported trap deaths affect completion and deadliest sorting', async
   );
   const death = await runs.request(
     '/trap-kill',
-    post({ levelId: 'meat-grinder', version: 1, objectId: 'spike-1' })
+    post({ levelId: 'meat-grinder', version: 1, objectId: 'candle-2' })
   );
   assert.equal(death.status, 200);
   const first = (await browse('deadliest'))[0];
@@ -745,14 +745,14 @@ await test('discovery wire guard rejects malformed cards', () => {
 // both the trap's own kill count and its contributor's running total.
 await test('trap-kill attribution grows the trap and contributor counters', async () => {
   const base = await getCurrentLevelVersion('meat-grinder');
-  const spikeId = base?.objects.find((o) => o.type === 'spike')?.id;
-  assert.ok(spikeId);
-  if (!spikeId) return;
+  const candleId = base?.objects.find((o) => o.type === 'candle')?.id;
+  assert.ok(candleId);
+  if (!candleId) return;
 
   const first = await users.run('alice', () =>
     runs.request(
       '/trap-kill',
-      post({ levelId: 'meat-grinder', version: 1, objectId: spikeId })
+      post({ levelId: 'meat-grinder', version: 1, objectId: candleId })
     )
   );
   assert.equal(first.status, 200);
@@ -766,7 +766,7 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   const second = await users.run('bob', () =>
     runs.request(
       '/trap-kill',
-      post({ levelId: 'meat-grinder', version: 1, objectId: spikeId })
+      post({ levelId: 'meat-grinder', version: 1, objectId: candleId })
     )
   );
   const secondBody: unknown = await second.json();
@@ -775,7 +775,7 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   assert.equal(secondBody.kills, 2);
   assert.equal(secondBody.contributorTotalKills, 2);
 
-  assert.equal(await redis.get(trapKillsKey(spikeId)), '2');
+  assert.equal(await redis.get(trapKillsKey(candleId)), '2');
   assert.equal(await redis.get(userContributionsKey('cursed_seed')), '2');
 });
 
@@ -911,7 +911,7 @@ await test('editor preserves supporting ground when placing, replacing, moving a
   const floor: DraftObject = { id: 'floor', type: 'ground', x: 330, y: 480 };
   const otherFloor: DraftObject = { id: 'other-floor', type: 'ground', x: 390, y: 480 };
   const editor = new EditorController([floor, otherFloor]);
-  editor.placeObject('spike', 330, 480);
+  editor.placeObject('candle', 330, 480);
   assert.equal(editor.getObjects().length, 3);
   editor.placeObject('finish', 330, 480);
   assert.equal(editor.getObjects().length, 3);
@@ -932,7 +932,7 @@ await test('curse preview contains the latest parent and exactly the objects tha
   const initial = await getCurrentLevelVersion('meat-grinder');
   assert.ok(initial);
   const first = await proposeCurse('alice', initial.levelId, {
-    id: 'first', type: 'spike', x: 700, y: 480,
+    id: 'first', type: 'candle', x: 700, y: 480,
   });
   assert.ok(first.body.status === 'ok');
   const firstObjectId = first.body.objectId;
@@ -956,7 +956,7 @@ await test('curse preview contains the latest parent and exactly the objects tha
 await test('parseDraftObjectsJson accepts a valid round-trip and rejects everything else', () => {
   const objects: DraftObject[] = [
     { id: 'spawn-1', type: 'spawn', x: 80, y: 480 },
-    { id: 'spike-1', type: 'spike', x: 500, y: 480 },
+    { id: 'candle-1', type: 'candle', x: 500, y: 480 },
   ];
   assert.deepEqual(
     parseDraftObjectsJson(JSON.stringify(objects)),
@@ -965,7 +965,7 @@ await test('parseDraftObjectsJson accepts a valid round-trip and rejects everyth
   assert.equal(parseDraftObjectsJson('not json'), null);
   assert.equal(parseDraftObjectsJson('{"not": "an array"}'), null);
   assert.equal(
-    parseDraftObjectsJson('[{"id": "x", "type": "spike"}]'),
+    parseDraftObjectsJson('[{"id": "x", "type": "candle"}]'),
     null,
     'an element missing x/y must be rejected'
   );
@@ -1051,7 +1051,7 @@ await test('concurrent identical run submissions count a single clear', async ()
 
 await test('curse publish preserves a candidate replaced during commit', async () => {
   const proposal = await proposeCurse('alice', 'meat-grinder', {
-    id: 'ignored', type: 'spike', x: 1500, y: 360,
+    id: 'ignored', type: 'candle', x: 1500, y: 360,
   });
   assert.ok(proposal.body.status === 'ok');
   const token = proposal.body.candidateToken;
@@ -1170,7 +1170,7 @@ await test('a new world record fires a Realtime event, a slower clear does not',
 await test('curse publish fires a versionPublished Realtime event on the level channel', async () => {
   await getCurrentLevelVersion('meat-grinder');
   const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
-    id: 'ignored', type: 'spike', x: 700, y: 480,
+    id: 'ignored', type: 'candle', x: 700, y: 480,
   });
   assert.ok(proposeBody.status === 'ok');
   if (proposeBody.status !== 'ok') return;
@@ -1184,7 +1184,7 @@ await test('curse publish fires a versionPublished Realtime event on the level c
     levelId: 'meat-grinder',
     version: 2,
     authorUsername: 'bob',
-    addedType: 'spike',
+    addedType: 'candle',
   });
 });
 
@@ -1196,21 +1196,21 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills, and currency
   );
 
   const base = await getCurrentLevelVersion('meat-grinder');
-  const spikeId = base?.objects.find((o) => o.type === 'spike')?.id;
-  assert.ok(spikeId);
-  if (!spikeId) return;
+  const candleId = base?.objects.find((o) => o.type === 'candle')?.id;
+  assert.ok(candleId);
+  if (!candleId) return;
   // Two kills attributed to the seed author, one to bob, via separate
-  // players dying to spikes placed by each.
+  // players dying to candles placed by each.
   for (const killer of ['alice', 'alice']) {
     await users.run(killer, () =>
       runs.request(
         '/trap-kill',
-        post({ levelId: 'meat-grinder', version: 1, objectId: spikeId })
+        post({ levelId: 'meat-grinder', version: 1, objectId: candleId })
       )
     );
   }
   const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
-    id: 'ignored', type: 'spike', x: 700, y: 480,
+    id: 'ignored', type: 'candle', x: 700, y: 480,
   });
   assert.ok(proposeBody.status === 'ok');
   if (proposeBody.status !== 'ok') return;
@@ -1228,7 +1228,7 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills, and currency
   const leaderboardBody: unknown = await leaderboardResponse.json();
   assert.ok(isCursersLeaderboardResponse(leaderboardBody));
   if (!isCursersLeaderboardResponse(leaderboardBody)) return;
-  // cursed_seed (the spike's placeholder author) has 2 kills, bob's new
+  // cursed_seed (the candle's placeholder author) has 2 kills, bob's new
   // saw has 1 — highest kills first.
   assert.equal(leaderboardBody.topTen[0]?.username, 'cursed_seed');
   assert.equal(leaderboardBody.topTen[0]?.kills, 2);
@@ -1262,7 +1262,7 @@ await test('editor move eligibility uses separate ground and surface slots', asy
     new URL('../../client/game/editor/EditorController.ts', import.meta.url).href
   );
   const editor = new EditorController([
-    { id: 'hazard', type: 'spike', x: 330, y: 480 },
+    { id: 'hazard', type: 'candle', x: 330, y: 480 },
     { id: 'floor', type: 'ground', x: 390, y: 480 },
     { id: 'occupied', type: 'finish', x: 450, y: 480 },
   ]);
@@ -1347,4 +1347,16 @@ await test('a fall counts as an attempt on a real level and rejects unknown ones
 await test('built-in levels show their real title, not the raw id', async () => {
   const { getLevelStats } = await import('../services/DiscoveryService');
   assert.equal((await getLevelStats('meat-grinder'))?.title, 'Meat Grinder');
+});
+
+await test('a stored level with a retired spike reads back with a candle in its place', async () => {
+  const { levelCurrentVersionKey } = await import('../core/redisKeys');
+  values.set(levelCurrentVersionKey('old-level'), '1');
+  values.set(levelVersionKey('old-level', 1), JSON.stringify({
+    levelId: 'old-level', version: 1, parentVersion: null, contributorUsername: 'maker',
+    verificationTimeMs: 1000, createdAt: 1,
+    objects: [{ id: 'old-spike', type: 'spike', x: 600, y: 480, properties: {}, addedBy: 'maker', addedInVersion: 1 }],
+  }));
+  const level = await getCurrentLevelVersion('old-level');
+  assert.deepEqual(level?.objects.map((o) => [o.id, o.type]), [['old-spike', 'candle']]);
 });

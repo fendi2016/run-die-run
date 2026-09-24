@@ -92,7 +92,6 @@ export class Preloader extends Scene {
         `tiles/platform/platform-top-center-${i}.webp`
       );
     }
-    this.load.image('spike', 'hazards/spike.webp');
     // 8-frame spin animation (see ObjectRegistry.ensureHazardAnims), not a
     // static image, unlike every other level-object texture here.
     this.load.spritesheet('saw-spin', 'hazards/saw-spin.webp', {

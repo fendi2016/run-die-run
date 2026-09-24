@@ -5,7 +5,6 @@ export type ObjectType =
   | 'ground'
   | 'platform'
   | 'movingPlatform'
-  | 'spike'
   | 'saw'
   | 'movingSaw'
   | 'candle'

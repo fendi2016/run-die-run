@@ -15,7 +15,6 @@ import {
   MOVING_SAW_PERIOD_MS,
   PLATFORM_DISPLAY_HEIGHT_PX,
   SPAWN_ICON_SIZE,
-  SPIKE_DISPLAY_HEIGHT_PX,
 } from '../constants';
 
 export type ObjectCategory =
@@ -28,7 +27,6 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   ground: 'solid',
   platform: 'solid',
   movingPlatform: 'solid',
-  spike: 'hazard',
   saw: 'hazard',
   movingSaw: 'hazard',
   candle: 'hazard',
@@ -44,7 +42,6 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
 // texture isn't a single fixed key, it's picked per-instance by
 // pickPlatformTexture (edge vs. center variant) instead of a static lookup.
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
-  spike: 'spike',
   saw: 'saw-spin',
   // Art is shared with the regular saw — LevelLoader is what gives the
   // moving variant its motion, not a distinct texture.
@@ -346,8 +343,6 @@ export function renderLevelObject(
     // footprint (see PLATFORM_DISPLAY_HEIGHT_PX) so collision stays
     // uniform regardless of which edge/center texture got picked.
     sprite.setDisplaySize(GRID_CELL_SIZE, PLATFORM_DISPLAY_HEIGHT_PX);
-  } else if (object.type === 'spike') {
-    sprite.setDisplaySize(sprite.width, SPIKE_DISPLAY_HEIGHT_PX);
   } else if (object.type === 'bat') {
     sprite.setScale(BAT_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'candle') {

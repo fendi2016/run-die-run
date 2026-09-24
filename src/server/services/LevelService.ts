@@ -3,6 +3,9 @@ import { levelCurrentVersionKey, levelVersionKey } from '../core/redisKeys';
 import { SEED_LEVELS } from '../core/seedLevels';
 import { isLevelVersion, type LevelVersion } from '../../shared/types';
 
+// Not an ObjectType any more — only still found in stored level data.
+const RETIRED_SPIKE: string = 'spike';
+
 // Writes a seed's own version blob into Redis, without touching the
 // current-version pointer — shared by both places below that persist a
 // seed on demand (a level never yet requested, and a version blob that
@@ -62,7 +65,21 @@ export async function getCurrentLevelVersion(
     );
     return undefined;
   }
-  return parsed;
+  return withoutRetiredTypes(parsed);
+}
+
+// The spike was retired; the candle took its place. Levels published
+// before that still store 'spike' objects, so they're read back as candles
+// (same id and position, so trap-kill attribution keeps working) rather
+// than rendering nothing where a hazard used to be.
+function withoutRetiredTypes(level: LevelVersion): LevelVersion {
+  if (!level.objects.some((o) => o.type === RETIRED_SPIKE)) return level;
+  return {
+    ...level,
+    objects: level.objects.map((o) =>
+      o.type === RETIRED_SPIKE ? { ...o, type: 'candle' } : o
+    ),
+  };
 }
 
 // Overwrites every built-in level's *own* seed version blob (never the

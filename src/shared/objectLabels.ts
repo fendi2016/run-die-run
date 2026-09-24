@@ -1,7 +1,6 @@
 import type { ObjectType } from './types';
 
 const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
-  spike: 'Spike',
   saw: 'Saw',
   movingSaw: 'Moving Saw',
   fallingBlock: 'Falling Block',

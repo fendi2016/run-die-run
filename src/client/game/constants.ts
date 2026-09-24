@@ -74,13 +74,6 @@ export const GHOST_PERIOD_MS = 1600;
 // footprint regardless of which edge/center variant got picked.
 export const PLATFORM_DISPLAY_HEIGHT_PX = 52;
 
-// spike.webp's native art is a stubby 40x40 square that reads as a low
-// pebble rather than something you'd die on — stretched taller (width
-// unchanged) so it reads as a proper upright spike. Bottom-anchored origin
-// (see originFor) means the extra height grows upward from the ground, not
-// down into it.
-export const SPIKE_DISPLAY_HEIGHT_PX = 60;
-
 // On-screen heights of the animated ghost/candle/bat spritesheets (aspect
 // preserved). Each sheet's shared frame canvas includes room for the
 // motion across its 8 frames (wing flaps, flame flicker, ghost sway), so

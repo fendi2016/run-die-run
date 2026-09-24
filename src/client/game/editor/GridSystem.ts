@@ -13,7 +13,6 @@ import {
 export const PLACEABLE_TYPES = [
   'ground',
   'platform',
-  'spike',
   'saw',
   'movingSaw',
   'candle',
