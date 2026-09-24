@@ -4,6 +4,8 @@ import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
   BAT_DASH_SPEED_PX,
   BAT_DISPLAY_HEIGHT_PX,
+  CANDLE_DISPLAY_HEIGHT_PX,
+  GHOST_DISPLAY_HEIGHT_PX,
   FINISH_DISPLAY_HEIGHT_PX,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
@@ -57,27 +59,46 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   speedBoost: 'speedBoost',
 };
 
+// The ghost/candle/bat 8-frame spritesheets (hazards/*-sheet.webp): frame
+// size of each, for the Preloader. The texture keys stay the plain type
+// names, so TEXTURE_BY_TYPE above didn't change.
+export const HAZARD_SPRITESHEETS = [
+  { key: 'ghost', file: 'hazards/ghost-sheet.webp', frameWidth: 140, frameHeight: 150 },
+  { key: 'candle', file: 'hazards/candle-sheet.webp', frameWidth: 84, frameHeight: 120 },
+  { key: 'bat', file: 'hazards/bat-sheet.webp', frameWidth: 129, frameHeight: 120 },
+] as const;
+
 // Hazards whose art is an animated spritesheet rather than a static image —
 // renderLevelObject plays this looping animation once per instance instead
 // of leaving it parked on the sheet's first frame.
 const SPIN_ANIM_BY_TYPE: Partial<Record<ObjectType, string>> = {
   saw: 'saw-spin',
   movingSaw: 'saw-spin',
+  ghost: 'ghost-float',
+  candle: 'candle-flicker',
+  bat: 'bat-flap',
 };
+
+const HAZARD_ANIMS: readonly { key: string; texture: string; frameRate: number }[] = [
+  { key: 'saw-spin', texture: 'saw-spin', frameRate: 16 },
+  { key: 'ghost-float', texture: 'ghost', frameRate: 8 },
+  { key: 'candle-flicker', texture: 'candle', frameRate: 10 },
+  { key: 'bat-flap', texture: 'bat', frameRate: 12 },
+];
 
 // Exported so callers that render level objects ahead of renderLevelObject
 // (or without it) can register the same animation without duplicating its
 // frame/rate definition.
 export function ensureHazardAnims(scene: Phaser.Scene): void {
-  if (scene.anims.exists('saw-spin')) {
-    return;
+  for (const anim of HAZARD_ANIMS) {
+    if (scene.anims.exists(anim.key)) continue;
+    scene.anims.create({
+      key: anim.key,
+      frames: scene.anims.generateFrameNumbers(anim.texture),
+      frameRate: anim.frameRate,
+      repeat: -1,
+    });
   }
-  scene.anims.create({
-    key: 'saw-spin',
-    frames: scene.anims.generateFrameNumbers('saw-spin'),
-    frameRate: 16,
-    repeat: -1,
-  });
 }
 
 // A moving platform needs a *dynamic* Arcade body — `Body.setDirectControl`
@@ -328,10 +349,11 @@ export function renderLevelObject(
   } else if (object.type === 'spike') {
     sprite.setDisplaySize(sprite.width, SPIKE_DISPLAY_HEIGHT_PX);
   } else if (object.type === 'bat') {
-    sprite.setDisplaySize(
-      sprite.width * (BAT_DISPLAY_HEIGHT_PX / sprite.height),
-      BAT_DISPLAY_HEIGHT_PX
-    );
+    sprite.setScale(BAT_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (object.type === 'candle') {
+    sprite.setScale(CANDLE_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (object.type === 'ghost') {
+    sprite.setScale(GHOST_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'finish') {
     // Aspect preserved (unlike bat's forced squash) — the 4 frames' widths
     // legitimately differ (ghosts/motion-lines), only height is shared.

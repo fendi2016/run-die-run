@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
+import { HAZARD_SPRITESHEETS } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_KEYS } from '../systems/Sfx';
@@ -98,9 +99,14 @@ export class Preloader extends Scene {
       frameWidth: 40,
       frameHeight: 40,
     });
-    this.load.image('candle', 'hazards/candle.webp');
-    this.load.image('bat', 'hazards/bat.webp');
-    this.load.image('ghost', 'hazards/ghost.webp');
+    // Animated 8-frame sheets (see ObjectRegistry.HAZARD_SPRITESHEETS); the
+    // single-frame hazards/*.webp next to them are only the editor icons.
+    for (const sheet of HAZARD_SPRITESHEETS) {
+      this.load.spritesheet(sheet.key, sheet.file, {
+        frameWidth: sheet.frameWidth,
+        frameHeight: sheet.frameHeight,
+      });
+    }
     // The finish bell (see ObjectRegistry/Juice.playFinishBellAnimation) is
     // 4 separate frames rather than a spritesheet — each has its own
     // hand-picked origin (FINISH_ORIGIN_X) so the post stays visually

@@ -81,11 +81,14 @@ export const PLATFORM_DISPLAY_HEIGHT_PX = 52;
 // down into it.
 export const SPIKE_DISPLAY_HEIGHT_PX = 60;
 
-// bat.webp's canvas grew wider (37px -> 53px) when its missing second wing
-// was reconstructed — matches its original 40px-tall footprint (aspect
-// preserved, not stretched) so the in-level hazard's hitbox doesn't grow
-// just because the art got fixed.
+// On-screen heights of the animated ghost/candle/bat spritesheets (aspect
+// preserved). Each sheet's shared frame canvas includes room for the
+// motion across its 8 frames (wing flaps, flame flicker, ghost sway), so
+// these size the canvas, not just the figure — the ghost's is taller so
+// its visible body stays the size of the old static art.
 export const BAT_DISPLAY_HEIGHT_PX = 40;
+export const CANDLE_DISPLAY_HEIGHT_PX = 40;
+export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
 // The finish bell's 4 frames (idle/hit/ringing/success) are cropped to
 // different native pixel sizes (motion-lines and ghosts extend the canvas

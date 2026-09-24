@@ -7,7 +7,6 @@ import {
 } from '../systems/InputSystem';
 import {
   attachElectricShield,
-  burstParticles,
   destroyElectricShield,
   playDeathExplosion,
   playHyperspeedTrail,
@@ -38,7 +37,8 @@ import {
 // leg/arm contact poses, not near-duplicates — unlike the original 4x2
 // sheet, which only had one distinct leg pose and no way to fake a second
 // one that didn't look like the character spinning to face backwards).
-// player-crouch is the slide pose (see Player.startSlide).
+// player-slide-1..8 is the slide: drop in (1-2), slide with dust (3-6),
+// get back up (7-8) — see SLIDE_ANIM_KEY.
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -50,7 +50,14 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
-  'player-crouch',
+  'player-slide-1',
+  'player-slide-2',
+  'player-slide-3',
+  'player-slide-4',
+  'player-slide-5',
+  'player-slide-6',
+  'player-slide-7',
+  'player-slide-8',
   'player-dance-1',
   'player-dance-2',
   'player-dance-3',
@@ -78,7 +85,15 @@ const RUN_KEYS = [
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
-const SLIDE_KEY = 'player-crouch';
+const SLIDE_ANIM_KEY = 'player-slide';
+// The slide frames are wider than every other pose (legs stretch forward,
+// dust trails behind) but share its 362px height, pixel scale, and head
+// position, so they draw at PLAYER_BASE_SCALE without the robot changing
+// size; only the hitbox's x offset needs to know the wider canvas.
+const SLIDE_FRAME_WIDTH = 544;
+// Share of SLIDE_DURATION_MS each slide frame holds: quick drop-in and
+// get-up, longer on the four sliding frames.
+const SLIDE_FRAME_WEIGHTS = [0.09, 0.09, 0.16, 0.16, 0.16, 0.16, 0.09, 0.09];
 // Standing hitbox, in source-frame fractions (see PLAYER_FRAME_SIZE):
 // forgiving width, bottom flush with the feet. The slide variant keeps the
 // same width and bottom, just shorter (SLIDE_HITBOX_HEIGHT).
@@ -221,6 +236,17 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
       // Plays through once and holds on the tuck frame — see the
       // JUMP_ASCEND_ANIM_KEY comment above for why the fall half isn't
       // joined to this same timeline.
+      repeat: 0,
+    });
+  }
+  if (!scene.anims.exists(SLIDE_ANIM_KEY)) {
+    scene.anims.create({
+      key: SLIDE_ANIM_KEY,
+      frames: SLIDE_FRAME_WEIGHTS.map((weight, i) => ({
+        key: `player-slide-${i + 1}`,
+        duration: Math.round(SLIDE_DURATION_MS * weight),
+      })),
+      frameRate: 22,
       repeat: 0,
     });
   }
@@ -410,12 +436,12 @@ export class Player {
   // Bottom stays at the feet (offset + height = the full frame), so
   // shrinking for a slide never lifts the player off the ground or sinks
   // them into it.
-  private setHitboxHeight(fraction: number): void {
-    this.body.setSize(PLAYER_FRAME_SIZE * HITBOX_WIDTH, PLAYER_FRAME_SIZE * fraction);
-    this.body.setOffset(
-      (PLAYER_FRAME_SIZE * (1 - HITBOX_WIDTH)) / 2,
-      PLAYER_FRAME_SIZE * (1 - fraction)
-    );
+  // `frameWidth`: the source width of the frames about to be shown, so the
+  // hitbox stays centered under the robot on the wider slide frames.
+  private setHitboxHeight(fraction: number, frameWidth = PLAYER_FRAME_SIZE): void {
+    const width = PLAYER_FRAME_SIZE * HITBOX_WIDTH;
+    this.body.setSize(width, PLAYER_FRAME_SIZE * fraction);
+    this.body.setOffset((frameWidth - width) / 2, PLAYER_FRAME_SIZE * (1 - fraction));
   }
 
   // Second tap of a double-tap. On the ground: slide now. Mid-air (the
@@ -434,8 +460,7 @@ export class Player {
   private startSlide(): void {
     this.slidePending = false;
     this.slideRemainingMs = SLIDE_DURATION_MS;
-    this.setHitboxHeight(SLIDE_HITBOX_HEIGHT);
-    burstParticles(this.scene, this.sprite.x - 10, this.sprite.y, 0xd9d2ff, 8);
+    this.setHitboxHeight(SLIDE_HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
   }
 
   private endSlide(): void {
@@ -466,8 +491,9 @@ export class Player {
   // never fights either airborne frame for control of the sprite.
   private updateAnimation(): void {
     if (this.isSliding) {
-      this.sprite.anims.stop();
-      this.sprite.setTexture(SLIDE_KEY);
+      if (this.sprite.anims.getName() !== SLIDE_ANIM_KEY) {
+        this.sprite.play(SLIDE_ANIM_KEY);
+      }
       this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
       return;
     }
