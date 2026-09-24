@@ -152,6 +152,22 @@ const redis = {
     };
   },
 };
+// Records what the app would have posted/commented/messaged on Reddit.
+const redditCalls: { method: string; options: unknown }[] = [];
+let redditPostCount = 0;
+const reddit = {
+  submitCustomPost: async (options: unknown) => {
+    redditCalls.push({ method: 'submitCustomPost', options });
+    return { id: `t3_test${++redditPostCount}` };
+  },
+  submitComment: async (options: unknown) => {
+    redditCalls.push({ method: 'submitComment', options });
+    return {};
+  },
+  sendPrivateMessage: async (options: unknown) => {
+    redditCalls.push({ method: 'sendPrivateMessage', options });
+  },
+};
 mock.module('@devvit/web/server', {
   namedExports: {
     redis,
@@ -161,7 +177,7 @@ mock.module('@devvit/web/server', {
         return users.getStore() ?? 'alice';
       },
     },
-    reddit: {},
+    reddit,
   },
 });
 const { publish } = await import('../routes/publish');
@@ -194,13 +210,16 @@ const { isCursersLeaderboardResponse } = await import(
 );
 const { isCurrencyBalanceResponse } = await import('../../shared/currencyApi');
 const { withTransaction } = await import('../core/transactions');
+const { clearDiscoveryCache } = await import('../routes/discovery');
 
 beforeEach(() => {
+  clearDiscoveryCache();
   values.clear();
   scores.clear();
   hashes.clear();
   revisions.clear();
   realtimeSent.length = 0;
+  redditCalls.length = 0;
   beforeExec = undefined;
   assert.equal(activeTransactions, 0, 'transactions should always be released');
 });
@@ -545,7 +564,10 @@ const {
   levelCurrentVersionKey,
 } = await import('../core/redisKeys');
 
+// Always a fresh read: the route caches results for 15s (routes/
+// discovery.ts), and these tests mutate data between browses on purpose.
 async function browse(sort = 'trending') {
+  clearDiscoveryCache();
   const response = await discovery.request(`/levels?sort=${sort}`);
   assert.equal(response.status, 200);
   const body: unknown = await response.json();
@@ -1273,4 +1295,37 @@ await test('menu stats reads only its level counters and metadata without scanni
   } finally {
     scan.mock.restore();
   }
+});
+
+await test('discovery serves a cached listing within its TTL', async () => {
+  const { allLevelsByDateKey } = await import('../core/redisKeys');
+  const first = await discovery.request('/levels?sort=new');
+  const firstBody: unknown = await first.json();
+  assert.ok(isDiscoveryResponse(firstBody));
+  const scan = mock.method(redis, 'zRange', async () => {
+    throw new Error('a cached listing must not re-scan the catalog');
+  });
+  try {
+    zAdd(allLevelsByDateKey(), { member: 'late-level', score: Date.now() });
+    const second = await discovery.request('/levels?sort=new');
+    assert.deepEqual(await second.json(), firstBody);
+    assert.equal(scan.mock.callCount(), 0);
+  } finally {
+    scan.mock.restore();
+  }
+});
+
+await test('publishing a level creates its post with the level in postData', async () => {
+  const token = await ready('dave');
+  const { body } = await publishAs('dave', token, 'Post Me');
+  assert.equal(body.status, 'ok');
+  const post = redditCalls.find((call) => call.method === 'submitCustomPost');
+  assert.ok(post);
+  assert.deepEqual(
+    typeof post.options === 'object' && post.options !== null && 'postData' in post.options
+      ? post.options.postData
+      : undefined,
+    { levelId: 'post-me' }
+  );
+  assert.ok(body.status === 'ok' && body.postUrl?.includes('t3_test'));
 });
