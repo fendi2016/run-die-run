@@ -202,6 +202,33 @@ export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void
   burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
 }
 
+const SLIDE_DUST_ANIM_KEY = 'slide-dust';
+// vfx 2 pack, 426.png row 5 (white): 64px pixel-art frames whose ground line
+// sits at y=46, so that's the origin — the puff sits on the floor.
+const SLIDE_DUST_GROUND_Y = 46 / 64;
+
+// Pixel-art dust kicked up under the feet while sliding (Player.updateSlide
+// calls this on start and every SLIDE_DUST_INTERVAL_MS after). Mirrored so
+// the debris sprays back, away from the direction of travel. Nearest
+// filtering keeps the pixel art crisp at a non-integer scale.
+export function playSlideDust(scene: Phaser.Scene, x: number, y: number, scale: number): void {
+  if (!scene.anims.exists(SLIDE_DUST_ANIM_KEY)) {
+    scene.textures.get('slide-dust').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.anims.create({
+      key: SLIDE_DUST_ANIM_KEY,
+      frames: scene.anims.generateFrameNumbers('slide-dust'),
+      frameRate: 24,
+      repeat: 0,
+    });
+  }
+  const puff = scene.add.sprite(x, y, 'slide-dust', 0);
+  puff.setOrigin(0.5, SLIDE_DUST_GROUND_Y);
+  puff.setScale(scale);
+  puff.setFlipX(true);
+  puff.play(SLIDE_DUST_ANIM_KEY);
+  puff.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => puff.destroy());
+}
+
 const SHATTER_GRID = 3;
 const SHATTER_DURATION_MS = 380;
 

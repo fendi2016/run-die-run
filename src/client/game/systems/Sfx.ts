@@ -1,19 +1,34 @@
 import type * as Phaser from 'phaser';
 
-// Short, procedurally-synthesized chiptune-style blips (see
-// public/assets/sfx/*.wav) rather than licensed/recorded sound effects —
-// this repo had zero audio before and fabricating "real" sound design
-// isn't something to guess at. These are small, tasteful placeholders,
-// swappable for real SFX the same way sprites get reskinned: drop a
-// replacement file at the same path.
-export const SFX_KEYS = ['jump', 'death', 'clear', 'pickup'] as const;
+// Picked from the 400 Sounds Pack (see public/assets/sfx/), each trimmed so
+// the sound starts on its first audible sample — dead air at the front of a
+// jump/slide sound reads as input lag — then downmixed to mono 22kHz WAV.
+// WAV rather than AAC for anything tied to an input: AAC's encoder priming
+// adds ~45ms of silence at the start. Only the level-clear jingle (long,
+// and not timing-critical) ships as .m4a.
+//   jump   Other/whoosh_1
+//   slide  Materials/concrete_scrape (first 0.5s)
+//   death  Combat and Gore/crunch_splat
+//   clear  Musical Effects/music_box_level_complete
+//   pickup Items/gem_collect
+export const SFX_KEYS = ['jump', 'slide', 'death', 'clear', 'pickup'] as const;
 export type SfxKey = (typeof SFX_KEYS)[number];
 
+export const SFX_FILES: Record<SfxKey, string> = {
+  jump: 'sfx/jump.wav',
+  slide: 'sfx/slide.wav',
+  death: 'sfx/death.wav',
+  clear: 'sfx/clear.m4a',
+  pickup: 'sfx/pickup.wav',
+};
+
+// Every file is normalized to the same peak, so these set the mix.
 const VOLUME: Record<SfxKey, number> = {
-  jump: 0.35,
-  death: 0.45,
-  clear: 0.5,
-  pickup: 0.4,
+  jump: 0.3,
+  slide: 0.35,
+  death: 0.5,
+  clear: 0.45,
+  pickup: 0.35,
 };
 
 // Never allowed to throw — sound is pure polish (spec Phase 10), and a

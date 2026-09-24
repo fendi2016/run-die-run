@@ -4,7 +4,7 @@ import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
 import { HAZARD_SPRITESHEETS } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
-import { SFX_KEYS } from '../systems/Sfx';
+import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
 
 const BAR_WIDTH = 460;
 
@@ -138,6 +138,10 @@ export class Preloader extends Scene {
       frameWidth: 146,
       frameHeight: 151,
     });
+    this.load.spritesheet('slide-dust', 'vfx/slide-dust.webp', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
 
     // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
     // also from the VFX Free Pack. shield-electric is the source pack's
@@ -155,10 +159,10 @@ export class Preloader extends Scene {
       frameHeight: 515,
     });
 
-    // Short procedurally-synthesized SFX (see Sfx.ts) — a failure here
-    // never fails the whole load (onError above exempts 'audio' files).
+    // Sound effects (see Sfx.ts) — a failure here never fails the whole
+    // load (onError above exempts 'audio' files).
     for (const key of SFX_KEYS) {
-      this.load.audio(key, `sfx/${key}.wav`);
+      this.load.audio(key, SFX_FILES[key]);
     }
   }
 

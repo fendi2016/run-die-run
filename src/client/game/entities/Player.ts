@@ -11,6 +11,7 @@ import {
   playDeathExplosion,
   playHyperspeedTrail,
   playPlayerShatter,
+  playSlideDust,
   playSlideImpact,
 } from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
@@ -95,6 +96,14 @@ const SLIDE_FRAME_WIDTH = 494;
 // Share of SLIDE_DURATION_MS each slide frame holds: quick drop-in and
 // get-up, longer on the four sliding frames.
 const SLIDE_FRAME_WEIGHTS = [0.09, 0.09, 0.16, 0.16, 0.16, 0.16, 0.09, 0.09];
+// Drop-in pose held while a double-tap's slide waits for the player to land
+// (see updateAnimation), and the frame the slide resumes from once they do.
+const SLIDE_DROP_IN_KEY = 'player-slide-2';
+const SLIDE_RESUME_FRAME = 2;
+const SLIDE_RESUME_TIME_SCALE =
+  1 - SLIDE_FRAME_WEIGHTS.slice(0, SLIDE_RESUME_FRAME).reduce((a, b) => a + b, 0);
+// Dust puff cadence under the feet while sliding (Juice.playSlideDust).
+const SLIDE_DUST_INTERVAL_MS = 200;
 // Standing hitbox, in source-frame fractions (see PLAYER_FRAME_SIZE):
 // forgiving width, bottom flush with the feet. The slide variant keeps the
 // same width and bottom, just shorter (SLIDE_HITBOX_HEIGHT).
@@ -284,6 +293,7 @@ export class Player {
   private lastTapAtMs = Number.NEGATIVE_INFINITY;
   private slidePending = false;
   private slideRemainingMs = 0;
+  private slideDustMs = 0;
 
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
@@ -449,6 +459,9 @@ export class Player {
   // first tap's jump already fired): slide as soon as the player lands.
   // Upward velocity counts as mid-air even while physics hasn't stepped
   // the player off the ground yet (blocked.down still reads true).
+  // Mid-air, the slide's drop-in pose shows right away (updateAnimation) so
+  // the second tap gets an instant visible response; the player still falls
+  // under normal gravity and the slide itself starts on landing.
   private requestSlide(): void {
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     if (this.body.blocked.down && this.body.velocity.y >= 0) {
@@ -456,21 +469,35 @@ export class Player {
       return;
     }
     this.slidePending = true;
+    // Same standing hitbox, re-centered for the wider drop-in frame.
+    this.setHitboxHeight(HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
   }
 
   private startSlide(): void {
+    const fromDropIn = this.slidePending;
     this.slidePending = false;
     this.slideRemainingMs = SLIDE_DURATION_MS;
+    this.slideDustMs = SLIDE_DUST_INTERVAL_MS;
     this.setHitboxHeight(SLIDE_HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
+    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+    // Already showed the drop-in mid-air: pick up at the slide itself.
+    this.sprite.play({
+      key: SLIDE_ANIM_KEY,
+      startFrame: fromDropIn ? SLIDE_RESUME_FRAME : 0,
+    });
+    // Stretch the remaining frames to still fill SLIDE_DURATION_MS.
+    this.sprite.anims.timeScale = fromDropIn ? SLIDE_RESUME_TIME_SCALE : 1;
     // Just behind the feet, at shin height, as the slide kicks off.
     playSlideImpact(this.scene, this.sprite.x - 20, this.sprite.y - 22);
+    playSlideDust(this.scene, this.sprite.x - 10, this.sprite.y, 1.8);
+    playSfx(this.scene, 'slide');
   }
 
   private endSlide(): void {
-    const wasSliding = this.isSliding;
+    const wasPosed = this.isSliding || this.slidePending;
     this.slidePending = false;
     this.slideRemainingMs = 0;
-    if (wasSliding) this.setHitboxHeight(HITBOX_HEIGHT);
+    if (wasPosed) this.setHitboxHeight(HITBOX_HEIGHT);
   }
 
   private updateSlide(deltaMs: number): void {
@@ -484,8 +511,13 @@ export class Player {
     }
     if (this.slideRemainingMs <= deltaMs) {
       this.endSlide();
-    } else {
-      this.slideRemainingMs -= deltaMs;
+      return;
+    }
+    this.slideRemainingMs -= deltaMs;
+    this.slideDustMs -= deltaMs;
+    if (this.slideDustMs <= 0) {
+      this.slideDustMs += SLIDE_DUST_INTERVAL_MS;
+      playSlideDust(this.scene, this.sprite.x - 16, this.sprite.y, 1.3);
     }
   }
 
@@ -494,14 +526,20 @@ export class Player {
   // never fights either airborne frame for control of the sprite.
   private updateAnimation(): void {
     if (this.isSliding) {
-      if (this.sprite.anims.getName() !== SLIDE_ANIM_KEY) {
-        this.sprite.play(SLIDE_ANIM_KEY);
-      }
+      // startSlide already started the animation.
+      return;
+    }
+    if (this.slidePending) {
+      this.sprite.anims.stop();
+      this.sprite.setTexture(SLIDE_DROP_IN_KEY);
       this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
       return;
     }
     if (this.body.blocked.down) {
-      if (!this.sprite.anims.isPlaying) {
+      if (
+        !this.sprite.anims.isPlaying ||
+        this.sprite.anims.getName() === SLIDE_ANIM_KEY
+      ) {
         this.sprite.play(RUN_ANIM_KEY);
       }
       // Leg-cycle rate tracks actual ground speed — Speed Boost (1.6x)
