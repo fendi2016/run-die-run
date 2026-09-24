@@ -132,6 +132,12 @@ export class Preloader extends Scene {
       frameHeight: 355,
     });
     this.load.image('death-kaboom', 'vfx/death-kaboom.webp');
+    // Slide kick-off burst (see Juice.playSlideImpact) — the VFX pack's
+    // "Impact" effect, all 14 frames at half its native 291x301.
+    this.load.spritesheet('slide-impact', 'vfx/slide-impact.webp', {
+      frameWidth: 146,
+      frameHeight: 151,
+    });
 
     // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
     // also from the VFX Free Pack. shield-electric is the source pack's

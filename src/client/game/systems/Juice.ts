@@ -179,6 +179,29 @@ export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): v
   });
 }
 
+const SLIDE_IMPACT_ANIM_KEY = 'slide-impact';
+// ~73px on screen: about the robot's height, so the streaks frame the
+// feet rather than swallowing the whole character.
+const SLIDE_IMPACT_SCALE = 0.5;
+
+// One-shot white streak burst where a slide kicks off (Player.startSlide).
+// Left in the world at that spot rather than following the player, so the
+// robot visibly slides away out of it. The source pack runs at 30fps.
+export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void {
+  if (!scene.anims.exists(SLIDE_IMPACT_ANIM_KEY)) {
+    scene.anims.create({
+      key: SLIDE_IMPACT_ANIM_KEY,
+      frames: scene.anims.generateFrameNumbers('slide-impact'),
+      frameRate: 30,
+      repeat: 0,
+    });
+  }
+  const burst = scene.add.sprite(x, y, 'slide-impact', 0);
+  burst.setScale(SLIDE_IMPACT_SCALE);
+  burst.play(SLIDE_IMPACT_ANIM_KEY);
+  burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
+}
+
 const SHATTER_GRID = 3;
 const SHATTER_DURATION_MS = 380;
 

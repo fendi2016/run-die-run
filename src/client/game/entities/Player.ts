@@ -11,6 +11,7 @@ import {
   playDeathExplosion,
   playHyperspeedTrail,
   playPlayerShatter,
+  playSlideImpact,
 } from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
 import {
@@ -37,8 +38,8 @@ import {
 // leg/arm contact poses, not near-duplicates — unlike the original 4x2
 // sheet, which only had one distinct leg pose and no way to fake a second
 // one that didn't look like the character spinning to face backwards).
-// player-slide-1..8 is the slide: drop in (1-2), slide with dust (3-6),
-// get back up (7-8) — see SLIDE_ANIM_KEY.
+// player-slide-1..8 is the slide: drop in (1-2), slide (3-6), get back up
+// (7-8) — see SLIDE_ANIM_KEY.
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -86,11 +87,11 @@ const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
 const SLIDE_ANIM_KEY = 'player-slide';
-// The slide frames are wider than every other pose (legs stretch forward,
-// dust trails behind) but share its 362px height, pixel scale, and head
+// The slide frames are wider than every other pose (legs stretch forward)
+// but share its 362px height, pixel scale, and head
 // position, so they draw at PLAYER_BASE_SCALE without the robot changing
 // size; only the hitbox's x offset needs to know the wider canvas.
-const SLIDE_FRAME_WIDTH = 544;
+const SLIDE_FRAME_WIDTH = 494;
 // Share of SLIDE_DURATION_MS each slide frame holds: quick drop-in and
 // get-up, longer on the four sliding frames.
 const SLIDE_FRAME_WEIGHTS = [0.09, 0.09, 0.16, 0.16, 0.16, 0.16, 0.09, 0.09];
@@ -461,6 +462,8 @@ export class Player {
     this.slidePending = false;
     this.slideRemainingMs = SLIDE_DURATION_MS;
     this.setHitboxHeight(SLIDE_HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
+    // Just behind the feet, at shin height, as the slide kicks off.
+    playSlideImpact(this.scene, this.sprite.x - 20, this.sprite.y - 22);
   }
 
   private endSlide(): void {
