@@ -33,39 +33,48 @@ export function initSound(game: Phaser.Game): void {
   const music = new Audio(MUSIC_URL);
   music.loop = true;
   music.volume = MUSIC_VOLUME;
-  music.preload = 'none';
+  // Start downloading right away so the music is buffered by the time
+  // the player taps — with 'none' the fetch only began on that first tap
+  // and the run opened on a couple of seconds of silence.
+  music.preload = 'auto';
   let muted = readMuted();
-  // Browsers block audio until the player interacts; the first tap/key
-  // anywhere (almost always Play, or the tap-to-start jump) unlocks it.
-  let unlocked = false;
 
   const sync = (): void => {
     game.sound.mute = muted;
     button.classList.toggle('muted', muted);
     button.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
     button.setAttribute('aria-pressed', String(!muted));
-    if (muted || !unlocked || document.hidden) {
+    if (muted || document.hidden) {
       music.pause();
     } else {
       music.play().catch(() => {
-        // Autoplay still refused (or the file failed) — stays silent,
-        // the next tap retries via unlock().
+        // Autoplay refused until the player interacts (or the file
+        // failed) — stays silent, the next tap/key retries.
       });
     }
   };
 
+  // Try to play on load: when the Play tap that opened this view still
+  // counts as user activation, the music starts with the game. Otherwise
+  // the browser blocks it and the first tap/key anywhere starts it.
   const unlock = (): void => {
-    if (unlocked) return;
-    unlocked = true;
+    if (!music.paused) return;
     sync();
   };
+  music.addEventListener(
+    'playing',
+    () => {
+      window.removeEventListener('pointerdown', unlock, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+    },
+    { once: true },
+  );
 
   button.addEventListener('click', (event) => {
     // Don't let the toggle also count as a jump / canvas tap.
     event.stopPropagation();
     muted = !muted;
     writeMuted(muted);
-    unlocked = true;
     sync();
   });
   button.addEventListener('pointerdown', (event) => event.stopPropagation());
