@@ -330,7 +330,7 @@ export class GameScene extends Scene {
       this.levelVersion = this.previewLevel;
       this.startRun(this.previewLevel);
       const previewReturn = this.previewReturn;
-      PreviewBackButton.instance().setOnBack(() => {
+      const backToEditor = (): void => {
         if (previewReturn?.kind === 'curse') {
           this.scene.start('CurseScene', {
             levelId: previewReturn.levelId,
@@ -347,8 +347,15 @@ export class GameScene extends Scene {
               previewReturn?.kind === 'editor' ? previewReturn.objects : [],
           });
         }
-      });
-      PreviewBackButton.instance().show();
+      };
+      // A curse's Prove It run offers the way back under Retry on the death
+      // panel; the level editor's Test run keeps the top-left button.
+      if (previewReturn?.kind === 'curse') {
+        this.deathPanel.setBackHandler(backToEditor);
+      } else {
+        PreviewBackButton.instance().setOnBack(backToEditor);
+        PreviewBackButton.instance().show();
+      }
       return;
     }
 
@@ -979,6 +986,7 @@ export class GameScene extends Scene {
     // never anything here that needed resuming.
     this.resultOverlay.hide();
     this.deathPanel.hide();
+    this.deathPanel.setBackHandler(undefined);
     this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);

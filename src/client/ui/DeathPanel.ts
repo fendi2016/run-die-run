@@ -25,6 +25,7 @@ export class DeathPanel {
   private readonly tipEl = requireElement('death-panel-tip');
   private readonly retryBtn = requireButton('death-panel-retry-btn');
   private readonly shareBtn = requireButton('death-panel-share');
+  private readonly backBtn = requireButton('death-panel-back');
   private token = 0;
 
   // `addedBy`/`type` absent for a fall-death or a seed-level trap — no
@@ -58,6 +59,13 @@ export class DeathPanel {
 
   setRetryHandler(handler: () => void): void {
     this.retryBtn.onclick = handler;
+  }
+
+  // Set only for a curse's Prove It run, which returns to CurseScene from
+  // here instead of via the top-left PreviewBackButton.
+  setBackHandler(handler: (() => void) | undefined): void {
+    this.backBtn.classList.toggle('hidden', !handler);
+    this.backBtn.onclick = handler ?? null;
   }
 
   // Absent for preview/test runs — nothing public to share yet.
