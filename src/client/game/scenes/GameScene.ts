@@ -781,7 +781,7 @@ export class GameScene extends Scene {
         ? undefined
         : () => this.share(this.deathShareText(attributedKiller))
     );
-    this.player.die();
+    this.player.die(killer?.type);
   }
 
   // Counts a fall as an attempt (no trap to credit). Best-effort, never

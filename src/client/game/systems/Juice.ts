@@ -232,38 +232,38 @@ export function playSlideDust(scene: Phaser.Scene, x: number, y: number, scale: 
 const SHATTER_GRID = 3;
 const SHATTER_DURATION_MS = 380;
 
-// "Ripped apart" death VFX (user ask, replacing the old single frozen
-// player-death pose): slices whatever frame the player was on at the
-// moment of death into a grid of pieces that fly outward and spin away,
-// pure runtime cropping of the already-loaded texture — no new art needed.
-// Player.die() fires this immediately before playDeathExplosion so the
-// fireball reads as consuming the pieces rather than the other way round.
-export function playPlayerShatter(
+// Slices the player's current pose into a cols x rows grid of image pieces
+// laid over exactly where the (bottom-center-origin, see Player.ts) sprite
+// was drawn, each centered on its own cell so it can move and spin
+// independently. Pure runtime cropping of the already-loaded texture — no
+// new art. Shared by every death effect that breaks the player apart
+// (playPlayerShatter here, the candle's crumble in DeathEffects); callers
+// own the pieces' motion and must destroy them.
+export function slicePlayerFrame(
   scene: Phaser.Scene,
   x: number,
   y: number,
   textureKey: string,
-  displaySize: number
-): void {
+  displaySize: number,
+  cols: number,
+  rows: number
+): { piece: Phaser.GameObjects.Image; col: number; row: number }[] {
   const frame = scene.textures.getFrame(textureKey);
   const scale = displaySize / frame.width;
-  const cellSourceW = frame.width / SHATTER_GRID;
-  const cellSourceH = frame.height / SHATTER_GRID;
-  // The player sprite's origin is bottom-center (0.5, 1), so the displayed
-  // square's top-left sits `displaySize` above and half its width left of
-  // (x, y) — see Player.ts.
+  const cellSourceW = frame.width / cols;
+  const cellSourceH = frame.height / rows;
   const topLeftX = x - displaySize / 2;
   const topLeftY = y - displaySize;
-  const center = (SHATTER_GRID - 1) / 2;
   const texture = scene.textures.get(textureKey);
+  const pieces: { piece: Phaser.GameObjects.Image; col: number; row: number }[] = [];
 
-  for (let row = 0; row < SHATTER_GRID; row++) {
-    for (let col = 0; col < SHATTER_GRID; col++) {
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
       // A real sub-frame per cell rather than setCrop: a cropped image still
       // renders at its crop offset and rotates about the full image's
       // origin, whereas a frame gives each piece its own center to position
-      // and spin around. Registered once per texture, reused after that.
-      const frameName = `__shatter_${col}_${row}`;
+      // and spin around. Registered once per texture and grid, reused after.
+      const frameName = `__slice_${cols}x${rows}_${col}_${row}`;
       if (!texture.has(frameName)) {
         texture.add(
           frameName,
@@ -274,30 +274,52 @@ export function playPlayerShatter(
           cellSourceH
         );
       }
-      const piece = scene.add.image(0, 0, textureKey, frameName);
-      piece.setOrigin(0.5, 0.5);
+      const piece = scene.add.image(
+        topLeftX + (col + 0.5) * cellSourceW * scale,
+        topLeftY + (row + 0.5) * cellSourceH * scale,
+        textureKey,
+        frameName
+      );
       piece.setScale(scale);
-      const pieceX = topLeftX + (col + 0.5) * cellSourceW * scale;
-      const pieceY = topLeftY + (row + 0.5) * cellSourceH * scale;
-      piece.setPosition(pieceX, pieceY);
-
-      // Flies outward from the grid center — corner pieces go diagonally,
-      // the middle piece has no natural direction so it gets a random one.
-      const dirX = col - center || Phaser.Math.FloatBetween(-1, 1);
-      const dirY = row - center || Phaser.Math.FloatBetween(-1, 1);
-      const magnitude = Phaser.Math.Between(40, 90);
-
-      scene.tweens.add({
-        targets: piece,
-        x: pieceX + dirX * magnitude,
-        y: pieceY + dirY * magnitude + 30,
-        angle: Phaser.Math.Between(-240, 240),
-        alpha: 0,
-        duration: SHATTER_DURATION_MS,
-        ease: 'Quad.easeOut',
-        onComplete: () => piece.destroy(),
-      });
+      pieces.push({ piece, col, row });
     }
+  }
+  return pieces;
+}
+
+// "Ripped apart" death VFX (user ask, replacing the old single frozen
+// player-death pose): slices whatever frame the player was on at the
+// moment of death into a grid of pieces that fly outward and spin away.
+// The default death (falls, and any hazard without its own entry in
+// DeathEffects) fires this immediately before playDeathExplosion so the
+// fireball reads as consuming the pieces rather than the other way round.
+export function playPlayerShatter(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  textureKey: string,
+  displaySize: number
+): void {
+  const center = (SHATTER_GRID - 1) / 2;
+  for (const { piece, col, row } of slicePlayerFrame(
+    scene, x, y, textureKey, displaySize, SHATTER_GRID, SHATTER_GRID
+  )) {
+    // Flies outward from the grid center — corner pieces go diagonally,
+    // the middle piece has no natural direction so it gets a random one.
+    const dirX = col - center || Phaser.Math.FloatBetween(-1, 1);
+    const dirY = row - center || Phaser.Math.FloatBetween(-1, 1);
+    const magnitude = Phaser.Math.Between(40, 90);
+
+    scene.tweens.add({
+      targets: piece,
+      x: piece.x + dirX * magnitude,
+      y: piece.y + dirY * magnitude + 30,
+      angle: Phaser.Math.Between(-240, 240),
+      alpha: 0,
+      duration: SHATTER_DURATION_MS,
+      ease: 'Quad.easeOut',
+      onComplete: () => piece.destroy(),
+    });
   }
 }
 

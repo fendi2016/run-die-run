@@ -8,13 +8,13 @@ import {
 import {
   attachElectricShield,
   destroyElectricShield,
-  playDeathExplosion,
   playHyperspeedTrail,
-  playPlayerShatter,
   playSlideDust,
   playSlideImpact,
 } from '../systems/Juice';
+import { playDeathEffect } from '../systems/DeathEffects';
 import { playSfx } from '../systems/Sfx';
+import type { ObjectType } from '../../../shared/types';
 import {
   COYOTE_TIME_MS,
   DANCE_FRAME_MS,
@@ -655,8 +655,10 @@ export class Player {
 
   // No completion callback: death used to auto-restart after this VFX
   // finished, but that's now gated on an explicit Retry tap (DeathPanel)
-  // instead, so nothing needs to know when it ends.
-  die(): void {
+  // instead, so nothing needs to know when it ends. `killer` is the hazard
+  // type that got the player (undefined for a fall) — it picks the death
+  // VFX (see DeathEffects).
+  die(killer?: ObjectType): void {
     if (!this.alive) {
       return;
     }
@@ -666,15 +668,11 @@ export class Player {
     this.body.setAllowGravity(false);
     this.sprite.anims.stop();
 
-    // "Ripped apart, then explodes" (user ask, replacing the old single
-    // frozen player-death pose + squash tween): shatter whatever frame the
-    // player was actually on into flying pieces, hide the real sprite
-    // (reset() brings it back visible on retry), then let the fireball
-    // consume the spot. See Juice.playPlayerShatter/playDeathExplosion.
-    playPlayerShatter(this.scene, this.sprite.x, this.sprite.y, this.sprite.texture.key, PLAYER_SIZE);
+    // Hide the real sprite (reset() brings it back visible on retry) and
+    // let the killer-specific effect play out on stand-in copies of the
+    // pose the player was on.
     this.sprite.setVisible(false);
-    playDeathExplosion(this.scene, this.sprite.x, this.sprite.y);
-    this.scene.cameras.main.shake(120, 0.006);
+    playDeathEffect(this.scene, killer, this.sprite.x, this.sprite.y, this.sprite.texture.key, PLAYER_SIZE);
     playSfx(this.scene, 'death');
   }
 
@@ -701,7 +699,7 @@ export class Player {
   // section 6's ~0.3-0.6s death->retry target).
   reset(x: number, y: number, waiting = false): void {
     this.clearEffectSprites();
-    // die() hides the real sprite behind the shatter/explosion VFX — undo
+    // die() hides the real sprite behind the death VFX (DeathEffects) — undo
     // that here so a retry (or the finish-line freeze() dance) shows the
     // player again.
     this.sprite.setVisible(true);
