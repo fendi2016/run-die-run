@@ -20,6 +20,18 @@ export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
 // configuration to one verified run, and the publish step re-checks both
 // before writing anything (spec section 20: "do not let the player verify
 // one configuration and publish another").
+// Static walkable surfaces. Both are top-anchored (their `y` is the top
+// face — see ObjectRegistry.originFor) while everything else is
+// bottom-anchored, so an object standing on a surface shares its exact
+// (x, y). The editor and validatePlacement therefore keep surfaces on
+// their own placement layer: two surfaces in one cell conflict, and so do
+// two non-surfaces, but a spawn/hazard/finish on a ground or platform
+// tile does not. A moving platform is left out on purpose — an object
+// authored on its start cell wouldn't ride along with it.
+export function isSurfaceType(type: ObjectType): boolean {
+  return type === 'ground' || type === 'platform';
+}
+
 export type DraftObject = {
   id: string;
   type: ObjectType;

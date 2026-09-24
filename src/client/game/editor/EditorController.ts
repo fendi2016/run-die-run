@@ -1,4 +1,4 @@
-import type { DraftObject } from '../../../shared/editorApi';
+import { isSurfaceType, type DraftObject } from '../../../shared/editorApi';
 import type { ObjectType } from '../../../shared/types';
 import type { PlaceableObjectType } from './GridSystem';
 
@@ -6,16 +6,16 @@ function generateObjectId(type: ObjectType): string {
   return `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Ground and the object resting on it occupy separate placement slots, so
-// two objects only actually conflict when they share a cell AND are on the
-// same one of those two layers.
+// A surface (ground/platform) and the object resting on it occupy separate
+// placement slots, so two objects only actually conflict when they share a
+// cell AND are on the same one of those two layers (see isSurfaceType).
 function occupiesSameSlot(
   o: DraftObject,
   x: number,
   y: number,
   type: ObjectType | PlaceableObjectType
 ): boolean {
-  return o.x === x && o.y === y && (o.type === 'ground') === (type === 'ground');
+  return o.x === x && o.y === y && isSurfaceType(o.type) === isSurfaceType(type);
 }
 
 // Spawn/finish are singletons: placing a new one replaces the old one
@@ -69,7 +69,7 @@ export class EditorController {
 
   selectAt(x: number, y: number): boolean {
     const found =
-      this.objects.find((o) => o.x === x && o.y === y && o.type !== 'ground') ??
+      this.objects.find((o) => o.x === x && o.y === y && !isSurfaceType(o.type)) ??
       this.objects.find((o) => o.x === x && o.y === y);
     this.selectedId = found?.id;
     return found !== undefined;

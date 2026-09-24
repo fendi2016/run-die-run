@@ -185,7 +185,7 @@ const { curse } = await import('../routes/curse');
 const { runs } = await import('../routes/runs');
 const { leaderboard } = await import('../routes/leaderboard');
 const { currency } = await import('../routes/currency');
-const { createCandidate, markCandidateVerified, getCandidate } =
+const { createCandidate, markCandidateVerified, getCandidate, validatePlacement } =
   await import('../services/VerificationService');
 const { getCurrentLevelVersion } = await import('../services/LevelService');
 const {
@@ -926,6 +926,22 @@ await test('editor preserves supporting ground when placing, replacing, moving a
   editor.placeObject('ground', 390, 480);
   assert.equal(editor.getObjects().length, 3);
   assert.ok(editor.getObjects().some((o: DraftObject) => o.type === 'finish'));
+});
+
+await test('spawn can stand on a platform in the editor and pass validation', async () => {
+  const { EditorController } = await import(
+    new URL('../../client/game/editor/EditorController.ts', import.meta.url).href
+  );
+  const ledge: DraftObject = { id: 'ledge', type: 'platform', x: 90, y: 360 };
+  const editor = new EditorController([ledge, objects[1], objects[2]]);
+  editor.placeObject('spawn', 90, 360);
+  const placed = editor.getObjects();
+  assert.ok(placed.some((o: DraftObject) => o.id === ledge.id), 'platform must survive');
+  assert.ok(placed.some((o: DraftObject) => o.type === 'spawn' && o.x === 90 && o.y === 360));
+  assert.deepEqual(validatePlacement(placed), []);
+  // A hazard beside the spawn is still caught by the buffer.
+  assert.ok(validatePlacement([...placed, { id: 'saw', type: 'saw', x: 150, y: 480 }])
+    .some((e: string) => e.includes('too close to the spawn')));
 });
 
 await test('curse preview contains the latest parent and exactly the objects that publish', async () => {

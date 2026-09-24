@@ -11,6 +11,7 @@ import {
 import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
+  isSurfaceType,
   type DraftObject,
 } from '../../shared/editorApi';
 import type { LevelExtension } from '../../shared/levelExtend';
@@ -224,20 +225,22 @@ export function validatePlacement(objects: DraftObject[]): string[] {
     }
   }
 
-  // Ground is top-anchored (its body extends *below* y) while every other
-  // type is bottom-anchored (its body extends *above* y, sitting on the
-  // surface) — see ObjectRegistry.originFor. A hazard/spawn/finish/platform
-  // resting on its own supporting ground tile therefore shares that tile's
-  // exact (x, y) by design (every seed level does this), so ground is
-  // tracked in a separate bucket from everything else: two grounds sharing
-  // a cell is still a real duplicate, and two non-ground objects sharing a
-  // cell is still a real duplicate, but a ground/non-ground pair is not.
-  const seenGroundPositions = new Map<string, string>();
+  // Surfaces (ground/platform) are top-anchored (their body extends *below*
+  // y) while every other type is bottom-anchored (its body extends *above*
+  // y, sitting on the surface) — see ObjectRegistry.originFor. A
+  // hazard/spawn/finish resting on its supporting ground or platform tile
+  // therefore shares that tile's exact (x, y) by design (every seed level
+  // does this on ground), so surfaces are tracked in a separate bucket from
+  // everything else: two surfaces sharing a cell is still a real duplicate,
+  // and two non-surface objects sharing a cell is still a real duplicate,
+  // but a surface/non-surface pair is not. See isSurfaceType.
+  const seenSurfacePositions = new Map<string, string>();
   const seenOtherPositions = new Map<string, string>();
   for (const object of objects) {
     const key = `${object.x},${object.y}`;
-    const bucket =
-      object.type === 'ground' ? seenGroundPositions : seenOtherPositions;
+    const bucket = isSurfaceType(object.type)
+      ? seenSurfacePositions
+      : seenOtherPositions;
     const existingId = bucket.get(key);
     if (existingId) {
       errors.push(
@@ -248,11 +251,14 @@ export function validatePlacement(objects: DraftObject[]): string[] {
     }
   }
 
+  // The buffer keeps hazards and the like from being right on top of the
+  // player at spawn — static surfaces are exempt, since the spawn has to
+  // stand on one (and a platform beside or under it is harmless).
   const spawn = spawns[0];
   if (spawn) {
     const bufferPx = EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE;
     for (const object of objects) {
-      if (object.id === spawn.id || object.type === 'ground') {
+      if (object.id === spawn.id || isSurfaceType(object.type)) {
         continue;
       }
       if (Math.abs(object.x - spawn.x) < bufferPx) {
