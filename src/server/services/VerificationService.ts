@@ -310,36 +310,9 @@ export function validateCurseObject(
     errors.push('Your object is outside the level boundaries.');
   }
 
-  // Same layer rule as validatePlacement: a curse object can sit on a
-  // ground or platform tile, it just can't share a cell with another object
-  // on its own layer.
-  const collides = baseObjects.some(
-    (o) =>
-      isSurfaceType(o.type) === isSurfaceType(newObject.type) &&
-      o.x === newObject.x &&
-      o.y === newObject.y
-  );
-  if (collides) {
-    errors.push('Something is already there — try another spot.');
-  }
-
-  const spawn = baseObjects.find((o) => o.type === 'spawn');
-  if (spawn) {
-    const bufferPx = EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE;
-    if (Math.abs(newObject.x - spawn.x) < bufferPx) {
-      errors.push('Your object is too close to the spawn point.');
-    }
-  }
-
-  const finish = baseObjects.find((o) => o.type === 'finish');
-  if (
-    finish &&
-    HAZARD_TYPES.has(newObject.type) &&
-    newObject.x === finish.x &&
-    newObject.y === finish.y
-  ) {
-    errors.push('That would block the finish portal.');
-  }
+  // Deliberately no occupied-cell, spawn-distance or finish-blocking
+  // checks: a curse can go anywhere on the map. The mandatory verified run
+  // (Prove It) is what guarantees the cursed level is still beatable.
 
   return errors;
 }

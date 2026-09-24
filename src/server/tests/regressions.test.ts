@@ -441,7 +441,7 @@ await test('curse propose -> verify -> publish appends a new version with attrib
   assert.equal(await getCandidate('bob'), undefined);
 });
 
-await test('curse propose rejects a disallowed type and a hazard that blocks the finish', async () => {
+await test('curse propose rejects a disallowed type', async () => {
   await getCurrentLevelVersion('meat-grinder');
   const { body: badType } = await proposeCurse('alice', 'meat-grinder', {
     id: 'x',
@@ -450,17 +450,6 @@ await test('curse propose rejects a disallowed type and a hazard that blocks the
     y: 480,
   });
   assert.equal(badType.status, 'error');
-
-  const finishLevel = await getCurrentLevelVersion('meat-grinder');
-  const finish = finishLevel?.objects.find((o) => o.type === 'finish');
-  assert.ok(finish);
-  const { body: onFinish } = await proposeCurse('alice', 'meat-grinder', {
-    id: 'y',
-    type: 'candle',
-    x: finish.x,
-    y: finish.y,
-  });
-  assert.equal(onFinish.status, 'error');
   assert.equal(await getCandidate('alice'), undefined);
 });
 
@@ -944,14 +933,19 @@ await test('spawn can stand on a platform in the editor and pass validation', as
     .some((e: string) => e.includes('too close to the spawn')));
 });
 
-await test('a curse can be placed on a platform but not on another hazard', async () => {
+await test('a curse can be placed anywhere on the map', async () => {
   const base: DraftObject[] = [...objects, { id: 'ledge', type: 'platform', x: 450, y: 360 },
     { id: 'blade', type: 'saw', x: 510, y: 480 }];
-  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x: 450, y: 360 }), []);
-  assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: 510, y: 480 })
-    .includes('Something is already there — try another spot.'));
-  assert.ok(validateCurseObject(base, { id: 'c', type: 'platform', x: 450, y: 360 })
-    .includes('Something is already there — try another spot.'));
+  for (const spot of [
+    { x: 450, y: 360 }, // on a platform
+    { x: 510, y: 480 }, // on another hazard
+    { x: 90, y: 420 }, // on the spawn
+    { x: 330, y: 480 }, // on the finish
+  ]) {
+    assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', ...spot }), []);
+  }
+  assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: -600, y: 480 })
+    .includes('Your object is outside the level boundaries.'));
 });
 
 await test('curse preview contains the latest parent and exactly the objects that publish', async () => {

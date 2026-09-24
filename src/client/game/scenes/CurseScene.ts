@@ -5,7 +5,6 @@ import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
   CURSE_CATEGORY_TYPES,
   isProposeCurseResponse,
-  isSurfaceType,
   type CurseCategory,
   type DraftObject,
   type ProposeCurseRequest,
@@ -247,13 +246,14 @@ export class CurseScene extends Scene {
     this.updateClearEnabled();
     this.redrawPending();
     this.updateProveEnabled();
-    this.toolbar.showMessage('Tap an empty spot to place your curse.');
+    this.toolbar.showMessage('Tap anywhere to place your curse.');
   }
 
   // Keep tap placement and drag repositioning in sync with the toolbar.
   private setPendingAt(x: number, y: number): void {
-    if (!this.selectedType) return;
-    this.pending = { id: 'pending', type: this.selectedType, x, y };
+    const type = this.selectedType ?? this.pending?.type;
+    if (!type) return;
+    this.pending = { id: 'pending', type, x, y };
     this.updateClearEnabled();
     this.redrawPending();
     this.updateProveEnabled();
@@ -290,25 +290,18 @@ export class CurseScene extends Scene {
     const row = normalizeBoardRow(tileXY.y);
     const world = this.board.tileXYToWorldXY(tileXY.x, row);
 
-    // Checked before the "choose a type first" gate below — removing a
-    // platform is its own action, independent of what (if anything) the
-    // player has picked to place, same as Extend Level needs no selected
-    // type either.
-    const removable = this.removablePlatformAt(world.x, world.y);
-    if (removable) {
-      this.toggleRemoveTarget(removable);
-      return;
-    }
-
+    // With a curse type picked, a tap always places it — anywhere, even
+    // on top of an existing platform or object; Prove It is what decides
+    // whether the result is allowed. With no type picked (e.g. after the
+    // Remove button, see showRemoveHint), tapping a platform marks it for
+    // removal instead.
     if (!this.selectedType) {
+      const removable = this.removablePlatformAt(world.x, world.y);
+      if (removable) {
+        this.toggleRemoveTarget(removable);
+        return;
+      }
       this.toolbar.showMessage('Choose a curse type first.');
-      return;
-    }
-
-    if (this.isOccupiedByBase(world.x, world.y, this.selectedType)) {
-      this.toolbar.showMessage(
-        'Something is already there — try another spot.'
-      );
       return;
     }
 
@@ -320,30 +313,6 @@ export class CurseScene extends Scene {
   private removablePlatformAt(x: number, y: number): LevelObject | undefined {
     return (this.baseLevel?.objects ?? []).find(
       (o) => REMOVABLE_PLATFORM_TYPES.has(o.type) && o.x === x && o.y === y
-    );
-  }
-
-  // Marking a platform for removal frees up its cell — the player can then
-  // place their curse object right where it was, which is often the whole
-  // point (open up a gap, then put a hazard in it) — so this cell is
-  // excluded from `some` below whenever it's the current removal target.
-  // Only an object on the same placement layer blocks the cell (see
-  // isSurfaceType): a hazard can sit on a ground or platform tile.
-  private isOccupiedByBase(x: number, y: number, type: ObjectType): boolean {
-    if (
-      (this.baseLevel?.objects ?? []).some(
-        (o) =>
-          o.id !== this.pendingRemoveId &&
-          isSurfaceType(o.type) === isSurfaceType(type) &&
-          o.x === x &&
-          o.y === y
-      )
-    ) {
-      return true;
-    }
-    const extension = this.currentExtension();
-    return (
-      extension !== undefined && extension.finish.x === x && extension.finish.y === y
     );
   }
 
@@ -368,11 +337,14 @@ export class CurseScene extends Scene {
 
   // The Remove button (only visible under the Platform category, next to
   // its type tiles) doesn't itself know which platform to remove — that's
-  // picked by tapping one directly (toggleRemoveTarget, which already
-  // works regardless of category/type selection) — so this only points the
-  // player at that gesture rather than performing a removal on its own.
+  // picked by tapping one. A tap with a curse type picked places the curse
+  // instead (see onBoardTileTap), so this drops the type selection (any
+  // curse already placed stays put) to make the next platform tap a
+  // removal.
   private showRemoveHint(): void {
     if (this.proposalRequest) return;
+    this.selectedType = undefined;
+    this.toolbar.setActiveType(undefined);
     this.toolbar.showMessage(
       'Tap an existing platform on the board to mark it for removal.'
     );
@@ -382,8 +354,7 @@ export class CurseScene extends Scene {
     const ready =
       !this.proposalRequest &&
       this.baseLevel !== undefined &&
-      this.pending !== undefined &&
-      !this.isOccupiedByBase(this.pending.x, this.pending.y, this.pending.type);
+      this.pending !== undefined;
     this.toolbar.setProveEnabled(ready);
   }
 
@@ -602,7 +573,7 @@ export class CurseScene extends Scene {
 
   private onPendingDragEnd(): void {
     this.panZoom.setSuspended(false);
-    if (this.proposalRequest || !this.selectedType || !this.pendingImage)
+    if (this.proposalRequest || !this.pending || !this.pendingImage)
       return;
 
     const droppedTile = this.board.worldXYToTileXY(
@@ -612,16 +583,6 @@ export class CurseScene extends Scene {
     const col = clampBoardColumn(droppedTile.x);
     const row = normalizeBoardRow(droppedTile.y);
     const snapped = this.board.tileXYToWorldXY(col, row);
-
-    if (this.isOccupiedByBase(snapped.x, snapped.y, this.selectedType)) {
-      this.toolbar.showMessage(
-        'Something is already there — try another spot.'
-      );
-      // Snap the visual back to the last confirmed position rather than
-      // leaving it hovering wherever the drop was rejected.
-      this.redrawPending();
-      return;
-    }
 
     this.toolbar.hideMessage();
     this.growExtensionToReach(snapped.x);
