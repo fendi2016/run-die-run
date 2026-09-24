@@ -8,11 +8,18 @@ import { labelFor } from '../../shared/objectLabels';
 // the Retry button when a hazard is to blame. Follow-the-subreddit lives
 // on the main menus (splash.html's card and game.html's #game-menu) only,
 // not here — dying isn't the moment to ask.
+// Onboarding: the first few deaths of a session carry a one-line tip. Kept
+// at module scope because GameScene builds a fresh DeathPanel per create().
+const TIP_DEATHS = 3;
+let sessionDeaths = 0;
+
 export class DeathPanel {
   private readonly root = requireElement('death-panel');
   private readonly attributionEl = requireElement('death-panel-attribution');
   private readonly killsEl = requireElement('death-panel-kills');
+  private readonly tipEl = requireElement('death-panel-tip');
   private readonly retryBtn = requireButton('death-panel-retry-btn');
+  private readonly shareBtn = requireButton('death-panel-share');
   private token = 0;
 
   // `addedBy`/`type` absent for a fall-death or a seed-level trap — no
@@ -28,6 +35,12 @@ export class DeathPanel {
       this.attributionEl.classList.add('hidden');
     }
     this.killsEl.textContent = '';
+    sessionDeaths++;
+    this.tipEl.textContent =
+      sessionDeaths <= TIP_DEATHS
+        ? 'Tip: tap to jump, hold to jump higher.'
+        : '';
+    this.tipEl.classList.toggle('hidden', sessionDeaths > TIP_DEATHS);
     this.root.classList.remove('hidden');
     return shownToken;
   }
@@ -44,8 +57,15 @@ export class DeathPanel {
     this.retryBtn.onclick = handler;
   }
 
+  // Absent for preview/test runs — nothing public to share yet.
+  setShareHandler(handler: (() => void) | undefined): void {
+    this.shareBtn.classList.toggle('hidden', !handler);
+    this.shareBtn.onclick = handler ?? null;
+  }
+
   hide(): void {
     this.token++;
+    this.shareBtn.onclick = null;
     this.root.classList.add('hidden');
   }
 }

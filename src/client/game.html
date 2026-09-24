@@ -27,14 +27,17 @@
       <div id="tap-to-start" class="hidden" aria-live="polite">
         <img id="tap-to-start-logo" src="/assets/ui/tap-to-start-logo.webp" alt="" />
         <div id="tap-to-start-label">Tap to Start</div>
+        <div id="tap-to-start-hint">Tap to jump · hold to jump higher</div>
       </div>
       <div id="death-panel" class="hidden" aria-live="polite">
         <div id="death-panel-attribution" class="hidden"></div>
         <div id="death-panel-kills"></div>
+        <div id="death-panel-tip" class="hidden"></div>
         <div id="death-panel-actions">
           <button type="button" id="death-panel-retry-btn" class="editor-btn editor-btn-primary">
             Retry
           </button>
+          <button type="button" id="death-panel-share" class="editor-btn hidden">Share</button>
           <button type="button" id="death-panel-browse" class="editor-btn">Browse</button>
           <button type="button" id="death-panel-menu" class="editor-btn">Exit to Menu</button>
         </div>
@@ -60,6 +63,7 @@
               Curse This Level?
             </button>
             <button type="button" id="run-result-next" class="editor-btn editor-btn-primary hidden">Next Level</button>
+            <button type="button" id="run-result-share" class="editor-btn hidden">Share Your Clear</button>
           </div>
           <div id="run-result-links">
             <button type="button" id="run-result-browse" class="run-result-link">Browse</button>

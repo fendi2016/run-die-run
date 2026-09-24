@@ -4,14 +4,20 @@ import {
   connectRealtime,
   context,
   disconnectRealtime,
+  showShareSheet,
 } from '@devvit/web/client';
+import type { T3 } from '@devvit/web/shared';
 import {
   DEV_SUBREDDIT,
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
   SEED_AUTHOR,
 } from '../../../shared/constants';
-import { isDiscoveryResponse } from '../../../shared/discoveryApi';
+import {
+  isDiscoveryResponse,
+  isLevelStats,
+  type LevelStats,
+} from '../../../shared/discoveryApi';
 import { withTimeout } from '../../net';
 import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
@@ -33,6 +39,7 @@ import {
 } from '../../../shared/runsApi';
 import {
   isLevelVersion,
+  type LevelObject,
   type LevelVersion,
   type ObjectType,
 } from '../../../shared/types';
@@ -43,6 +50,7 @@ import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
+import { clearRateText } from '../../ui/levelStatsText';
 import { FINISH_RESTART_DELAY_MS, PLAYER_SCREEN_ANCHOR } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
@@ -87,6 +95,12 @@ type GameSceneData = {
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
 // the server as data (LevelVersion) and built through the ObjectRegistry /
 // LevelLoader, instead of the Phase 1/2 hardcoded ground/hazard layout.
+// A local guard rather than @devvit/web/shared's isT3, so the client
+// bundle only takes a type from that package, not its runtime.
+function isPostId(id: string): id is T3 {
+  return id.startsWith('t3_');
+}
+
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
@@ -128,6 +142,9 @@ export class GameScene extends Scene {
   // buffer from `cleanup()`, never from `onMessage` directly.
   private pendingVersionPublished: VersionPublishedEvent | undefined;
   private pendingWorldRecord: NewWorldRecordEvent | undefined;
+  // For the share sheet's copy ("... after 23 deaths") and target post.
+  private deathsThisLevel = 0;
+  private levelStats: LevelStats | undefined;
 
   constructor() {
     super('GameScene');
@@ -157,6 +174,8 @@ export class GameScene extends Scene {
     this.finishSprite = undefined;
     this.pendingVersionPublished = undefined;
     this.pendingWorldRecord = undefined;
+    this.deathsThisLevel = 0;
+    this.levelStats = undefined;
   }
 
   create(): void {
@@ -374,6 +393,7 @@ export class GameScene extends Scene {
     this.levelRequest = undefined;
     this.levelVersion = levelVersion;
     this.subscribeRealtime(levelVersion.levelId);
+    void this.loadLevelStats(levelVersion.levelId);
     this.startRun(levelVersion);
   }
 
@@ -504,6 +524,7 @@ export class GameScene extends Scene {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
       const levelVersion = this.levelVersion;
+      this.resultOverlay.setShareHandler(() => this.share(this.clearShareText()));
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show({ levelId: levelVersion.levelId })
       );
@@ -726,12 +747,77 @@ export class GameScene extends Scene {
       return;
     }
     this.runEnded = true;
+    this.deathsThisLevel++;
     if (objectId) {
       this.reportHazardDeath(objectId);
     } else {
       this.deathPanel.show();
     }
+    const killer = objectId
+      ? this.levelVersion?.objects.find((o) => o.id === objectId)
+      : undefined;
+    const attributedKiller = killer?.addedBy === SEED_AUTHOR ? undefined : killer;
+    this.deathPanel.setShareHandler(
+      this.previewLevel
+        ? undefined
+        : () => this.share(this.deathShareText(attributedKiller))
+    );
     this.player.die();
+  }
+
+  // Title + canonical post for sharing. Best-effort: without it the share
+  // sheet still works, falling back to the level id and the current post.
+  private async loadLevelStats(levelId: string): Promise<void> {
+    // Not tied to `this.attempt`: a quick death/restart aborts that, and
+    // the stats should still arrive. The levelId check below drops a
+    // response that lands after the scene moved to another level.
+    try {
+      const response = await fetch(
+        `/api/discovery/stats/${encodeURIComponent(levelId)}`,
+        { signal: withTimeout(new AbortController().signal, 8000) }
+      );
+      const body: unknown = await response.json();
+      if (response.ok && isLevelStats(body) && this.levelVersion?.levelId === levelId) {
+        this.levelStats = body;
+      }
+    } catch {
+      // Sharing falls back to the level id — nothing to surface.
+    }
+  }
+
+  private levelName(): string {
+    return (
+      this.levelStats?.title ??
+      this.levelVersion?.levelId.replaceAll('-', ' ') ??
+      'this level'
+    );
+  }
+
+  private deathShareText(killer: LevelObject | undefined): string {
+    const n = this.deathsThisLevel;
+    const cause = killer
+      ? `u/${killer.addedBy}'s ${labelFor(killer.type)} got me on "${this.levelName()}"`
+      : `"${this.levelName()}" got me`;
+    return `${cause}. ${n} ${n === 1 ? 'death' : 'deaths'} and counting 💀 Think you can do better?`;
+  }
+
+  private clearShareText(): string {
+    const n = this.deathsThisLevel;
+    const rate = this.levelStats ? ` (${clearRateText(this.levelStats)})` : '';
+    const effort =
+      n === 0 ? 'on my first try' : `after ${n} ${n === 1 ? 'death' : 'deaths'}`;
+    return `I beat "${this.levelName()}"${rate} ${effort}. Your turn 😈`;
+  }
+
+  // Native share sheet on mobile, clipboard on desktop. Targets the level's
+  // own post when it has one, else the post this game is running in.
+  private share(text: string): void {
+    const postId = this.levelStats?.postId;
+    showShareSheet({
+      title: `CURSED: ${this.levelName()}`,
+      text,
+      post: postId !== undefined && isPostId(postId) ? postId : undefined,
+    }).catch(() => undefined);
   }
 
   // Attribution (spec section 23) is shown instantly from data already on

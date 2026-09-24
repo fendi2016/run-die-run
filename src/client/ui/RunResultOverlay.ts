@@ -16,6 +16,7 @@ export class RunResultOverlay {
   private readonly currencyEl = requireElement('run-result-currency');
   private readonly curseBtn = requireButton('run-result-curse-btn');
   private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
+  private readonly shareBtn = requireButton('run-result-share');
 
   private readonly saveStatus = requireElement('run-result-save-status');
   private readonly saveRetry = requireButton('run-result-save-retry');
@@ -45,6 +46,8 @@ export class RunResultOverlay {
     this.leaderboardBtn.classList.add('hidden');
     this.curseBtn.onclick = null;
     this.leaderboardBtn.onclick = null;
+    this.shareBtn.classList.add('hidden');
+    this.shareBtn.onclick = null;
     this.root.classList.remove('hidden');
   }
 
@@ -62,6 +65,11 @@ export class RunResultOverlay {
     this.curseBtn.onclick = handler;
   }
 
+  setShareHandler(handler: () => void): void {
+    this.shareBtn.classList.remove('hidden');
+    this.shareBtn.onclick = handler;
+  }
+
   setLeaderboardHandler(handler: () => void): void {
     this.leaderboardBtn.classList.remove('hidden');
     this.leaderboardBtn.onclick = handler;
@@ -75,6 +83,7 @@ export class RunResultOverlay {
   hide(): void {
     this.curseBtn.onclick = null;
     this.leaderboardBtn.onclick = null;
+    this.shareBtn.onclick = null;
     this.saveRetry.onclick = null;
     this.nextButton.onclick = null;
     this.root.classList.add('hidden');
