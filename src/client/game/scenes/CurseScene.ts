@@ -5,6 +5,7 @@ import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
   CURSE_CATEGORY_TYPES,
   isProposeCurseResponse,
+  isSurfaceType,
   type CurseCategory,
   type DraftObject,
   type ProposeCurseRequest,
@@ -304,7 +305,7 @@ export class CurseScene extends Scene {
       return;
     }
 
-    if (this.isOccupiedByBase(world.x, world.y)) {
+    if (this.isOccupiedByBase(world.x, world.y, this.selectedType)) {
       this.toolbar.showMessage(
         'Something is already there — try another spot.'
       );
@@ -326,11 +327,16 @@ export class CurseScene extends Scene {
   // place their curse object right where it was, which is often the whole
   // point (open up a gap, then put a hazard in it) — so this cell is
   // excluded from `some` below whenever it's the current removal target.
-  private isOccupiedByBase(x: number, y: number): boolean {
+  // Only an object on the same placement layer blocks the cell (see
+  // isSurfaceType): a hazard can sit on a ground or platform tile.
+  private isOccupiedByBase(x: number, y: number, type: ObjectType): boolean {
     if (
       (this.baseLevel?.objects ?? []).some(
         (o) =>
-          o.id !== this.pendingRemoveId && o.type !== 'ground' && o.x === x && o.y === y
+          o.id !== this.pendingRemoveId &&
+          isSurfaceType(o.type) === isSurfaceType(type) &&
+          o.x === x &&
+          o.y === y
       )
     ) {
       return true;
@@ -377,7 +383,7 @@ export class CurseScene extends Scene {
       !this.proposalRequest &&
       this.baseLevel !== undefined &&
       this.pending !== undefined &&
-      !this.isOccupiedByBase(this.pending.x, this.pending.y);
+      !this.isOccupiedByBase(this.pending.x, this.pending.y, this.pending.type);
     this.toolbar.setProveEnabled(ready);
   }
 
@@ -607,7 +613,7 @@ export class CurseScene extends Scene {
     const row = normalizeBoardRow(droppedTile.y);
     const snapped = this.board.tileXYToWorldXY(col, row);
 
-    if (this.isOccupiedByBase(snapped.x, snapped.y)) {
+    if (this.isOccupiedByBase(snapped.x, snapped.y, this.selectedType)) {
       this.toolbar.showMessage(
         'Something is already there — try another spot.'
       );

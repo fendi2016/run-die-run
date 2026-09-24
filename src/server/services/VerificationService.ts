@@ -310,8 +310,14 @@ export function validateCurseObject(
     errors.push('Your object is outside the level boundaries.');
   }
 
+  // Same layer rule as validatePlacement: a curse object can sit on a
+  // ground or platform tile, it just can't share a cell with another object
+  // on its own layer.
   const collides = baseObjects.some(
-    (o) => o.type !== 'ground' && o.x === newObject.x && o.y === newObject.y
+    (o) =>
+      isSurfaceType(o.type) === isSurfaceType(newObject.type) &&
+      o.x === newObject.x &&
+      o.y === newObject.y
   );
   if (collides) {
     errors.push('Something is already there — try another spot.');

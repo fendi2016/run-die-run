@@ -185,7 +185,7 @@ const { curse } = await import('../routes/curse');
 const { runs } = await import('../routes/runs');
 const { leaderboard } = await import('../routes/leaderboard');
 const { currency } = await import('../routes/currency');
-const { createCandidate, markCandidateVerified, getCandidate, validatePlacement } =
+const { createCandidate, markCandidateVerified, getCandidate, validatePlacement, validateCurseObject } =
   await import('../services/VerificationService');
 const { getCurrentLevelVersion } = await import('../services/LevelService');
 const {
@@ -942,6 +942,16 @@ await test('spawn can stand on a platform in the editor and pass validation', as
   // A hazard beside the spawn is still caught by the buffer.
   assert.ok(validatePlacement([...placed, { id: 'saw', type: 'saw', x: 150, y: 480 }])
     .some((e: string) => e.includes('too close to the spawn')));
+});
+
+await test('a curse can be placed on a platform but not on another hazard', async () => {
+  const base: DraftObject[] = [...objects, { id: 'ledge', type: 'platform', x: 450, y: 360 },
+    { id: 'blade', type: 'saw', x: 510, y: 480 }];
+  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x: 450, y: 360 }), []);
+  assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: 510, y: 480 })
+    .includes('Something is already there — try another spot.'));
+  assert.ok(validateCurseObject(base, { id: 'c', type: 'platform', x: 450, y: 360 })
+    .includes('Something is already there — try another spot.'));
 });
 
 await test('curse preview contains the latest parent and exactly the objects that publish', async () => {
