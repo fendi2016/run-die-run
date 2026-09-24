@@ -205,15 +205,30 @@ export function playPlayerShatter(
   const topLeftX = x - displaySize / 2;
   const topLeftY = y - displaySize;
   const center = (SHATTER_GRID - 1) / 2;
+  const texture = scene.textures.get(textureKey);
 
   for (let row = 0; row < SHATTER_GRID; row++) {
     for (let col = 0; col < SHATTER_GRID; col++) {
-      const piece = scene.add.image(0, 0, textureKey);
-      piece.setOrigin(0, 0);
-      piece.setCrop(col * cellSourceW, row * cellSourceH, cellSourceW, cellSourceH);
+      // A real sub-frame per cell rather than setCrop: a cropped image still
+      // renders at its crop offset and rotates about the full image's
+      // origin, whereas a frame gives each piece its own center to position
+      // and spin around. Registered once per texture, reused after that.
+      const frameName = `__shatter_${col}_${row}`;
+      if (!texture.has(frameName)) {
+        texture.add(
+          frameName,
+          frame.sourceIndex,
+          frame.cutX + col * cellSourceW,
+          frame.cutY + row * cellSourceH,
+          cellSourceW,
+          cellSourceH
+        );
+      }
+      const piece = scene.add.image(0, 0, textureKey, frameName);
+      piece.setOrigin(0.5, 0.5);
       piece.setScale(scale);
-      const pieceX = topLeftX + col * cellSourceW * scale;
-      const pieceY = topLeftY + row * cellSourceH * scale;
+      const pieceX = topLeftX + (col + 0.5) * cellSourceW * scale;
+      const pieceY = topLeftY + (row + 0.5) * cellSourceH * scale;
       piece.setPosition(pieceX, pieceY);
 
       // Flies outward from the grid center — corner pieces go diagonally,

@@ -44,7 +44,9 @@ userStats.get('/me', async (c) => {
     username,
     currencyBalance: Number(currencyBalance ?? 0),
     clearStreak,
-    totalClears: Number(totalClears ?? 0),
+    // totalClears only started counting recently, while clearStreak is backed
+    // by older data — every streak clear is also a clear, so floor it there.
+    totalClears: Math.max(Number(totalClears ?? 0), clearStreak),
     levelsCreated,
     contributionKills: Number(contributionKills ?? 0),
   });
