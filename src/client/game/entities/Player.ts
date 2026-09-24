@@ -281,11 +281,16 @@ export class Player {
   private alive = true;
   private msSinceGrounded = Number.POSITIVE_INFINITY;
   private msSinceJumpPressed = Number.POSITIVE_INFINITY;
-  // Slide: `lastTapAtMs` detects a double-tap from JUMP_DOWN_EVENT timing;
-  // `slidePending` means a double-tap happened mid-air (slide on landing);
-  // `slideRemainingMs` > 0 while actually sliding.
-  private lastTapAtMs = Number.NEGATIVE_INFINITY;
-  private slidePending = false;
+  // Double-tap: a tap on the ground starts `tapWaitMs` (ms since that tap,
+  // null when not waiting). A second tap inside DOUBLE_TAP_MS slides;
+  // otherwise the jump fires when the wait runs out. `tapHeldMs` records a
+  // release during the wait (how long the tap was held), and
+  // `releaseCutInMs` replays that release the same time after lift-off, so
+  // the arc is exactly what the tap would have given without the wait.
+  // `slideRemainingMs` > 0 while sliding.
+  private tapWaitMs: number | null = null;
+  private tapHeldMs: number | null = null;
+  private releaseCutInMs: number | null = null;
   private slideRemainingMs = 0;
   private slideDustMs = 0;
 
@@ -422,16 +427,43 @@ export class Player {
     this.updateSlide(deltaMs);
     this.updateAnimation();
 
+    if (this.releaseCutInMs !== null) {
+      this.releaseCutInMs -= deltaMs;
+      if (this.releaseCutInMs <= 0) {
+        this.releaseCutInMs = null;
+        this.cutJump();
+      }
+    }
+
+    if (this.tapWaitMs !== null) {
+      this.tapWaitMs += deltaMs;
+      if (this.tapWaitMs >= DOUBLE_TAP_MS) {
+        // No second tap: it was a jump. The tap happened on the ground, so
+        // coyote time counts from then, not from now.
+        const tapWasGrounded =
+          this.msSinceGrounded <= COYOTE_TIME_MS + this.tapWaitMs;
+        this.tapWaitMs = null;
+        if (tapWasGrounded) {
+          this.jump();
+          this.releaseCutInMs = this.tapHeldMs;
+        }
+      }
+      return;
+    }
+
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
-    if (hasBufferedJump && canGroundJump) {
-      // Tapping mid-slide jumps straight out of it.
-      this.endSlide();
-      this.sprite.setVelocityY(-JUMP_VELOCITY);
-      this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-      this.msSinceGrounded = Number.POSITIVE_INFINITY;
-      playSfx(this.scene, 'jump');
-    }
+    if (hasBufferedJump && canGroundJump) this.jump();
+  }
+
+  private jump(): void {
+    // Tapping mid-slide jumps straight out of it.
+    this.endSlide();
+    this.releaseCutInMs = null;
+    this.sprite.setVelocityY(-JUMP_VELOCITY);
+    this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
+    this.msSinceGrounded = Number.POSITIVE_INFINITY;
+    playSfx(this.scene, 'jump');
   }
 
   private get isSliding(): boolean {
@@ -449,23 +481,7 @@ export class Player {
     this.body.setOffset((frameWidth - width) / 2, PLAYER_FRAME_SIZE * (1 - fraction));
   }
 
-  // Second tap of a double-tap. On the ground: slide now. Mid-air (the
-  // first tap's jump already fired): slide as soon as the player lands.
-  // Upward velocity counts as mid-air even while physics hasn't stepped
-  // the player off the ground yet (blocked.down still reads true).
-  // Mid-air the jump/fall poses stay up until landing — the slide poses are
-  // ground poses, and held in the air they read as running on air.
-  private requestSlide(): void {
-    this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-    if (this.body.blocked.down && this.body.velocity.y >= 0) {
-      this.startSlide();
-      return;
-    }
-    this.slidePending = true;
-  }
-
   private startSlide(): void {
-    this.slidePending = false;
     this.slideRemainingMs = SLIDE_DURATION_MS;
     this.slideDustMs = SLIDE_DUST_INTERVAL_MS;
     this.setHitboxHeight(SLIDE_HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
@@ -480,13 +496,11 @@ export class Player {
 
   private endSlide(): void {
     const wasSliding = this.isSliding;
-    this.slidePending = false;
     this.slideRemainingMs = 0;
     if (wasSliding) this.setHitboxHeight(HITBOX_HEIGHT);
   }
 
   private updateSlide(deltaMs: number): void {
-    if (this.slidePending && this.body.blocked.down) this.startSlide();
     if (!this.isSliding) return;
     // Sliding off a ledge ends it — a crouched hitbox mid-fall would only
     // make hazards in the air easier to dodge.
@@ -701,7 +715,9 @@ export class Player {
     this.body.setAllowGravity(true);
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-    this.lastTapAtMs = Number.NEGATIVE_INFINITY;
+    this.tapWaitMs = null;
+    this.tapHeldMs = null;
+    this.releaseCutInMs = null;
     this.endSlide();
     this.alive = true;
     this.waitingToStart = waiting;
@@ -745,6 +761,7 @@ export class Player {
 
   clearBufferedInput(): void {
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
+    this.tapWaitMs = null;
   }
 
   private onJumpPressed(): void {
@@ -766,21 +783,35 @@ export class Player {
       this.sprite.play(RUN_ANIM_KEY);
       return;
     }
-    const now = this.scene.time.now;
-    if (now - this.lastTapAtMs <= DOUBLE_TAP_MS) {
-      // Second tap of a double-tap: slide instead of a second jump. Reset
-      // so a triple-tap doesn't read as two double-taps.
-      this.lastTapAtMs = Number.NEGATIVE_INFINITY;
-      this.requestSlide();
+    if (this.tapWaitMs !== null) {
+      // Second tap inside the window: slide instead of jumping.
+      this.tapWaitMs = null;
+      if (this.body.blocked.down) this.startSlide();
       return;
     }
-    this.lastTapAtMs = now;
+    // Only a tap on the ground (not mid-slide) can start a double-tap.
+    // Mid-slide it jumps out right away; in the air it buffers a jump for
+    // landing, both exactly as before.
+    if (this.body.blocked.down && !this.isSliding) {
+      this.tapWaitMs = 0;
+      this.tapHeldMs = null;
+      return;
+    }
     this.msSinceJumpPressed = 0;
   }
 
 
   private onJumpReleased(): void {
     if (!this.scene.sys.isActive() || !this.alive) return;
+    if (this.tapWaitMs !== null) {
+      this.tapHeldMs = this.tapWaitMs;
+      return;
+    }
+    this.cutJump();
+  }
+
+  // Hold-to-jump-higher: letting go while still rising cuts the jump short.
+  private cutJump(): void {
     if (this.body.velocity.y < 0) {
       this.sprite.setVelocityY(this.body.velocity.y * JUMP_RELEASE_MULTIPLIER);
     }

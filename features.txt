@@ -1,1 +1,5 @@
-add 
+add different death animations for different enemies
+music is playing in build mode
+should play go to level of the day or should it list level 
+of the day and then also list levels created by users? 
+what does honk do and whats the easiest path forward?

@@ -13,11 +13,12 @@ export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released e
 export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
 
-// Slide (double-tap). Jumping is unchanged — the first tap still jumps —
-// so a double-tap made mid-air slides as soon as the player lands. The
-// hitbox shrinks to SLIDE_HITBOX_HEIGHT of the frame so hazards floating
-// at head height pass overhead.
-export const DOUBLE_TAP_MS = 280;
+// Slide (double-tap, on the ground only). A tap on the ground waits
+// DOUBLE_TAP_MS for a second tap before jumping, so a double-tap slides
+// straight from the run and never jumps first. The hitbox shrinks to
+// SLIDE_HITBOX_HEIGHT of the frame so hazards floating at head height pass
+// overhead.
+export const DOUBLE_TAP_MS = 180;
 export const SLIDE_DURATION_MS = 700;
 export const SLIDE_HITBOX_HEIGHT = 0.4;
 export const PLAYER_SIZE = 80;
