@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { createHubPost } from '../core/post';
+import { postLevelOfTheDay } from '../services/DailyService';
 import { reseedBuiltInLevels } from '../services/LevelService';
 
 export const menu = new Hono();
@@ -40,6 +41,24 @@ menu.post('/post-create', async (c) => {
       {
         showToast: 'Failed to create post',
       },
+      400
+    );
+  }
+});
+
+// Same as the daily cron, on demand (launch day, or a missed run). Always
+// posts, even if today's already went out.
+menu.post('/daily-level', async (c) => {
+  try {
+    const result = await postLevelOfTheDay(true);
+    if (result.status === 'skipped') {
+      return c.json<UiResponse>({ showToast: result.reason }, 200);
+    }
+    return c.json<UiResponse>({ navigateTo: result.url }, 200);
+  } catch (error) {
+    console.error(`Error posting Level of the Day: ${error}`);
+    return c.json<UiResponse>(
+      { showToast: 'Failed to post Level of the Day' },
       400
     );
   }

@@ -10,6 +10,7 @@ import { levels } from './routes/levels';
 import { menu } from './routes/menu';
 import { publish } from './routes/publish';
 import { runs } from './routes/runs';
+import { scheduler } from './routes/scheduler';
 import { triggers } from './routes/triggers';
 import { userStats } from './routes/userStats';
 
@@ -18,6 +19,7 @@ const internal = new Hono();
 
 internal.route('/menu', menu);
 internal.route('/triggers', triggers);
+internal.route('/scheduler', scheduler);
 
 app.route('/internal', internal);
 app.route('/api/runs', runs);

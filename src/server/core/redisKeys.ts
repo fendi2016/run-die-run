@@ -112,3 +112,10 @@ export const dailyQuotaKey = (
 // so curse comments always land on the same thread.
 export const levelPostKey = (levelId: string): string =>
   `level:${levelId}:postId`;
+
+// Level of the Day (services/DailyService.ts): how many have been posted
+// (the #N in the title), the UTC day of the last one (so a scheduler retry
+// can't double-post), and levelId -> day it was last featured.
+export const dailyCountKey = (): string => 'daily:count';
+export const dailyLastPostedDayKey = (): string => 'daily:lastPostedDay';
+export const dailyFeaturedKey = (): string => 'daily:featured';

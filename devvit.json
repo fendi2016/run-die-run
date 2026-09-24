@@ -27,6 +27,13 @@
         "endpoint": "/internal/menu/post-create"
       },
       {
+        "label": "CURSED: post Level of the Day now",
+        "description": "Feature the top trending level in a new post",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/daily-level"
+      },
+      {
         "label": "CURSED: reseed built-in levels (dev)",
         "description": "Sync meat-grinder with seedLevels.ts",
         "location": "subreddit",
@@ -52,5 +59,13 @@
   },
   "dev": {
     "subreddit": "cursed_game_dev"
+  },
+  "scheduler": {
+    "tasks": {
+      "daily-level": {
+        "endpoint": "/internal/scheduler/daily-level",
+        "cron": "0 16 * * *"
+      }
+    }
   }
 }
