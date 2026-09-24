@@ -52,7 +52,7 @@ const levelId = postData?.levelId ?? DEFAULT_LEVEL_ID;
 
 if (postData?.daily !== undefined) {
   const daily = requireElement('level-daily');
-  daily.textContent = `Level of the Day #${postData.daily}`;
+  daily.textContent = `Day #${postData.daily}`;
   daily.classList.remove('hidden');
 }
 
@@ -74,7 +74,8 @@ async function loadStats(): Promise<void> {
     requireElement('level-difficulty').textContent = body.difficulty;
     requireElement('level-version').textContent = versionText(body);
     requireElement('level-clear-rate').textContent = clearRateText(body);
-    requireElement('level-card').classList.remove('hidden');
+    // Only a level post names its level; the hub post keeps a clean card.
+    if (postData) requireElement('level-card').classList.remove('hidden');
   } catch {
     // Leave the placeholder dashes — PLAY already works either way.
   }
