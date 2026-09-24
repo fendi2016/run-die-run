@@ -57,9 +57,11 @@ export class GameplayControls {
     this.toggle.classList.remove('hidden');
   }
 
-  showLoading(): void {
-    this.show('Loading level…', 'You can return to the menu or browse other levels.', false, false, false, true);
-    requireButton('gameplay-exit').focus({ preventScroll: true });
+  // While a level fetch is in flight there's nothing to pause yet; the
+  // Pause / Menu button comes back with hideDialog() once the run starts.
+  hideWhileLoading(): void {
+    this.dialog.classList.add('hidden');
+    this.toggle.classList.add('hidden');
   }
 
   showLoadError(): void {

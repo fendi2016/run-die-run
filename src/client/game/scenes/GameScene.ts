@@ -54,6 +54,7 @@ import { clearRateText } from '../../ui/levelStatsText';
 import { FINISH_RESTART_DELAY_MS, PLAYER_SCREEN_ANCHOR } from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
+import { takePrefetchedLevel } from '../levelPrefetch';
 import { burstParticles, playFinishBellAnimation, setFinishFrame } from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
@@ -345,10 +346,15 @@ export class GameScene extends Scene {
     }
 
     this.levelRequest?.abort();
-    this.controls.showLoading();
+    // No "Loading level…" screen: the first level was already fetched under
+    // the Preloader's bar, and a later one (Next Level, Browse) is a short
+    // wait on the dark canvas. Failures still get the error dialog below.
+    this.controls.hideWhileLoading();
     const levelId = this.explicitLevelId ?? getRequestedLevelId();
     const request = new AbortController();
     this.levelRequest = request;
+    const prefetched = await takePrefetchedLevel(levelId);
+    if (request.signal.aborted) return;
 
     // A single transient failure (serverless cold start, a dropped packet)
     // used to surface "Could not load this level" immediately and make the
@@ -357,9 +363,9 @@ export class GameScene extends Scene {
     // showing an error, so the loading spinner just holds a beat longer
     // instead of flashing a false failure.
     const LOAD_ATTEMPTS = 3;
-    let levelVersion: LevelVersion | undefined;
+    let levelVersion: LevelVersion | undefined = prefetched;
     let lastError: unknown;
-    for (let attempt = 1; attempt <= LOAD_ATTEMPTS; attempt++) {
+    for (let attempt = 1; !levelVersion && attempt <= LOAD_ATTEMPTS; attempt++) {
       try {
         const response = await fetch(
           `/api/levels/${encodeURIComponent(levelId)}`,

@@ -1,6 +1,8 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
+import { getRequestedLevelId } from '../levelSelection';
+import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_KEYS } from '../systems/Sfx';
 
 const BAR_WIDTH = 460;
@@ -55,6 +57,9 @@ export class Preloader extends Scene {
   }
 
   preload() {
+    // In parallel with the assets below — see levelPrefetch.ts.
+    prefetchLevel(getRequestedLevelId());
+
     //  Load the assets for the game - Replace with your own assets
     this.load.setPath('../assets');
 
@@ -166,7 +171,9 @@ export class Preloader extends Scene {
     //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
     //  For example, you can define global animations here, so we can use them in other scenes.
 
-    //  Move to the MainMenu. You could also swap this for a Scene Transition, such as a camera fade.
-    this.scene.start('MainMenu');
+    //  Move to the MainMenu once the level prefetch has also landed (it
+    //  normally beats the assets; the cap keeps a slow API from holding the
+    //  bar at 100%).
+    void prefetchSettled(4000).then(() => this.scene.start('MainMenu'));
   }
 }
