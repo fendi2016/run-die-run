@@ -577,6 +577,10 @@ async function browse(sort = 'trending') {
 
 await test('difficulty uses spec boundaries and leaves unplayed levels unrated', () => {
   assert.equal(difficultyFor(0, 0), 'UNRATED');
+  // Too few attempts to judge: two clears out of two isn't EASY.
+  assert.equal(difficultyFor(2, 2), 'UNRATED');
+  assert.equal(difficultyFor(19, 0), 'UNRATED');
+  assert.equal(difficultyFor(20, 0), 'NIGHTMARE');
   for (const [clears, label] of [
     [51, 'EASY'],
     [50, 'NORMAL'],
@@ -671,7 +675,7 @@ await test('reported trap deaths affect completion and deadliest sorting', async
   assert.equal(first?.attempts, 2);
   assert.equal(first?.clears, 1);
   assert.equal(first?.completionRate, 0.5);
-  assert.equal(first?.difficulty, 'NORMAL');
+  assert.equal(first?.difficulty, 'UNRATED');
   assert.equal(
     (
       await runs.request(
@@ -1328,4 +1332,19 @@ await test('publishing a level creates its post with the level in postData', asy
     { levelId: 'post-me' }
   );
   assert.ok(body.status === 'ok' && body.postUrl?.includes('t3_test'));
+});
+
+await test('a fall counts as an attempt on a real level and rejects unknown ones', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  const { levelAttemptsKey } = await import('../core/redisKeys');
+  const fall = await runs.request('/fall', post({ levelId: 'meat-grinder' }));
+  assert.equal(fall.status, 200);
+  assert.equal(values.get(levelAttemptsKey('meat-grinder')), '1');
+  assert.equal((await runs.request('/fall', post({ levelId: 'no-such-level' }))).status, 404);
+  assert.equal((await runs.request('/fall', post({}))).status, 400);
+});
+
+await test('built-in levels show their real title, not the raw id', async () => {
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  assert.equal((await getLevelStats('meat-grinder'))?.title, 'Meat Grinder');
 });

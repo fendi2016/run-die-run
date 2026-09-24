@@ -14,6 +14,9 @@ export function clearRateText(stats: LevelStats): string {
   return `${shown}% clear rate`;
 }
 
+// Every published version after the first is one curse.
 export function versionText(stats: LevelStats): string {
-  return stats.version > 1 ? `Cursed ${stats.version - 1}×` : 'Uncursed';
+  const curses = stats.version - 1;
+  if (curses === 0) return 'No curses yet';
+  return `${curses} ${curses === 1 ? 'curse' : 'curses'}`;
 }

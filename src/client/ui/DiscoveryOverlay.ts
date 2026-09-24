@@ -62,6 +62,7 @@ export class DiscoveryOverlay {
   }
 
   hide(): void {
+    this.handlers = undefined;
     this.root.classList.add('hidden');
     this.request?.abort();
     this.request = undefined;

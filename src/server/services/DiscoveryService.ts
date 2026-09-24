@@ -16,14 +16,18 @@ import {
   levelPostKey,
   versionLeaderboardKey,
 } from '../core/redisKeys';
-import { SEED_LEVELS } from '../core/seedLevels';
+import { levelDisplayTitle, SEED_LEVELS } from '../core/seedLevels';
 import { getCurrentLevelVersion } from './LevelService';
 
 type Transaction = Awaited<ReturnType<typeof redis.watch>>;
 const DAY_MS = 86400000;
 
+// Below this many attempts a clear rate is noise (two lucky clears read as
+// EASY), so the level stays UNRATED until enough people have tried it.
+export const MIN_RATED_ATTEMPTS = 20;
+
 export function difficultyFor(attempts: number, clears: number): Difficulty {
-  if (attempts === 0) return 'UNRATED';
+  if (attempts < MIN_RATED_ATTEMPTS) return 'UNRATED';
   const rate = clears / attempts;
   if (rate > 0.5) return 'EASY';
   if (rate >= 0.25) return 'NORMAL';
@@ -40,7 +44,7 @@ export async function queueDiscoveryActivity(
 ): Promise<void> {
   const day = Math.floor(Date.now() / DAY_MS);
   const playersKey = levelDailyPlayersKey(levelId, day);
-  // Attempts cover submitted clears and reported trap deaths; falls and abandoned runs are unobserved.
+  // Attempts cover submitted clears, trap deaths and falls; abandoned runs are unobserved.
   await tx.incrBy(levelAttemptsKey(levelId), 1);
   await tx.zIncrBy(playersKey, username, 1);
   await tx.expire(playersKey, (2 * DAY_MS) / 1000);
@@ -100,7 +104,7 @@ export async function getLevelStats(
   const attempts = Number(rawAttempts ?? 0);
   const clears = Number(rawClears ?? 0);
   const stats: LevelStats = {
-    title: meta?.title ?? levelId.replaceAll('-', ' '),
+    title: levelDisplayTitle(levelId, meta?.title),
     creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
     // A seed level has no current-version key until its first load.
     version: Number(rawVersion ?? 1),
@@ -151,7 +155,7 @@ export async function discoverLevels(
     const clears = Number(rawClears ?? 0);
     return {
       levelId,
-      title: meta?.title ?? levelId.replaceAll('-', ' '),
+      title: levelDisplayTitle(levelId, meta?.title),
       creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
       createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
       version: level.version,
@@ -189,4 +193,25 @@ export async function discoverLevels(
       order || b.createdAt - a.createdAt || a.levelId.localeCompare(b.levelId)
     );
   });
+}
+
+// Dev/moderator tool: zero a built-in level's attempt/clear counters (and
+// the rolling daily window trending reads), e.g. after pre-launch testing
+// inflated them. Curses are real published versions and are left alone.
+export async function resetBuiltInLevelStats(): Promise<string[]> {
+  const day = Math.floor(Date.now() / DAY_MS);
+  const levelIds = Object.keys(SEED_LEVELS);
+  await Promise.all(
+    levelIds.map((levelId) =>
+      redis.del(
+        levelAttemptsKey(levelId),
+        levelClearsKey(levelId),
+        levelDailyPlayersKey(levelId, day),
+        levelDailyPlayersKey(levelId, day - 1),
+        levelDailyClearsKey(levelId, day),
+        levelDailyClearsKey(levelId, day - 1)
+      )
+    )
+  );
+  return levelIds;
 }

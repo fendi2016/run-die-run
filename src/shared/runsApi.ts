@@ -63,6 +63,12 @@ export type TrapKillRequest = {
   objectId: string;
 };
 
+// A death with no trap to blame (fell into a pit). Counted as an attempt
+// so a level's clear rate reflects every way players die on it.
+export type FallDeathRequest = {
+  levelId: string;
+};
+
 export type TrapKillResponse = {
   objectId: string;
   kills: number;

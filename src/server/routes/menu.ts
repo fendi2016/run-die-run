@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay } from '../services/DailyService';
+import { resetBuiltInLevelStats } from '../services/DiscoveryService';
 import { reseedBuiltInLevels } from '../services/LevelService';
 
 export const menu = new Hono();
@@ -61,5 +62,18 @@ menu.post('/daily-level', async (c) => {
       { showToast: 'Failed to post Level of the Day' },
       400
     );
+  }
+});
+
+menu.post('/reset-builtin-stats', async (c) => {
+  try {
+    const levelIds = await resetBuiltInLevelStats();
+    return c.json<UiResponse>(
+      { showToast: `Stats reset: ${levelIds.join(', ')}` },
+      200
+    );
+  } catch (error) {
+    console.error(`Error resetting built-in level stats: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to reset stats' }, 400);
   }
 });

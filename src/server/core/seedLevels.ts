@@ -99,3 +99,14 @@ const meatGrinder = level(
 export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
 };
+
+// Built-in levels have no published metadata (that's written by the
+// publish route), so their display titles live here — otherwise feed
+// cards, Browse and post titles fell back to the raw id ("meat grinder").
+export const SEED_TITLES: Record<string, string> = {
+  [meatGrinder.levelId]: 'Meat Grinder',
+};
+
+export function levelDisplayTitle(levelId: string, publishedTitle: string | undefined): string {
+  return publishedTitle ?? SEED_TITLES[levelId] ?? levelId.replaceAll('-', ' ');
+}

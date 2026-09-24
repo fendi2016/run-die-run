@@ -25,6 +25,7 @@ import { getCurrentLevelVersion } from '../services/LevelService';
 import type {
   SubmitRunRequest,
   SubmitRunResponse,
+  FallDeathRequest,
   TrapKillRequest,
   TrapKillResponse,
 } from '../../shared/runsApi';
@@ -63,6 +64,16 @@ function isValidSubmission(body: unknown): body is SubmitRunRequest {
     Number.isFinite(body.timeMs) &&
     body.timeMs > 0 &&
     body.timeMs <= MAX_REASONABLE_TIME_MS
+  );
+}
+
+function isFallDeathBody(body: unknown): body is FallDeathRequest {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'levelId' in body &&
+    typeof body.levelId === 'string' &&
+    body.levelId.length > 0
   );
 }
 
@@ -255,6 +266,46 @@ runs.post('/', async (c) => {
 // network call gating the instant respawn) — the client already shows "who
 // killed you" instantly from its own loaded level data, this only grows
 // the server-authoritative kill counters (spec section 23).
+// Fire-and-forget from the client like trap-kill, for deaths no trap is
+// credited with (falls). Only the attempt counters move.
+runs.post('/fall', async (c) => {
+  const { username } = context;
+  if (!username) {
+    return c.json<ErrorResponse>(
+      { status: 'error', message: 'Must be signed in to report a death' },
+      401
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await c.req.json<unknown>();
+  } catch {
+    return c.json<ErrorResponse>(
+      { status: 'error', message: 'Invalid request body' },
+      400
+    );
+  }
+  if (!isFallDeathBody(body)) {
+    return c.json<ErrorResponse>(
+      { status: 'error', message: 'Invalid fall report' },
+      400
+    );
+  }
+  if (!(await getCurrentLevelVersion(body.levelId))) {
+    return c.json<ErrorResponse>(
+      { status: 'error', message: 'Unknown level' },
+      404
+    );
+  }
+
+  await withTransaction([levelAttemptsKey(body.levelId)], async (tx) => {
+    await queueDiscoveryActivity(tx, body.levelId, username, false);
+    return { commit: true, value: undefined };
+  });
+  return c.json({ status: 'ok' });
+});
+
 runs.post('/trap-kill', async (c) => {
   const { username } = context;
   if (!username) {

@@ -1320,6 +1320,8 @@ body {
 #run-result { justify-content: safe center; }
 #death-panel-actions { align-items: stretch; }
 #leaderboard-overlay { z-index: 5; }
-#discovery-overlay { z-index: 5; }
+/* Above #gameplay-dialog (6): Browse opens from the pause menu too, and
+   Back must reveal it again. */
+#discovery-overlay { z-index: 7; }
 #stats-overlay { z-index: 5; }
 button:focus-visible { outline: 2px solid #ffd166; outline-offset: 3px; }

@@ -34,6 +34,7 @@ import {
 import {
   isSubmitRunResponse,
   isTrapKillResponse,
+  type FallDeathRequest,
   type SubmitRunRequest,
   type TrapKillRequest,
 } from '../../../shared/runsApi';
@@ -44,6 +45,7 @@ import {
   type ObjectType,
 } from '../../../shared/types';
 import { DeathPanel } from '../../ui/DeathPanel';
+import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
 import { labelFor } from '../../../shared/objectLabels';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
@@ -200,7 +202,7 @@ export class GameScene extends Scene {
       restart: () => this.restartRun(),
       retryLoad: () => void this.loadAndStart(),
       menu: () => this.scene.start('MainMenu'),
-      browse: () => this.scene.start('MainMenu', { browse: true }),
+      browse: () => this.openBrowse(),
     }, Boolean(this.previewLevel));
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('blur', this.onLeaveApp);
@@ -287,7 +289,7 @@ export class GameScene extends Scene {
       if (this.finishSprite) {
         this.player.reset(this.finishSprite.x, this.finishSprite.y, false);
       }
-      this.onFinishReached();
+      this.onFinishReached(true);
       return;
     }
     if (event.key !== 'Escape') return;
@@ -507,7 +509,10 @@ export class GameScene extends Scene {
     if (document.hidden) this.pauseRun();
   }
 
-  private onFinishReached(): void {
+  // `devWarp`: reached via the dev '7' key — plays the whole finish
+  // sequence but saves nothing, so testing never inflates a level's clears
+  // or verifies a level nobody beat.
+  private onFinishReached(devWarp = false): void {
     if (this.runEnded || !this.player || !this.levelVersion) {
       return;
     }
@@ -531,7 +536,9 @@ export class GameScene extends Scene {
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime();
 
-    if (this.previewLevel && this.candidateToken) {
+    if (devWarp) {
+      this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
+    } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
       const levelVersion = this.levelVersion;
@@ -763,6 +770,7 @@ export class GameScene extends Scene {
       this.reportHazardDeath(objectId);
     } else {
       this.deathPanel.show();
+      this.reportFallDeath();
     }
     const killer = objectId
       ? this.levelVersion?.objects.find((o) => o.id === objectId)
@@ -774,6 +782,24 @@ export class GameScene extends Scene {
         : () => this.share(this.deathShareText(attributedKiller))
     );
     this.player.die();
+  }
+
+  // Counts a fall as an attempt (no trap to credit). Best-effort, never
+  // delays the death panel or Retry.
+  private reportFallDeath(): void {
+    const levelId = this.levelVersion?.levelId;
+    if (this.previewLevel || !levelId) return;
+    const request: FallDeathRequest = { levelId };
+    fetch('/api/runs/fall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      // Not tied to this.attempt: a quick Retry aborts that and would drop
+      // the report before it reached the server. Nothing reads the reply.
+      keepalive: true,
+    }).catch(() => {
+      // Only a stats counter — nothing to surface.
+    });
   }
 
   // Title + canonical post for sharing. Best-effort: without it the share
@@ -921,7 +947,17 @@ export class GameScene extends Scene {
     }
   }
 
+  // Browse opens over the level, not via the main menu: Back closes it and
+  // leaves the player on the death / clear / pause screen they came from
+  // (it used to route through MainMenu, so Back landed on the menu).
+  private openBrowse(): void {
+    DiscoveryOverlay.instance().show({
+      onSelectLevel: (levelId) => this.scene.start('GameScene', { levelId }),
+    });
+  }
+
   private cleanup(): void {
+    DiscoveryOverlay.instance().hide();
     this.attempt.abort();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     window.removeEventListener('blur', this.onLeaveApp);

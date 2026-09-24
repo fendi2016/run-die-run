@@ -39,6 +39,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reseed-levels"
+      },
+      {
+        "label": "CURSED: reset built-in level stats (dev)",
+        "description": "Zero Meat Grinder's attempt/clear counts (keeps curses)",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reset-builtin-stats"
       }
     ]
   },
