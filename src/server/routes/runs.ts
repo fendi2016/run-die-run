@@ -4,7 +4,6 @@ import { context, realtime, redis } from '@devvit/web/server';
 import { CURRENCY_PER_CLEAR } from '../../shared/constants';
 import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
 import { queueDiscoveryActivity } from '../services/DiscoveryService';
-import { notifyKillMilestone } from '../core/announcements';
 import { withTransaction } from '../core/transactions';
 import {
   clearedVersionsKey,
@@ -377,13 +376,6 @@ runs.post('/trap-kill', async (c) => {
       return { commit: true, value: { kills, contributorTotalKills } };
     }
   );
-
-  await notifyKillMilestone({
-    ownerUsername: object.addedBy,
-    totalKills: contributorTotalKills,
-    levelId: body.levelId,
-    trapType: object.type,
-  });
 
   return c.json<TrapKillResponse>({
     objectId: object.id,

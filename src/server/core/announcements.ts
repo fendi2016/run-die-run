@@ -1,12 +1,11 @@
 import { context, reddit } from '@devvit/web/server';
-import { SEED_AUTHOR } from '../../shared/constants';
 import { labelFor } from '../../shared/objectLabels';
 import type { ObjectType } from '../../shared/types';
 import { getLevelStats } from '../services/DiscoveryService';
 import { getLevelPostId } from './post';
 
 // Everything here is Reddit-facing side output of an already-committed
-// write (a curse, a kill). Each call is best-effort: it logs and returns
+// write (a curse). Each call is best-effort: it logs and returns
 // on any failure, never throwing into the route that triggered it.
 
 // A curse becomes a comment on the level's thread (its canonical post, or
@@ -37,42 +36,5 @@ export async function announceCurse(opts: {
     });
   } catch (error) {
     console.error(`Curse comment failed for ${opts.levelId} v${opts.version}: ${error}`);
-  }
-}
-
-// Cross-level kill totals at which a trap owner gets a message. Checked
-// against the exact post-increment total, and trap-kill increments by one
-// under a WATCH on that counter, so each milestone fires exactly once.
-const KILL_MILESTONES = new Set([
-  1, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
-]);
-
-export async function notifyKillMilestone(opts: {
-  ownerUsername: string;
-  totalKills: number;
-  levelId: string;
-  trapType: ObjectType;
-}): Promise<void> {
-  if (opts.ownerUsername === SEED_AUTHOR || !KILL_MILESTONES.has(opts.totalKills)) {
-    return;
-  }
-  try {
-    const stats = await getLevelStats(opts.levelId);
-    const postId = await getLevelPostId(opts.levelId);
-    const title = stats?.title ?? opts.levelId;
-    const where = postId
-      ? `[${title}](https://reddit.com/r/${context.subredditName}/comments/${postId})`
-      : `"${title}"`;
-    const headline =
-      opts.totalKills === 1
-        ? 'Your first CURSED kill!'
-        : `Your CURSED traps have killed ${opts.totalKills.toLocaleString('en-US')} players`;
-    await reddit.sendPrivateMessage({
-      to: opts.ownerUsername,
-      subject: headline,
-      text: `${headline} in r/${context.subredditName}.\n\nThe latest victim fell to your **${labelFor(opts.trapType)}** on ${where}.\n\nBeat another level and curse it to keep the count climbing.`,
-    });
-  } catch (error) {
-    console.error(`Kill milestone message to u/${opts.ownerUsername} failed: ${error}`);
   }
 }

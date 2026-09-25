@@ -164,9 +164,6 @@ const reddit = {
     redditCalls.push({ method: 'submitComment', options });
     return {};
   },
-  sendPrivateMessage: async (options: unknown) => {
-    redditCalls.push({ method: 'sendPrivateMessage', options });
-  },
 };
 mock.module('@devvit/web/server', {
   namedExports: {
