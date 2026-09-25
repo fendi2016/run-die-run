@@ -387,6 +387,11 @@ export function slicePlayerFrame(
   const topLeftX = x - displaySize / 2;
   const topLeftY = y - displaySize;
   const texture = scene.textures.get(textureKey);
+  // Texture.add() makes the first frame ever added the texture's default,
+  // so a later plain setTexture(key) (Player's fall pose) would show one
+  // corner slice — an invisible player whose shrunken frame also threw its
+  // physics body off the ground — on every attempt after this death.
+  const defaultFrame = texture.firstFrame;
   const pieces: { piece: Phaser.GameObjects.Image; col: number; row: number }[] = [];
 
   for (let row = 0; row < rows; row++) {
@@ -416,6 +421,7 @@ export function slicePlayerFrame(
       pieces.push({ piece, col, row });
     }
   }
+  texture.firstFrame = defaultFrame;
   return pieces;
 }
 
