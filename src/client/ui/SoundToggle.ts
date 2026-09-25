@@ -38,50 +38,47 @@ export function initSound(game: Phaser.Game): void {
   // and the run opened on a couple of seconds of silence.
   music.preload = 'auto';
   let muted = readMuted();
+  // Browsers block audio until the player interacts, so nothing calls
+  // play() before the first real tap/key (almost always the tap-to-start
+  // jump). Trying on load instead left some webviews reporting a blocked
+  // play() as started, so later taps never retried and the music never
+  // came on at all.
+  let unlocked = false;
 
   const sync = (): void => {
     game.sound.mute = muted;
     button.classList.toggle('muted', muted);
     button.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
     button.setAttribute('aria-pressed', String(!muted));
-    if (muted || document.hidden) {
+    if (muted || !unlocked || document.hidden) {
       music.pause();
     } else {
       music.play().catch(() => {
-        // Autoplay refused until the player interacts (or the file
-        // failed) — stays silent, the next tap/key retries.
+        // Refused (or the file failed) — stays silent, the next tap/key
+        // retries.
       });
     }
   };
 
-  // Try to play on load: when the Play tap that opened this view still
-  // counts as user activation, the music starts with the game. Otherwise
-  // the browser blocks it and the first tap/key anywhere starts it.
-  // Gate on the 'playing' event, not `music.paused` — a play() the
-  // browser blocked can still leave `paused` false in some webviews,
-  // which made every later tap skip the retry.
+  // Runs on every tap/key, not just the first: play() on a track that is
+  // already playing is a no-op, and this way a refused or interrupted
+  // start always gets another try instead of trusting the webview's
+  // playing/paused reports.
   const unlockEvents = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
   const unlock = (event: Event): void => {
     // The toggle runs its own sync() after flipping mute; starting the
     // music here first would make a first-tap mute blip the track.
     if (event.target instanceof Node && button.contains(event.target)) return;
+    unlocked = true;
     sync();
   };
-  music.addEventListener(
-    'playing',
-    () => {
-      for (const type of unlockEvents) {
-        window.removeEventListener(type, unlock, { capture: true });
-      }
-    },
-    { once: true },
-  );
 
   button.addEventListener('click', (event) => {
     // Don't let the toggle also count as a jump / canvas tap.
     event.stopPropagation();
     muted = !muted;
     writeMuted(muted);
+    unlocked = true;
     sync();
   });
   button.addEventListener('pointerdown', (event) => event.stopPropagation());
