@@ -62,6 +62,7 @@ import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
+  attachArcaneCrackle,
   burstParticles,
   playFinishGateAnimation,
   playPixelFx,
@@ -78,7 +79,7 @@ const SPAWN_WARP_GROUND_Y = 0.95;
 // The spawn-burst lightning goes off over the tombstone's glowing glyph,
 // this far up its height.
 const SPAWN_BURST_HEIGHT = 0.55;
-const SPAWN_BURST_SCALE = 1.4;
+const SPAWN_BURST_SCALE = 2.2;
 // Frames 0-3 are the bolt dropping; frame 4 is where it hits the floor and
 // splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
 const SPAWN_WARP_LAND_FRAME = 4;
@@ -524,11 +525,12 @@ export class GameScene extends Scene {
 
     // The spawn tombstone the player rises from — above the scrim, behind
     // the player and every level object.
-    this.add
+    const tombstone = this.add
       .image(this.spawn.x, this.spawn.y, 'spawn-marker')
       .setOrigin(0.5, 1)
       .setScale(SPAWN_TOMBSTONE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
       .setDepth(-0.25);
+    attachArcaneCrackle(this, tombstone, 0.8);
 
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
     // — update() starts the timer and hides the prompt once Player itself

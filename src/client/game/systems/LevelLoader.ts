@@ -272,8 +272,10 @@ export function loadLevel(
         finishes.add(sensor);
         // Behind the player (who runs through the arch), in front of the
         // spawn tombstone and background.
+        // No applyOutlineGlow here: the art has its own purple glow, and an
+        // outline wrapping under the base made the gate look like it was
+        // floating above the ground.
         rendered.setDepth(-0.1);
-        applyOutlineGlow(rendered, 0x39ff88, 6);
         finishSprite = rendered;
         break;
       }

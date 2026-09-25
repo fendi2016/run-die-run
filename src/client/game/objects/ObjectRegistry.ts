@@ -16,6 +16,7 @@ import {
   PLATFORM_DISPLAY_HEIGHT_PX,
   SPAWN_ICON_SIZE,
 } from '../constants';
+import { attachArcaneCrackle } from '../systems/Juice';
 
 export type ObjectCategory =
   'solid' | 'hazard' | 'finish' | 'spawn' | 'powerup' | 'unsupported';
@@ -331,6 +332,7 @@ export function renderLevelObject(
   } else if (object.type === 'finish') {
     // Aspect preserved (unlike bat's forced squash).
     sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.height);
+    attachArcaneCrackle(scene, sprite, 1);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
 
@@ -368,9 +370,8 @@ export function renderSpawnMarker(
   x: number,
   y: number
 ): Phaser.GameObjects.Sprite {
-  return scene.add
-    .sprite(x, y, 'spawn-marker')
-    .setOrigin(0.5, 1)
-    .setAlpha(0.85)
-    .setDisplaySize(SPAWN_ICON_SIZE, SPAWN_ICON_SIZE);
+  const marker = scene.add.sprite(x, y, 'spawn-marker').setOrigin(0.5, 1).setAlpha(0.85);
+  marker.setScale(SPAWN_ICON_SIZE / marker.height);
+  attachArcaneCrackle(scene, marker, 0.6);
+  return marker;
 }

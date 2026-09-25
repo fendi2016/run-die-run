@@ -231,6 +231,7 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'spawn-warp', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // scifi_warp_003 blue
   { key: 'spawn-burst', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // lightning_burst_003 violet
   { key: 'finish-blast', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // stylized_explosion_002 violet
+  { key: 'arcane-crackle', frameWidth: 64, frameHeight: 64, frameRate: 15 }, // lightning_burst_001 violet
   { key: 'firework-green', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_001 green
   { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_002 yellow
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // lightning_strike_001 violet
@@ -292,6 +293,40 @@ export function attachPickupShimmer(
   const shimmer = scene.add.sprite(x, y, 'pickup-shimmer', 0);
   shimmer.play('pickup-shimmer');
   return shimmer;
+}
+
+// Crackles of violet lightning at random spots on the spawn tombstone and
+// finish gate, one every ARCANE_CRACKLE_MIN_MS..MAX_MS, for as long as the
+// target lives. Editors destroy and redraw their sprites on every change,
+// so the loop checks `target.active` and ends itself once it's gone.
+const ARCANE_CRACKLE_MIN_MS = 500;
+const ARCANE_CRACKLE_MAX_MS = 1100;
+// Crackles land in the target's upper part (its art), not the bottom edge.
+const ARCANE_CRACKLE_TOP_FRACTION = 0.85;
+
+export function attachArcaneCrackle(
+  scene: Phaser.Scene,
+  target: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  scale: number
+): void {
+  const next = (): void => {
+    scene.time.delayedCall(
+      Phaser.Math.Between(ARCANE_CRACKLE_MIN_MS, ARCANE_CRACKLE_MAX_MS),
+      () => {
+        if (!target.active) return;
+        const bounds = target.getBounds();
+        playPixelFx(
+          scene,
+          'arcane-crackle',
+          Phaser.Math.FloatBetween(bounds.left + bounds.width * 0.15, bounds.right - bounds.width * 0.15),
+          Phaser.Math.FloatBetween(bounds.top, bounds.top + bounds.height * ARCANE_CRACKLE_TOP_FRACTION),
+          { scale, angle: Phaser.Math.Between(0, 3) * 90, depth: target.depth + 0.01 }
+        );
+        next();
+      }
+    );
+  };
+  next();
 }
 
 // Pixel-art blood burst centered on (x, y).
@@ -559,7 +594,11 @@ export function fitHyperspeedTrail(
 // Squash pulses on the finish gate, one per victory-dance beat
 // (DANCE_FRAME_MS), each weaker than the last.
 const FINISH_PULSES = 3;
-const FINISH_BLAST_SCALE = 1;
+const FINISH_BLAST_SCALE = 1.6;
+// The gem on top of each pillar, as fractions of the gate's width/height
+// from its bottom-center origin; both flare with violet lightning on a clear.
+const FINISH_GEM_DX = 0.32;
+const FINISH_GEM_DY = 0.66;
 const FINISH_SPARK_COLOR = 0xc77dff;
 
 // Puts the finish gate back at its resting size. Exported so GameScene can
@@ -595,6 +634,15 @@ export function playFinishGateAnimation(
     depth: sprite.depth + 0.01,
   });
   burstParticles(scene, sprite.x, openingY, FINISH_SPARK_COLOR, 18);
+  for (const side of [-1, 1]) {
+    playPixelFx(
+      scene,
+      'spawn-burst',
+      sprite.x + side * sprite.displayWidth * FINISH_GEM_DX,
+      sprite.y - sprite.displayHeight * FINISH_GEM_DY,
+      { scale: 1.2, depth: sprite.depth + 0.01 }
+    );
+  }
 
   scene.tweens.chain({
     targets: sprite,
