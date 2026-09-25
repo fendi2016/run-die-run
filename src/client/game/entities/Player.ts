@@ -560,7 +560,6 @@ export class Player {
   private playGroundDust(scale: number): void {
     playPixelFx(this.scene, 'jump-dust', this.sprite.x, this.sprite.y, {
       scale,
-      frameRate: 20,
       originY: JUMP_DUST_GROUND_Y,
     });
   }
@@ -700,7 +699,7 @@ export class Player {
     this.flashSprite();
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     playPixelFx(this.scene, 'shield-break', this.sprite.x, centerY, { scale: 1.5 });
-    playPixelFx(this.scene, 'shield-zap', this.sprite.x, centerY, { scale: 2, frameRate: 20 });
+    playPixelFx(this.scene, 'shield-zap', this.sprite.x, centerY, { scale: 2 });
     if (this.shieldSprite) {
       destroyElectricShield(this.scene, this.shieldSprite);
       this.shieldSprite = undefined;

@@ -88,7 +88,6 @@ const sawSlice: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   playBloodSplatter(scene, x, cutY, SAW_SPLATTER_SCALE);
   playPixelFx(scene, 'blood-spray', x, cutY, {
     scale: SAW_SPLATTER_SCALE,
-    frameRate: 20,
     originX: SAW_SPRAY_ORIGIN,
     originY: SAW_SPRAY_ORIGIN,
   });
@@ -133,7 +132,7 @@ const candleBurn: DeathEffect = (scene, x, y, textureKey, displaySize) => {
       });
     }
     burstParticles(scene, x, y - 10, EMBER_COLOR, 12);
-    playPixelFx(scene, 'ash-smoke', x, y, { scale: 2, frameRate: 20, originY: ASH_SMOKE_BASE_Y });
+    playPixelFx(scene, 'ash-smoke', x, y, { scale: 2, originY: ASH_SMOKE_BASE_Y });
   });
 };
 

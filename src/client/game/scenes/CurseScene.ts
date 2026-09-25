@@ -320,7 +320,6 @@ export class CurseScene extends Scene {
       const base = this.pendingImage.getBottomCenter();
       playPixelFx(this, 'curse-strike', base.x, base.y, {
         scale: 1,
-        frameRate: 20,
         originY: CURSE_STRIKE_GROUND_Y,
         depth: CURSE_FX_DEPTH,
       });
@@ -345,7 +344,6 @@ export class CurseScene extends Scene {
       this.pendingRemoveId = object.id;
       playPixelFx(this, 'smoke-poof', object.x, object.y + PLATFORM_DISPLAY_HEIGHT_PX / 2, {
         scale: 1,
-        frameRate: 20,
         depth: CURSE_FX_DEPTH,
       });
       this.toolbar.showMessage(

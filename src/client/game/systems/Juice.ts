@@ -202,49 +202,84 @@ export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void
   burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
 }
 
+// Super Pixel Effects sheets, each repacked into a single-row strip at
+// public/assets/vfx/<key>.webp. Preloader loads them all and, once loaded,
+// builds every anim up front (createPixelFxAnims) so an effect's first
+// play mid-run doesn't pay for anim setup. The pack's intended rate is
+// 15fps; most run a touch faster so they finish alongside the tween work
+// they accompany. Source effect per key (all _large_):
+export const PIXEL_FX_SHEETS: readonly {
+  key: string;
+  frameWidth: number;
+  frameHeight: number;
+  frameRate: number;
+  loop?: boolean;
+}[] = [
+  // Hazard deaths (DeathEffects)
+  { key: 'blood-splatter', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // burst_splatter_001 red
+  { key: 'blood-spray', frameWidth: 48, frameHeight: 48, frameRate: 20 }, // directional_splatter_003 red, mirrored to spray up-left
+  { key: 'bat-impact', frameWidth: 80, frameHeight: 80, frameRate: 15 }, // directional_impact_004 yellow
+  { key: 'ash-smoke', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // directional_smoke_burst_001 white
+  { key: 'ghost-skull-smoke', frameWidth: 64, frameHeight: 64, frameRate: 15 }, // stylized_skull_smoke_burst_001 white
+  // Movement and power-ups (Player, GameScene, LevelLoader)
+  { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 20 }, // directional_impact_002 white
+  { key: 'pickup-sparkle', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // round_sparkle_burst_001 blue
+  { key: 'pickup-flash', frameWidth: 256, frameHeight: 144, frameRate: 20 }, // round_light_burst_001 yellow
+  { key: 'shield-break', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // symmetrical_impact_002 blue
+  { key: 'shield-zap', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // lightning_burst_002 violet
+  { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 15, loop: true }, // status_sparkling_001 yellow
+  // Level flow and curses (GameScene, CurseScene, EditorScene)
+  { key: 'spawn-warp', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // scifi_warp_003 blue
+  { key: 'firework-green', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_001 green
+  { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_002 yellow
+  { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // lightning_strike_001 violet
+  { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // symmetrical_smoke_burst_001 brown
+];
+
+// Nearest filtering keeps the pixel art crisp at a non-integer scale, same
+// as playSlideDust. Anims are global, so this runs once, from Preloader.
+export function createPixelFxAnims(scene: Phaser.Scene): void {
+  for (const { key, frameRate, loop } of PIXEL_FX_SHEETS) {
+    if (scene.anims.exists(key)) continue;
+    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.anims.create({
+      key,
+      frames: scene.anims.generateFrameNumbers(key),
+      frameRate,
+      repeat: loop ? -1 : 0,
+    });
+  }
+}
+
 export type PixelFxOptions = {
   scale: number;
-  // The pack's intended rate is 15fps; some effects run a touch faster so
-  // they finish alongside the tween work they accompany.
-  frameRate?: number;
   angle?: number;
   originX?: number;
   originY?: number;
+  // Start partway in, skipping the effect's lead-up.
+  startFrame?: number;
   // Only needed where the scene redraws its objects right after playing
   // one (the editors rebuild every sprite on each change), which would
   // otherwise bury the effect under the redrawn objects.
   depth?: number;
 };
 
-// One-shot Super Pixel Effects sheet (a single-row strip whose texture and
-// anim share `key`) played at (x, y), then destroyed. Nearest filtering
-// keeps the pixel art crisp at a non-integer scale, same as playSlideDust.
+// One-shot PIXEL_FX_SHEETS effect played at (x, y), then destroyed.
 export function playPixelFx(
   scene: Phaser.Scene,
   key: string,
   x: number,
   y: number,
-  { scale, frameRate = 15, angle = 0, originX = 0.5, originY = 0.5, depth }: PixelFxOptions
+  { scale, angle = 0, originX = 0.5, originY = 0.5, startFrame = 0, depth }: PixelFxOptions
 ): void {
-  if (!scene.anims.exists(key)) {
-    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
-    scene.anims.create({
-      key,
-      frames: scene.anims.generateFrameNumbers(key),
-      frameRate,
-      repeat: 0,
-    });
-  }
-  const fx = scene.add.sprite(x, y, key, 0);
+  const fx = scene.add.sprite(x, y, key, startFrame);
   fx.setOrigin(originX, originY);
   fx.setScale(scale);
   fx.setAngle(angle);
   if (depth !== undefined) fx.setDepth(depth);
-  fx.play(key);
+  fx.play({ key, startFrame });
   fx.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => fx.destroy());
 }
-
-const PICKUP_SHIMMER_KEY = 'pickup-shimmer';
 
 // Looping pixel sparkles drawn over an uncollected power-up so it catches
 // the eye. LevelLoader.setPowerUpAvailable shows/hides it with the pickup.
@@ -253,24 +288,14 @@ export function attachPickupShimmer(
   x: number,
   y: number
 ): Phaser.GameObjects.Sprite {
-  if (!scene.anims.exists(PICKUP_SHIMMER_KEY)) {
-    scene.textures.get(PICKUP_SHIMMER_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
-    scene.anims.create({
-      key: PICKUP_SHIMMER_KEY,
-      frames: scene.anims.generateFrameNumbers(PICKUP_SHIMMER_KEY),
-      frameRate: 15,
-      repeat: -1,
-    });
-  }
-  const shimmer = scene.add.sprite(x, y, PICKUP_SHIMMER_KEY, 0);
-  shimmer.play(PICKUP_SHIMMER_KEY);
+  const shimmer = scene.add.sprite(x, y, 'pickup-shimmer', 0);
+  shimmer.play('pickup-shimmer');
   return shimmer;
 }
 
-// Pixel-art blood burst centered on (x, y). A touch faster than the pack's
-// 15fps so it finishes alongside the saw slice (~0.5s).
+// Pixel-art blood burst centered on (x, y).
 export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
-  playPixelFx(scene, 'blood-splatter', x, y, { scale, frameRate: 20 });
+  playPixelFx(scene, 'blood-splatter', x, y, { scale });
 }
 
 const SLIDE_DUST_ANIM_KEY = 'slide-dust';

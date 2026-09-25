@@ -72,6 +72,10 @@ import { triggerBatFlight } from '../objects/ObjectRegistry';
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // spawn-warp's splash sits on its frame's bottom edge (~122 of 128px).
 const SPAWN_WARP_GROUND_Y = 0.95;
+// Frames 0-3 are the bolt dropping; frame 4 is where it hits the floor and
+// splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
+const SPAWN_WARP_LAND_FRAME = 4;
+const SPAWN_WARP_LAND_MS = (SPAWN_WARP_LAND_FRAME * 1000) / 20;
 // Offsets from the finish bell's top-center, in world px.
 const FINISH_FIREWORKS = [
   { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
@@ -515,7 +519,7 @@ export class GameScene extends Scene {
     // — update() starts the timer and hides the prompt once Player itself
     // reports the wait is over.
     player.reset(this.spawn.x, this.spawn.y, true);
-    this.playSpawnWarp();
+    this.playSpawnWarp(true);
     // Keep gravity, collision callbacks, and moving objects idle together.
     // Scene input remains active so the first tap can release the gate.
     this.physics.pause();
@@ -765,11 +769,11 @@ export class GameScene extends Scene {
     switch (type) {
       case 'shield':
         this.player.grantShield();
-        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2, frameRate: 20 });
+        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2 });
         break;
       case 'speedBoost':
         this.player.applySpeedBoost();
-        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75, frameRate: 20 });
+        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75 });
         break;
       default:
         break;
@@ -925,15 +929,22 @@ export class GameScene extends Scene {
       });
   }
 
-  // The player beams in at the spawn point: a bolt drops onto the feet and
-  // splashes out along the floor (the splash sits on spawn-warp's bottom
-  // edge, hence the origin).
-  private playSpawnWarp(): void {
+  // The player beams in at the spawn point (the splash sits on
+  // spawn-warp's bottom edge, hence the origin). On level load
+  // (`beamIn`) the player stays hidden while the bolt drops and appears
+  // the moment it hits the floor; the player is idle at tap-to-start then,
+  // so nothing is lost. A retry starts running at once, so it skips the
+  // drop and plays just the landing splash around the visible player.
+  private playSpawnWarp(beamIn: boolean): void {
     playPixelFx(this, 'spawn-warp', this.spawn.x, this.spawn.y, {
       scale: 1,
-      frameRate: 20,
       originY: SPAWN_WARP_GROUND_Y,
+      startFrame: beamIn ? 0 : SPAWN_WARP_LAND_FRAME,
     });
+    if (!beamIn || !this.player) return;
+    const sprite = this.player.sprite;
+    sprite.setVisible(false);
+    this.time.delayedCall(SPAWN_WARP_LAND_MS, () => sprite.setVisible(true));
   }
 
   // Three staggered pixel fireworks above the finish bell.
@@ -961,7 +972,7 @@ export class GameScene extends Scene {
     this.deathPanel.hide();
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
-    this.playSpawnWarp();
+    this.playSpawnWarp(false);
     this.cameras.main.scrollX = 0;
     this.runElapsedMs = 0;
     this.runStarted = true;

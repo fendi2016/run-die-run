@@ -215,7 +215,7 @@ export class EditorScene extends Scene {
     this.applyMutation(() => {
       const deleted = this.controller.deleteSelected();
       if (deleted && center) {
-        playPixelFx(this, 'smoke-poof', center.x, center.y, { scale: 1, frameRate: 20, depth: 10 });
+        playPixelFx(this, 'smoke-poof', center.x, center.y, { scale: 1, depth: 10 });
       }
       return deleted;
     }, 'Nothing selected.');

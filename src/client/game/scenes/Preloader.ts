@@ -5,32 +5,9 @@ import { HAZARD_SPRITESHEETS } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
+import { createPixelFxAnims, PIXEL_FX_SHEETS } from '../systems/Juice';
 
 const BAR_WIDTH = 460;
-
-// Super Pixel Effects sheets played through Juice.playPixelFx, each
-// repacked into a single-row strip at public/assets/vfx/<key>.webp:
-// [key, frameWidth, frameHeight]. Source effect per key (all _large_):
-const PIXEL_FX_SHEETS: readonly [string, number, number][] = [
-  // Hazard deaths (DeathEffects)
-  ['blood-spray', 48, 48], // directional_splatter_003 red, mirrored to spray up-left
-  ['bat-impact', 80, 80], // directional_impact_004 yellow
-  ['ash-smoke', 64, 64], // directional_smoke_burst_001 white
-  ['ghost-skull-smoke', 64, 64], // stylized_skull_smoke_burst_001 white
-  // Movement and power-ups (Player, GameScene, LevelLoader)
-  ['jump-dust', 140, 50], // directional_impact_002 white
-  ['pickup-sparkle', 64, 64], // round_sparkle_burst_001 blue
-  ['pickup-flash', 256, 144], // round_light_burst_001 yellow
-  ['shield-break', 96, 96], // symmetrical_impact_002 blue
-  ['shield-zap', 64, 64], // lightning_burst_002 violet
-  ['pickup-shimmer', 96, 96], // status_sparkling_001 yellow (looped)
-  // Level flow and curses (GameScene, CurseScene, EditorScene)
-  ['spawn-warp', 128, 128], // scifi_warp_003 blue
-  ['firework-green', 96, 96], // round_firework_burst_001 green
-  ['firework-yellow', 96, 96], // round_firework_burst_002 yellow
-  ['curse-strike', 128, 128], // lightning_strike_001 violet
-  ['smoke-poof', 64, 64], // symmetrical_smoke_burst_001 brown
-];
 
 export class Preloader extends Scene {
   private failed = false;
@@ -166,14 +143,8 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
-    // Saw-death gore (see Juice.playBloodSplatter) — Super Pixel Effects'
-    // burst_splatter_001_large_red, all 10 frames.
-    this.load.spritesheet('blood-splatter', 'vfx/blood-splatter.webp', {
-      frameWidth: 64,
-      frameHeight: 64,
-    });
-    // Everything played through Juice.playPixelFx — see PIXEL_FX_SHEETS.
-    for (const [key, frameWidth, frameHeight] of PIXEL_FX_SHEETS) {
+    // Super Pixel Effects (see Juice.PIXEL_FX_SHEETS).
+    for (const { key, frameWidth, frameHeight } of PIXEL_FX_SHEETS) {
       this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
     }
 
@@ -217,6 +188,8 @@ export class Preloader extends Scene {
       this.input.once('pointerdown', () => this.scene.restart());
       return;
     }
+    createPixelFxAnims(this);
+
     //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
     //  For example, you can define global animations here, so we can use them in other scenes.
 
