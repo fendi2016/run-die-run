@@ -340,6 +340,13 @@ export class Player {
   private releaseCutInMs: number | null = null;
   private slideRemainingMs = 0;
   private slideDustMs = 0;
+  // True from jump() until the next physics step. Arcade steps at a fixed
+  // 60Hz and only refreshes body.blocked on frames that step, so on a
+  // 120Hz display (or any frame the accumulator skips) blocked.down still
+  // reads true the frame after take-off. Trusting it re-armed coyote time
+  // mid-air, so a tap just after jumping fired a second jump (and a tap on
+  // that frame counted as a ground tap for double-tap).
+  private awaitingTakeoffStep = false;
 
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
@@ -388,6 +395,7 @@ export class Player {
     this.setHitboxHeight(HITBOX_HEIGHT);
 
     this.inputSystem = new InputSystem(scene);
+    scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.onWorldStep, this);
     scene.events.on(JUMP_DOWN_EVENT, this.onJumpPressed, this);
     scene.events.on(JUMP_UP_EVENT, this.onJumpReleased, this);
     this.sprite.on(
@@ -467,7 +475,7 @@ export class Player {
   update(deltaMs: number): void {
     this.syncEffectSprites();
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
-    this.msSinceGrounded = this.body.blocked.down
+    this.msSinceGrounded = this.isGrounded
       ? 0
       : this.msSinceGrounded + deltaMs;
     this.msSinceJumpPressed =
@@ -519,7 +527,16 @@ export class Player {
     this.sprite.setVelocityY(-JUMP_VELOCITY);
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
+    this.awaitingTakeoffStep = true;
     playSfx(this.scene, 'jump');
+  }
+
+  private onWorldStep(): void {
+    this.awaitingTakeoffStep = false;
+  }
+
+  private get isGrounded(): boolean {
+    return this.body.blocked.down && !this.awaitingTakeoffStep;
   }
 
   private get isSliding(): boolean {
@@ -584,7 +601,7 @@ export class Player {
       // startSlide already started the animation.
       return;
     }
-    if (this.body.blocked.down) {
+    if (this.isGrounded) {
       if (
         !this.sprite.anims.isPlaying ||
         this.sprite.anims.getName() === SLIDE_ANIM_KEY
@@ -773,6 +790,7 @@ export class Player {
     this.tapWaitMs = null;
     this.tapHeldMs = null;
     this.releaseCutInMs = null;
+    this.awaitingTakeoffStep = false;
     this.endSlide();
     this.alive = true;
     this.waitingToStart = waiting;
@@ -797,6 +815,7 @@ export class Player {
     this.clearEffectSprites();
     this.speedBoostTimer?.remove();
     this.inputSystem.destroy();
+    this.scene.physics.world?.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.onWorldStep, this);
     this.scene.events.off(JUMP_DOWN_EVENT, this.onJumpPressed, this);
     this.scene.events.off(JUMP_UP_EVENT, this.onJumpReleased, this);
     this.sprite.off(
@@ -841,13 +860,13 @@ export class Player {
     if (this.tapWaitMs !== null) {
       // Second tap inside the window: slide instead of jumping.
       this.tapWaitMs = null;
-      if (this.body.blocked.down) this.startSlide();
+      if (this.isGrounded) this.startSlide();
       return;
     }
     // Only a tap on the ground (not mid-slide) can start a double-tap.
     // Mid-slide it jumps out right away; in the air it buffers a jump for
     // landing, both exactly as before.
-    if (this.body.blocked.down && !this.isSliding) {
+    if (this.isGrounded && !this.isSliding) {
       this.tapWaitMs = 0;
       this.tapHeldMs = null;
       return;
