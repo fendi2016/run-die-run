@@ -36,8 +36,8 @@ export const FINISH_RESTART_DELAY_MS = 2500;
 // The finish trigger's hitbox is grown to this height (LevelLoader) so a
 // jump can't clear it and sail past the level's edge — a single jump peaks
 // at JUMP_VELOCITY^2 / (2 * GRAVITY_Y) ≈ 107px above ground, and this leaves
-// generous margin above that. The visible trophy sprite itself (64px tall)
-// is left untouched; only the overlap sensor is taller.
+// generous margin above that. The visible gate sprite itself is left
+// untouched; only the overlap sensor is taller.
 export const FINISH_TRIGGER_HEIGHT_PX = 320;
 
 // How far from the left edge of the screen the player sits while running,
@@ -84,11 +84,16 @@ export const BAT_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
-// The finish flag is scaled to this height (two grid tiles); width follows
-// the art's own aspect ratio.
-export const FINISH_DISPLAY_HEIGHT_PX = 120;
+// The finish gate is scaled to this height (~3.3 grid tiles, tall enough
+// that the player fits under its banner); width follows the art's own
+// aspect ratio.
+export const FINISH_DISPLAY_HEIGHT_PX = 200;
 
-// One beat of the finish-line victory dance (ms per pose). The finish flag's
-// wave (Juice.playFinishFlagAnimation) is timed on the same beat so the
-// two read as one celebration.
+// The spawn tombstone's height during a run, drawn behind the player. The
+// editors draw it smaller (SPAWN_ICON_SIZE) so it fits one grid tile.
+export const SPAWN_TOMBSTONE_HEIGHT_PX = 90;
+
+// One beat of the finish-line victory dance (ms per pose). The finish
+// gate's pulse (Juice.playFinishGateAnimation) is timed on the same beat
+// so the two read as one celebration.
 export const DANCE_FRAME_MS = 144;

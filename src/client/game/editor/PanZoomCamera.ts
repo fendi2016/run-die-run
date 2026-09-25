@@ -163,10 +163,10 @@ export class PanZoomCamera {
     return { left, right: left + this.visibleWorldWidth() };
   }
 
-  // The finish flag is wider than one cell and overhangs its own tile, so
+  // The finish gate is wider than one cell and overhangs its own tile, so
   // with the camera clamped to the grid's last column a finish placed
   // there was cut off. Panning may run this far past the level's end
-  // (empty, gridless space) so the whole flag shows.
+  // (empty, gridless space) so the whole gate shows.
   private maxScrollX(): number {
     return Math.max(
       0,

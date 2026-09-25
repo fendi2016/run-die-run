@@ -53,16 +53,19 @@ import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { clearRateText } from '../../ui/levelStatsText';
-import { FINISH_RESTART_DELAY_MS, PLAYER_SCREEN_ANCHOR } from '../constants';
+import {
+  FINISH_RESTART_DELAY_MS,
+  PLAYER_SCREEN_ANCHOR,
+  SPAWN_TOMBSTONE_HEIGHT_PX,
+} from '../constants';
 import { Player } from '../entities/Player';
 import { getRequestedLevelId } from '../levelSelection';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   burstParticles,
-  playFinishFlagAnimation,
+  playFinishGateAnimation,
   playPixelFx,
-  setFinishFrame,
-  stopFinishFlagAnimation,
+  stopFinishGateAnimation,
 } from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
@@ -72,11 +75,15 @@ import { triggerBatFlight } from '../objects/ObjectRegistry';
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // spawn-warp's splash sits on its frame's bottom edge (~122 of 128px).
 const SPAWN_WARP_GROUND_Y = 0.95;
+// The spawn-burst lightning goes off over the tombstone's glowing glyph,
+// this far up its height.
+const SPAWN_BURST_HEIGHT = 0.55;
+const SPAWN_BURST_SCALE = 1.4;
 // Frames 0-3 are the bolt dropping; frame 4 is where it hits the floor and
 // splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
 const SPAWN_WARP_LAND_FRAME = 4;
 const SPAWN_WARP_LAND_MS = (SPAWN_WARP_LAND_FRAME * 1000) / 20;
-// Offsets from the finish flag's top-center, in world px.
+// Offsets from the finish gate's top-center, in world px.
 const FINISH_FIREWORKS = [
   { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
   { key: 'firework-yellow', dx: 50, dy: -70, delayMs: 200 },
@@ -293,9 +300,9 @@ export class GameScene extends Scene {
   private readonly onNavigationKey = (event: KeyboardEvent): void => {
     if (event.repeat || !this.player) return;
     // Dev shortcut: warp to the finish sprite, then trigger the real finish
-    // sequence (particles, camera flash, flag animation, player's dance,
+    // sequence (particles, camera flash, gate animation, player's dance,
     // result overlay) there — triggering in place left the camera (which
-    // just follows the player's x) nowhere near the flag. Dev subreddit
+    // just follows the player's x) nowhere near the gate. Dev subreddit
     // only: anywhere else it would verify unbeaten levels and farm clears.
     if (event.key === '7' && currentSubredditName() === DEV_SUBREDDIT) {
       event.preventDefault();
@@ -515,6 +522,14 @@ export class GameScene extends Scene {
       .setScrollFactor(1, 1)
       .setDepth(-0.5);
 
+    // The spawn tombstone the player rises from — above the scrim, behind
+    // the player and every level object.
+    this.add
+      .image(this.spawn.x, this.spawn.y, 'spawn-marker')
+      .setOrigin(0.5, 1)
+      .setScale(SPAWN_TOMBSTONE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
+      .setDepth(-0.25);
+
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
     // — update() starts the timer and hides the prompt once Player itself
     // reports the wait is over.
@@ -550,7 +565,7 @@ export class GameScene extends Scene {
     );
     this.cameras.main.flash(150, 57, 255, 136, false);
     if (this.finishSprite) {
-      playFinishFlagAnimation(this, this.finishSprite);
+      playFinishGateAnimation(this, this.finishSprite);
       this.playFinishFireworks(this.finishSprite);
     }
     playSfx(this, 'clear');
@@ -936,6 +951,13 @@ export class GameScene extends Scene {
   // so nothing is lost. A retry starts running at once, so it skips the
   // drop and plays just the landing splash around the visible player.
   private playSpawnWarp(beamIn: boolean): void {
+    playPixelFx(
+      this,
+      'spawn-burst',
+      this.spawn.x,
+      this.spawn.y - SPAWN_TOMBSTONE_HEIGHT_PX * SPAWN_BURST_HEIGHT,
+      { scale: SPAWN_BURST_SCALE, depth: -0.2 }
+    );
     playPixelFx(this, 'spawn-warp', this.spawn.x, this.spawn.y, {
       scale: 1,
       originY: SPAWN_WARP_GROUND_Y,
@@ -947,9 +969,9 @@ export class GameScene extends Scene {
     this.time.delayedCall(SPAWN_WARP_LAND_MS, () => sprite.setVisible(true));
   }
 
-  // Three staggered pixel fireworks above the finish flag.
-  private playFinishFireworks(flag: Phaser.GameObjects.Sprite): void {
-    const bounds = flag.getBounds();
+  // Three staggered pixel fireworks above the finish gate.
+  private playFinishFireworks(gate: Phaser.GameObjects.Sprite): void {
+    const bounds = gate.getBounds();
     FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
       this.time.delayedCall(delayMs, () =>
         playPixelFx(this, key, bounds.centerX + dx, bounds.top + dy, { scale: 1.5 })
@@ -991,13 +1013,10 @@ export class GameScene extends Scene {
     // Defensive: onFinishReached leaves runEnded=true, and every normal
     // path out of a finish is the result overlay's next-level/editor-return
     // flow rather than restartRun — but if this ever does fire after a
-    // finish (e.g. a stray restart control), the flag shouldn't stay stuck
-    // mid-wave.
+    // finish (e.g. a stray restart control), the gate shouldn't stay stuck
+    // mid-pulse.
     if (this.finishSprite) {
-      stopFinishFlagAnimation(this.finishSprite);
-      this.tweens.killTweensOf(this.finishSprite);
-      this.finishSprite.setRotation(0);
-      setFinishFrame(this.finishSprite, 'finish-idle');
+      stopFinishGateAnimation(this, this.finishSprite);
     }
   }
 

@@ -41,8 +41,8 @@ export type LoadedLevel = {
   // reload the level) — a power-up collected once shouldn't be gone for
   // every subsequent attempt at the same run.
   powerUpImages: Phaser.GameObjects.Sprite[];
-  // The visible finish flag (VerificationService guarantees exactly one
-  // per level), exposed so GameScene can play the wave animation on it from onFinishReached — undefined for level data that
+  // The visible finish gate (VerificationService guarantees exactly one
+  // per level), exposed so GameScene can play its celebration on it from onFinishReached — undefined for level data that
   // (invalidly) has none, rather than throwing.
   finishSprite: Phaser.GameObjects.Sprite | undefined;
 };
@@ -255,20 +255,24 @@ export function loadLevel(
         break;
       }
       case 'finish': {
-        // Overlap against the visible trophy sprite alone (only 64px tall,
-        // flush with the ground) lets a well-timed jump clear it entirely —
-        // the player then keeps auto-running past it, off the end of the
-        // level, and falls to their death instead of finishing. A taller
-        // invisible sensor at the same x/width, anchored to the same
-        // ground baseline, catches every pass regardless of jump height.
+        // Overlap against the visible gate sprite alone lets a well-timed
+        // jump clear it entirely — the player then keeps auto-running past
+        // it, off the end of the level, and falls to their death instead of
+        // finishing. A taller invisible sensor, anchored to the same ground
+        // baseline, catches every pass regardless of jump height. It starts
+        // at the gate's center (not its outer pillar) and is one cell wide,
+        // so the player stops under the arch.
         const sensor = scene.add.zone(
-          object.x,
+          object.x + GRID_CELL_SIZE / 2,
           object.y - FINISH_TRIGGER_HEIGHT_PX / 2,
-          rendered.displayWidth,
+          GRID_CELL_SIZE,
           FINISH_TRIGGER_HEIGHT_PX
         );
         scene.physics.add.existing(sensor, true);
         finishes.add(sensor);
+        // Behind the player (who runs through the arch), in front of the
+        // spawn tombstone and background.
+        rendered.setDepth(-0.1);
         applyOutlineGlow(rendered, 0x39ff88, 6);
         finishSprite = rendered;
         break;

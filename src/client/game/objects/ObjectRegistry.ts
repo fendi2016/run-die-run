@@ -49,9 +49,7 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   candle: 'candle',
   bat: 'bat',
   ghost: 'ghost',
-  // The at-rest frame — Juice.playFinishFlagAnimation alternates it with
-  // 'finish-wave' on overlap.
-  finish: 'finish-idle',
+  finish: 'finish-gate',
   shield: 'shield',
   speedBoost: 'speedBoost',
 };

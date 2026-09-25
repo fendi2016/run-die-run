@@ -229,6 +229,8 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 15, loop: true }, // status_sparkling_001 yellow
   // Level flow and curses (GameScene, CurseScene, EditorScene)
   { key: 'spawn-warp', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // scifi_warp_003 blue
+  { key: 'spawn-burst', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // lightning_burst_003 violet
+  { key: 'finish-blast', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // stylized_explosion_002 violet
   { key: 'firework-green', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_001 green
   { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_002 yellow
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // lightning_strike_001 violet
@@ -554,94 +556,57 @@ export function fitHyperspeedTrail(
   trail.setScale(HYPERSPEED_SCALE, Math.max(0, bottomY - topY) / trail.height);
 }
 
-// Flag frames in order, one per victory-dance beat (DANCE_FRAME_MS) so the
-// flag waves in time with the player's dance, settling on the resting frame
-// right before the closing burst.
-const FINISH_WAVES: readonly string[] = [
-  'finish-wave',
-  'finish-idle',
-  'finish-wave',
-  'finish-idle',
-  'finish-wave',
-  'finish-idle',
-];
-const FINISH_BURST_COLOR = 0x39ff88;
+// Squash pulses on the finish gate, one per victory-dance beat
+// (DANCE_FRAME_MS), each weaker than the last.
+const FINISH_PULSES = 3;
+const FINISH_BLAST_SCALE = 1;
+const FINISH_SPARK_COLOR = 0xc77dff;
 
-// Sets one of the finish flag's frames. Both frames share one canvas size,
-// so the origin and scale are identical and only the cloth moves. Exported
-// so GameScene can snap the flag back to rest on a same-scene restart
-// without duplicating this math.
-export function setFinishFrame(sprite: Phaser.GameObjects.Sprite, textureKey: string): number {
-  sprite.setTexture(textureKey);
-  sprite.setOrigin(0.5, 1);
-  const scale = FINISH_DISPLAY_HEIGHT_PX / sprite.height;
-  sprite.setScale(scale);
-  return scale;
+// Puts the finish gate back at its resting size. Exported so GameScene can
+// snap it back on a same-scene restart without duplicating this math.
+export function resetFinishGate(sprite: Phaser.GameObjects.Sprite): void {
+  sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.frame.height);
 }
 
-// Pending timers per flag, so a restart mid-animation can cancel them
-// (stopFinishFlagAnimation) instead of a late timer flipping frames on a
-// flag that's supposed to be back at rest.
-const flagRuns = new WeakMap<Phaser.GameObjects.Sprite, Phaser.Time.TimerEvent[]>();
-
-export function stopFinishFlagAnimation(sprite: Phaser.GameObjects.Sprite): void {
-  const timers = flagRuns.get(sprite);
-  if (!timers) return;
-  for (const timer of timers) timer.remove(false);
-  flagRuns.delete(sprite);
-}
-
-// An expanding, fading ring from the flag's cloth.
-function ringPulse(scene: Phaser.Scene, x: number, y: number, depth: number): void {
-  const ring = scene.add
-    .circle(x, y, 22)
-    .setStrokeStyle(4, FINISH_BURST_COLOR, 0.9)
-    .setDepth(depth - 0.1);
-  scene.tweens.add({
-    targets: ring,
-    scale: 4.5,
-    alpha: 0,
-    duration: 520,
-    ease: 'Cubic.easeOut',
-    onComplete: () => ring.destroy(),
-  });
-}
-
-// Plays the flag's wave -> burst sequence. Purely cosmetic, same as
-// burstParticles above — GameScene fires this once from onFinishReached and
-// never awaits it; the pole itself never moves or scales.
-export function playFinishFlagAnimation(
+export function stopFinishGateAnimation(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite
 ): void {
-  stopFinishFlagAnimation(sprite);
   scene.tweens.killTweensOf(sprite);
-  sprite.setRotation(0).setAlpha(1);
-  setFinishFrame(sprite, 'finish-idle');
+  resetFinishGate(sprite);
+}
 
-  // Center of the cloth: a little right of the pole, in the top third.
-  const clothX = sprite.x + sprite.displayWidth * 0.05;
-  const clothY = sprite.y - sprite.displayHeight * 0.8;
-  const depth = sprite.depth;
-  const timers: Phaser.Time.TimerEvent[] = [];
-  flagRuns.set(sprite, timers);
+// Plays the finish gate's celebration: a violet blast fills the arch while
+// the gate pulses in time with the player's dance. Purely cosmetic, same as
+// burstParticles above — GameScene fires this once from onFinishReached and
+// never awaits it. Only the scale moves; the sprite is bottom-anchored, so
+// the gate stays planted on the ground.
+export function playFinishGateAnimation(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite
+): void {
+  stopFinishGateAnimation(scene, sprite);
+  const restScale = sprite.scaleX;
 
-  let at = 0;
-  for (const frame of FINISH_WAVES) {
-    timers.push(
-      scene.time.delayedCall(at, () => {
-        if (sprite.active) setFinishFrame(sprite, frame);
-      })
-    );
-    at += DANCE_FRAME_MS;
-  }
+  // Middle of the arch's opening, under the banner.
+  const openingY = sprite.y - sprite.displayHeight * 0.4;
+  playPixelFx(scene, 'finish-blast', sprite.x, openingY, {
+    scale: FINISH_BLAST_SCALE,
+    depth: sprite.depth + 0.01,
+  });
+  burstParticles(scene, sprite.x, openingY, FINISH_SPARK_COLOR, 18);
 
-  timers.push(
-    scene.time.delayedCall(at, () => {
-      flagRuns.delete(sprite);
-      if (!sprite.active) return;
-      burstParticles(scene, clothX, clothY, FINISH_BURST_COLOR, 18);
-      ringPulse(scene, clothX, clothY, depth);
-    })
-  );
+  scene.tweens.chain({
+    targets: sprite,
+    tweens: Array.from({ length: FINISH_PULSES }, (_, i) => {
+      const strength = 1 - i / FINISH_PULSES;
+      return {
+        scaleX: restScale * (1 - 0.04 * strength),
+        scaleY: restScale * (1 + 0.08 * strength),
+        duration: DANCE_FRAME_MS / 2,
+        ease: 'Sine.easeOut',
+        yoyo: true,
+      };
+    }),
+  });
 }
