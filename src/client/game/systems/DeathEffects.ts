@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import type { ObjectType } from '../../../shared/types';
 import {
   burstParticles,
+  playBloodSplatter,
   playDeathExplosion,
   playPlayerShatter,
   slicePlayerFrame,
@@ -40,10 +41,12 @@ function playerStandIn(
 
 const SAW_SPARK_COLOR = 0xffd23f;
 const SAW_GORE_COLOR = 0xe0303a;
+// 64px source frames -> ~128px burst, a bit wider than the 80px player.
+const SAW_SPLATTER_SCALE = 2;
 
 // Sliced clean through at the waist: the top half is flung up and back,
 // spinning, while the legs stagger a beat and topple — with a spray of
-// metal sparks and red where the blade went through.
+// metal sparks and a burst of blood where the blade went through.
 const sawSlice: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const pieces = slicePlayerFrame(scene, x, y, textureKey, displaySize, 1, 2);
   const cutY = y - displaySize / 2;
@@ -78,6 +81,7 @@ const sawSlice: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   }
   burstParticles(scene, x, cutY, SAW_SPARK_COLOR, 18);
   burstParticles(scene, x, cutY, SAW_GORE_COLOR, 22);
+  playBloodSplatter(scene, x, cutY, SAW_SPLATTER_SCALE);
   scene.cameras.main.shake(140, 0.008);
 };
 

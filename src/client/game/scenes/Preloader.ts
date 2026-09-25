@@ -142,6 +142,12 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    // Saw-death gore (see Juice.playBloodSplatter) — Super Pixel Effects'
+    // burst_splatter_001_large_red, all 10 frames.
+    this.load.spritesheet('blood-splatter', 'vfx/blood-splatter.webp', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
 
     // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
     // also from the VFX Free Pack. shield-electric is the source pack's

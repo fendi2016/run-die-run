@@ -202,6 +202,29 @@ export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void
   burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
 }
 
+const BLOOD_SPLATTER_ANIM_KEY = 'blood-splatter';
+// A touch faster than the pack's intended 15fps so the burst finishes
+// alongside the saw slice (~0.5s) instead of lingering past it.
+const BLOOD_SPLATTER_FRAME_RATE = 20;
+
+// Pixel-art blood burst centered on (x, y). Nearest filtering keeps the
+// pixel art crisp at a non-integer scale, same as playSlideDust.
+export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
+  if (!scene.anims.exists(BLOOD_SPLATTER_ANIM_KEY)) {
+    scene.textures.get('blood-splatter').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.anims.create({
+      key: BLOOD_SPLATTER_ANIM_KEY,
+      frames: scene.anims.generateFrameNumbers('blood-splatter'),
+      frameRate: BLOOD_SPLATTER_FRAME_RATE,
+      repeat: 0,
+    });
+  }
+  const splatter = scene.add.sprite(x, y, 'blood-splatter', 0);
+  splatter.setScale(scale);
+  splatter.play(BLOOD_SPLATTER_ANIM_KEY);
+  splatter.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => splatter.destroy());
+}
+
 const SLIDE_DUST_ANIM_KEY = 'slide-dust';
 // vfx 2 pack, 426.png row 5 (white): 64px pixel-art frames whose ground line
 // sits at y=46, so that's the origin — the puff sits on the floor.
