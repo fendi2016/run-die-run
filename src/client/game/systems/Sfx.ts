@@ -1,4 +1,5 @@
 import type * as Phaser from 'phaser';
+import type { ObjectType } from '../../../shared/types';
 
 // Picked from the 400 Sounds Pack (see public/assets/sfx/), each trimmed so
 // the sound starts on its first audible sample — dead air at the front of a
@@ -10,9 +11,10 @@ import type * as Phaser from 'phaser';
 //   slide  Materials/concrete_scrape (first 0.5s)
 //   death  Combat and Gore/crunch_splat
 //   deathFire  Combat Sounds/fire_punch_02 (candle deaths)
+//   deathSaw   Combat Sounds/guts_and_gore_59 (saw deaths)
 //   clear  Musical Effects/music_box_level_complete
 //   pickup Items/gem_collect
-export const SFX_KEYS = ['jump', 'slide', 'death', 'deathFire', 'clear', 'pickup'] as const;
+export const SFX_KEYS = ['jump', 'slide', 'death', 'deathFire', 'deathSaw', 'clear', 'pickup'] as const;
 export type SfxKey = (typeof SFX_KEYS)[number];
 
 export const SFX_FILES: Record<SfxKey, string> = {
@@ -20,8 +22,17 @@ export const SFX_FILES: Record<SfxKey, string> = {
   slide: 'sfx/slide.wav',
   death: 'sfx/death.wav',
   deathFire: 'sfx/death_fire.wav',
+  deathSaw: 'sfx/death_saw.wav',
   clear: 'sfx/clear.m4a',
   pickup: 'sfx/pickup.wav',
+};
+
+// Hazards with their own death sound; anything else (and falls) gets the
+// generic 'death' crunch. Mirrors DeathEffects' per-hazard VFX map.
+export const DEATH_SFX_BY_TYPE: Partial<Record<ObjectType, SfxKey>> = {
+  saw: 'deathSaw',
+  movingSaw: 'deathSaw',
+  candle: 'deathFire',
 };
 
 // Every file is normalized to the same peak, so these set the mix.
@@ -30,6 +41,7 @@ const VOLUME: Record<SfxKey, number> = {
   slide: 0.35,
   death: 0.5,
   deathFire: 0.5,
+  deathSaw: 0.5,
   clear: 0.45,
   pickup: 0.35,
 };

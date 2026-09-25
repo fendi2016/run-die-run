@@ -14,7 +14,7 @@ import {
   playSlideImpact,
 } from '../systems/Juice';
 import { playDeathEffect } from '../systems/DeathEffects';
-import { playSfx } from '../systems/Sfx';
+import { DEATH_SFX_BY_TYPE, playSfx } from '../systems/Sfx';
 import type { ObjectType } from '../../../shared/types';
 import {
   COYOTE_TIME_MS,
@@ -747,7 +747,7 @@ export class Player {
     // pose the player was on.
     this.sprite.setVisible(false);
     playDeathEffect(this.scene, killer, this.sprite.x, this.sprite.y, this.sprite.texture.key, PLAYER_SIZE);
-    playSfx(this.scene, killer === 'candle' ? 'deathFire' : 'death');
+    playSfx(this.scene, (killer && DEATH_SFX_BY_TYPE[killer]) ?? 'death');
   }
 
   // Called once, when the finish line is reached (see GameScene.onFinishReached
