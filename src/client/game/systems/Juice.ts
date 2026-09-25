@@ -210,6 +210,10 @@ export type PixelFxOptions = {
   angle?: number;
   originX?: number;
   originY?: number;
+  // Only needed where the scene redraws its objects right after playing
+  // one (the editors rebuild every sprite on each change), which would
+  // otherwise bury the effect under the redrawn objects.
+  depth?: number;
 };
 
 // One-shot Super Pixel Effects sheet (a single-row strip whose texture and
@@ -220,7 +224,7 @@ export function playPixelFx(
   key: string,
   x: number,
   y: number,
-  { scale, frameRate = 15, angle = 0, originX = 0.5, originY = 0.5 }: PixelFxOptions
+  { scale, frameRate = 15, angle = 0, originX = 0.5, originY = 0.5, depth }: PixelFxOptions
 ): void {
   if (!scene.anims.exists(key)) {
     scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
@@ -235,8 +239,32 @@ export function playPixelFx(
   fx.setOrigin(originX, originY);
   fx.setScale(scale);
   fx.setAngle(angle);
+  if (depth !== undefined) fx.setDepth(depth);
   fx.play(key);
   fx.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => fx.destroy());
+}
+
+const PICKUP_SHIMMER_KEY = 'pickup-shimmer';
+
+// Looping pixel sparkles drawn over an uncollected power-up so it catches
+// the eye. LevelLoader.setPowerUpAvailable shows/hides it with the pickup.
+export function attachPickupShimmer(
+  scene: Phaser.Scene,
+  x: number,
+  y: number
+): Phaser.GameObjects.Sprite {
+  if (!scene.anims.exists(PICKUP_SHIMMER_KEY)) {
+    scene.textures.get(PICKUP_SHIMMER_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.anims.create({
+      key: PICKUP_SHIMMER_KEY,
+      frames: scene.anims.generateFrameNumbers(PICKUP_SHIMMER_KEY),
+      frameRate: 15,
+      repeat: -1,
+    });
+  }
+  const shimmer = scene.add.sprite(x, y, PICKUP_SHIMMER_KEY, 0);
+  shimmer.play(PICKUP_SHIMMER_KEY);
+  return shimmer;
 }
 
 // Pixel-art blood burst centered on (x, y). A touch faster than the pack's

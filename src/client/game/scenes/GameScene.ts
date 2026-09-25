@@ -60,6 +60,7 @@ import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   burstParticles,
   playFinishBellAnimation,
+  playPixelFx,
   setFinishFrame,
   stopFinishBellAnimation,
 } from '../systems/Juice';
@@ -69,6 +70,14 @@ import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { triggerBatFlight } from '../objects/ObjectRegistry';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
+// spawn-warp's splash sits on its frame's bottom edge (~122 of 128px).
+const SPAWN_WARP_GROUND_Y = 0.95;
+// Offsets from the finish bell's top-center, in world px.
+const FINISH_FIREWORKS = [
+  { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
+  { key: 'firework-yellow', dx: 50, dy: -70, delayMs: 200 },
+  { key: 'firework-green', dx: 10, dy: -110, delayMs: 400 },
+] as const;
 
 // Where a preview ("Test"/"Prove it's possible") run sends the player back
 // to once it resolves — the base editor (spec section 13) and the curse
@@ -469,7 +478,7 @@ export class GameScene extends Scene {
     const loaded = loadLevel(this, levelVersion, player.sprite, {
       onHazardHit: (objectId) => this.onHazardHit(objectId),
       onFinishReached: () => this.onFinishReached(),
-      onPowerUpCollected: (type) => this.onPowerUpCollected(type),
+      onPowerUpCollected: (type, x, y) => this.onPowerUpCollected(type, x, y),
     });
 
     this.spawn = loaded.spawn;
@@ -506,6 +515,7 @@ export class GameScene extends Scene {
     // — update() starts the timer and hides the prompt once Player itself
     // reports the wait is over.
     player.reset(this.spawn.x, this.spawn.y, true);
+    this.playSpawnWarp();
     // Keep gravity, collision callbacks, and moving objects idle together.
     // Scene input remains active so the first tap can release the gate.
     this.physics.pause();
@@ -537,6 +547,7 @@ export class GameScene extends Scene {
     this.cameras.main.flash(150, 57, 255, 136, false);
     if (this.finishSprite) {
       playFinishBellAnimation(this, this.finishSprite);
+      this.playFinishFireworks(this.finishSprite);
     }
     playSfx(this, 'clear');
 
@@ -746,16 +757,19 @@ export class GameScene extends Scene {
     this.onPlayerDied(objectId);
   }
 
-  private onPowerUpCollected(type: ObjectType): void {
+  // Pixel burst left where the pickup was, not following the player.
+  private onPowerUpCollected(type: ObjectType, x: number, y: number): void {
     if (!this.player) {
       return;
     }
     switch (type) {
       case 'shield':
         this.player.grantShield();
+        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2, frameRate: 20 });
         break;
       case 'speedBoost':
         this.player.applySpeedBoost();
+        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75, frameRate: 20 });
         break;
       default:
         break;
@@ -911,6 +925,27 @@ export class GameScene extends Scene {
       });
   }
 
+  // The player beams in at the spawn point: a bolt drops onto the feet and
+  // splashes out along the floor (the splash sits on spawn-warp's bottom
+  // edge, hence the origin).
+  private playSpawnWarp(): void {
+    playPixelFx(this, 'spawn-warp', this.spawn.x, this.spawn.y, {
+      scale: 1,
+      frameRate: 20,
+      originY: SPAWN_WARP_GROUND_Y,
+    });
+  }
+
+  // Three staggered pixel fireworks above the finish bell.
+  private playFinishFireworks(bell: Phaser.GameObjects.Sprite): void {
+    const bounds = bell.getBounds();
+    FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
+      this.time.delayedCall(delayMs, () =>
+        playPixelFx(this, key, bounds.centerX + dx, bounds.top + dy, { scale: 1.5 })
+      );
+    });
+  }
+
   private restartRun(): void {
     if (!this.player) {
       return;
@@ -926,6 +961,7 @@ export class GameScene extends Scene {
     this.deathPanel.hide();
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
+    this.playSpawnWarp();
     this.cameras.main.scrollX = 0;
     this.runElapsedMs = 0;
     this.runStarted = true;

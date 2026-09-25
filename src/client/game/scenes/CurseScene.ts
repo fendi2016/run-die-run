@@ -36,6 +36,14 @@ import {
   renderSpawnMarker,
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
+import { playPixelFx } from '../systems/Juice';
+import { PLATFORM_DISPLAY_HEIGHT_PX } from '../constants';
+
+// curse-strike's impact sits near its frame's bottom (~112 of 128px); it
+// lands on the placed curse's base. Both effects draw above the board,
+// which is rebuilt (redrawBase/redrawPending) after they start.
+const CURSE_STRIKE_GROUND_Y = 0.88;
+const CURSE_FX_DEPTH = 10;
 
 type CursePreselect = {
   category: CurseCategory;
@@ -308,6 +316,15 @@ export class CurseScene extends Scene {
     this.toolbar.hideMessage();
     this.growExtensionToReach(world.x);
     this.setPendingAt(world.x, world.y);
+    if (this.pendingImage) {
+      const base = this.pendingImage.getBottomCenter();
+      playPixelFx(this, 'curse-strike', base.x, base.y, {
+        scale: 1,
+        frameRate: 20,
+        originY: CURSE_STRIKE_GROUND_Y,
+        depth: CURSE_FX_DEPTH,
+      });
+    }
   }
 
   private removablePlatformAt(x: number, y: number): LevelObject | undefined {
@@ -326,6 +343,11 @@ export class CurseScene extends Scene {
       this.toolbar.hideMessage();
     } else {
       this.pendingRemoveId = object.id;
+      playPixelFx(this, 'smoke-poof', object.x, object.y + PLATFORM_DISPLAY_HEIGHT_PX / 2, {
+        scale: 1,
+        frameRate: 20,
+        depth: CURSE_FX_DEPTH,
+      });
       this.toolbar.showMessage(
         "Platform marked for removal — now place a curse, then prove it's possible."
       );

@@ -8,6 +8,30 @@ import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
 
 const BAR_WIDTH = 460;
 
+// Super Pixel Effects sheets played through Juice.playPixelFx, each
+// repacked into a single-row strip at public/assets/vfx/<key>.webp:
+// [key, frameWidth, frameHeight]. Source effect per key (all _large_):
+const PIXEL_FX_SHEETS: readonly [string, number, number][] = [
+  // Hazard deaths (DeathEffects)
+  ['blood-spray', 48, 48], // directional_splatter_003 red, mirrored to spray up-left
+  ['bat-impact', 80, 80], // directional_impact_004 yellow
+  ['ash-smoke', 64, 64], // directional_smoke_burst_001 white
+  ['ghost-skull-smoke', 64, 64], // stylized_skull_smoke_burst_001 white
+  // Movement and power-ups (Player, GameScene, LevelLoader)
+  ['jump-dust', 140, 50], // directional_impact_002 white
+  ['pickup-sparkle', 64, 64], // round_sparkle_burst_001 blue
+  ['pickup-flash', 256, 144], // round_light_burst_001 yellow
+  ['shield-break', 96, 96], // symmetrical_impact_002 blue
+  ['shield-zap', 64, 64], // lightning_burst_002 violet
+  ['pickup-shimmer', 96, 96], // status_sparkling_001 yellow (looped)
+  // Level flow and curses (GameScene, CurseScene, EditorScene)
+  ['spawn-warp', 128, 128], // scifi_warp_003 blue
+  ['firework-green', 96, 96], // round_firework_burst_001 green
+  ['firework-yellow', 96, 96], // round_firework_burst_002 yellow
+  ['curse-strike', 128, 128], // lightning_strike_001 violet
+  ['smoke-poof', 64, 64], // symmetrical_smoke_burst_001 brown
+];
+
 export class Preloader extends Scene {
   private failed = false;
   constructor() {
@@ -148,28 +172,10 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
-    // The rest of the per-hazard death VFX (see DeathEffects), also Super
-    // Pixel Effects, each repacked into a single-row strip:
-    // blood-spray is directional_splatter_003_large_red, mirrored so it
-    // sprays up and back; bat-impact is directional_impact_004_large_yellow;
-    // ash-smoke is directional_smoke_burst_001_large_white; ghost-skull-smoke
-    // is stylized_skull_smoke_burst_001_large_white.
-    this.load.spritesheet('blood-spray', 'vfx/blood-spray.webp', {
-      frameWidth: 48,
-      frameHeight: 48,
-    });
-    this.load.spritesheet('bat-impact', 'vfx/bat-impact.webp', {
-      frameWidth: 80,
-      frameHeight: 80,
-    });
-    this.load.spritesheet('ash-smoke', 'vfx/ash-smoke.webp', {
-      frameWidth: 64,
-      frameHeight: 64,
-    });
-    this.load.spritesheet('ghost-skull-smoke', 'vfx/ghost-skull-smoke.webp', {
-      frameWidth: 64,
-      frameHeight: 64,
-    });
+    // Everything played through Juice.playPixelFx — see PIXEL_FX_SHEETS.
+    for (const [key, frameWidth, frameHeight] of PIXEL_FX_SHEETS) {
+      this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
+    }
 
     // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
     // also from the VFX Free Pack. shield-electric is the source pack's

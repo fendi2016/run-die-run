@@ -30,6 +30,7 @@ import {
   renderSpawnMarker,
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
+import { playPixelFx } from '../systems/Juice';
 
 type EditorSceneData = {
   objects?: DraftObject[];
@@ -131,11 +132,7 @@ export class EditorScene extends Scene {
         this.applyMutation(() => this.controller.undo(), 'Nothing to undo.'),
       onRedo: () =>
         this.applyMutation(() => this.controller.redo(), 'Nothing to redo.'),
-      onDelete: () =>
-        this.applyMutation(
-          () => this.controller.deleteSelected(),
-          'Nothing selected.'
-        ),
+      onDelete: () => this.deleteSelected(),
       onTest: () => void this.handleTest(),
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),
@@ -207,6 +204,21 @@ export class EditorScene extends Scene {
     if (!found) {
       this.toolbar.showMessage('Nothing there to select — tap an object.');
     }
+  }
+
+  // A puff of smoke where the deleted object was. Drawn above the objects,
+  // which applyMutation rebuilds right after.
+  private deleteSelected(): void {
+    const selectedId = this.controller.getSelectedId();
+    const image = selectedId ? this.renderedObjects.get(selectedId) : undefined;
+    const center = image?.getCenter();
+    this.applyMutation(() => {
+      const deleted = this.controller.deleteSelected();
+      if (deleted && center) {
+        playPixelFx(this, 'smoke-poof', center.x, center.y, { scale: 1, frameRate: 20, depth: 10 });
+      }
+      return deleted;
+    }, 'Nothing selected.');
   }
 
   private applyMutation(

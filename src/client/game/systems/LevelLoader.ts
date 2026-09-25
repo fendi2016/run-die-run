@@ -11,7 +11,7 @@ import {
   motionTweenConfigFor,
   renderLevelObject,
 } from '../objects/ObjectRegistry';
-import { applyOutlineGlow } from './Juice';
+import { applyOutlineGlow, attachPickupShimmer } from './Juice';
 
 // A bat that hasn't yet locked onto the player and dashed off (see
 // ObjectRegistry.triggerBatFlight). `triggered` is mutated in place by
@@ -51,10 +51,14 @@ export type LoadedLevel = {
 export type LevelLoaderCallbacks = {
   onHazardHit: (objectId: string) => void;
   onFinishReached: () => void;
-  onPowerUpCollected: (type: ObjectType) => void;
+  // (x, y) is the pickup's center, for the collect burst.
+  onPowerUpCollected: (type: ObjectType, x: number, y: number) => void;
 };
 
 const DEFAULT_SPAWN = { x: 80, y: 0 };
+// Each pickup's looping sparkle (Juice.attachPickupShimmer), stored on the
+// pickup sprite so setPowerUpAvailable can hide/show it alongside.
+const SHIMMER_DATA_KEY = 'shimmer';
 // Trailing margin past the rightmost object so the camera doesn't clamp
 // exactly on the finish portal's edge.
 const LEVEL_WIDTH_MARGIN = 200;
@@ -70,6 +74,8 @@ export function setPowerUpAvailable(
   available: boolean
 ): void {
   sprite.setVisible(available);
+  const shimmer: unknown = sprite.getData(SHIMMER_DATA_KEY);
+  if (shimmer instanceof Phaser.GameObjects.Sprite) shimmer.setVisible(available);
   if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
     sprite.body.enable = available;
   }
@@ -115,7 +121,8 @@ export function loadLevel(
     const object = sourceObjects.get(target);
     if (!object) return;
     setPowerUpAvailable(target, false);
-    callbacks.onPowerUpCollected(object.type);
+    const center = target.getCenter();
+    callbacks.onPowerUpCollected(object.type, center.x, center.y);
   });
   scene.physics.add.overlap(player, finishes, callbacks.onFinishReached);
 
@@ -267,11 +274,14 @@ export function loadLevel(
         finishSprite = rendered;
         break;
       }
-      case 'powerup':
+      case 'powerup': {
         powerUpImages.push(rendered);
         pickups.add(rendered);
         applyOutlineGlow(rendered, 0xffffff, 4);
+        const center = rendered.getCenter();
+        rendered.setData(SHIMMER_DATA_KEY, attachPickupShimmer(scene, center.x, center.y));
         break;
+      }
       default:
         break;
     }

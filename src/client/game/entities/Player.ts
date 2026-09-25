@@ -10,6 +10,7 @@ import {
   destroyElectricShield,
   fitHyperspeedTrail,
   playHyperspeedTrail,
+  playPixelFx,
   playSlideDust,
   playSlideImpact,
 } from '../systems/Juice';
@@ -99,6 +100,15 @@ const SLIDE_FRAME_WIDTH = 494;
 const SLIDE_FRAME_WEIGHTS = [0.09, 0.09, 0.16, 0.16, 0.16, 0.16, 0.09, 0.09];
 // Dust puff cadence under the feet while sliding (Juice.playSlideDust).
 const SLIDE_DUST_INTERVAL_MS = 200;
+// jump-dust is a flat ground burst whose floor line is its frame's bottom
+// row, so anchoring there sets it on the ground under the feet.
+const JUMP_DUST_GROUND_Y = 0.98;
+const JUMP_DUST_SCALE = 0.75;
+const LANDING_DUST_SCALE = 1;
+// A jump lands at about JUMP_VELOCITY (620px/s) on level ground; dust
+// only for harder landings — a jump down to a lower platform, or a drop of
+// three tiles or more — so it doesn't fire on every hop.
+const HARD_LANDING_SPEED = 700;
 // Standing hitbox, in source-frame fractions (see PLAYER_FRAME_SIZE):
 // forgiving width, bottom flush with the feet. The slide variant keeps the
 // same width and bottom, just shorter (SLIDE_HITBOX_HEIGHT).
@@ -347,6 +357,9 @@ export class Player {
   // mid-air, so a tap just after jumping fired a second jump (and a tap on
   // that frame counted as a ground tap for double-tap).
   private awaitingTakeoffStep = false;
+  // Fastest downward speed since leaving the ground, for landing dust.
+  // Read on the landing frame because body.velocity.y is already 0 there.
+  private peakFallSpeed = 0;
 
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
@@ -474,6 +487,7 @@ export class Player {
 
   update(deltaMs: number): void {
     this.syncEffectSprites();
+    this.updateLandingDust();
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
     this.msSinceGrounded = this.isGrounded
       ? 0
@@ -528,7 +542,27 @@ export class Player {
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.awaitingTakeoffStep = true;
+    this.playGroundDust(JUMP_DUST_SCALE);
     playSfx(this.scene, 'jump');
+  }
+
+  private playGroundDust(scale: number): void {
+    playPixelFx(this.scene, 'jump-dust', this.sprite.x, this.sprite.y, {
+      scale,
+      frameRate: 20,
+      originY: JUMP_DUST_GROUND_Y,
+    });
+  }
+
+  private updateLandingDust(): void {
+    if (!this.isGrounded) {
+      this.peakFallSpeed = Math.max(this.peakFallSpeed, this.body.velocity.y);
+      return;
+    }
+    if (this.peakFallSpeed >= HARD_LANDING_SPEED && this.alive && !this.waitingToStart) {
+      this.playGroundDust(LANDING_DUST_SCALE);
+    }
+    this.peakFallSpeed = 0;
   }
 
   private onWorldStep(): void {
@@ -653,6 +687,9 @@ export class Player {
     this.hasShield = false;
     this.shieldProtectionRemainingMs = 350;
     this.flashSprite();
+    const centerY = this.sprite.y - PLAYER_SIZE / 2;
+    playPixelFx(this.scene, 'shield-break', this.sprite.x, centerY, { scale: 1.5 });
+    playPixelFx(this.scene, 'shield-zap', this.sprite.x, centerY, { scale: 2, frameRate: 20 });
     if (this.shieldSprite) {
       destroyElectricShield(this.scene, this.shieldSprite);
       this.shieldSprite = undefined;
@@ -791,6 +828,7 @@ export class Player {
     this.tapHeldMs = null;
     this.releaseCutInMs = null;
     this.awaitingTakeoffStep = false;
+    this.peakFallSpeed = 0;
     this.endSlide();
     this.alive = true;
     this.waitingToStart = waiting;
