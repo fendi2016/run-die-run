@@ -49,8 +49,8 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   candle: 'candle',
   bat: 'bat',
   ghost: 'ghost',
-  // The at-rest frame — LevelLoader/Juice.playFinishBellAnimation swaps to
-  // the hit/ringing/success frames on overlap (see FINISH_ORIGIN_X below).
+  // The at-rest frame — Juice.playFinishFlagAnimation alternates it with
+  // 'finish-wave' on overlap.
   finish: 'finish-idle',
   shield: 'shield',
   speedBoost: 'speedBoost',
@@ -283,23 +283,6 @@ function originFor(category: ObjectCategory): [number, number] {
   return category === 'solid' ? [0.5, 0] : [0.5, 1];
 }
 
-// The finish bell's 4 frames were cropped from a reference sheet where the
-// gallows post sits at a different offset within each frame's canvas
-// (motion-lines and ghosts extend that canvas unevenly to the sides), so a
-// single centered origin would make the post visibly jump sideways every
-// time Juice.playFinishBellAnimation swaps textures. Each origin instead
-// pins the post itself to the same world x — see finishOriginX.
-export const FINISH_ORIGIN_X: Record<string, number> = {
-  'finish-idle': 0.1944,
-  'finish-hit': 0.1449,
-  'finish-ringing': 0.1951,
-  'finish-success': 0.0567,
-};
-
-export function finishOriginX(textureKey: string): number {
-  return FINISH_ORIGIN_X[textureKey] ?? 0.5;
-}
-
 // Renders a placed level object as a static Phaser sprite (a Sprite, not
 // just an Image, so hazards with an animated texture — see
 // SPIN_ANIM_BY_TYPE — can play it). Spawn markers aren't rendered
@@ -328,9 +311,7 @@ export function renderLevelObject(
     return null;
   }
 
-  const [defaultOriginX, originY] = originFor(categoryOf(object.type));
-  const originX =
-    object.type === 'finish' ? finishOriginX(textureKey) : defaultOriginX;
+  const [originX, originY] = originFor(categoryOf(object.type));
   const sprite = scene.add
     .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
@@ -350,8 +331,7 @@ export function renderLevelObject(
   } else if (object.type === 'ghost') {
     sprite.setScale(GHOST_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'finish') {
-    // Aspect preserved (unlike bat's forced squash) — the 4 frames' widths
-    // legitimately differ (ghosts/motion-lines), only height is shared.
+    // Aspect preserved (unlike bat's forced squash).
     sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.height);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));

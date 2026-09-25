@@ -107,14 +107,13 @@ export class Preloader extends Scene {
         frameHeight: sheet.frameHeight,
       });
     }
-    // The finish bell (see ObjectRegistry/Juice.playFinishBellAnimation) is
-    // 4 separate frames rather than a spritesheet — each has its own
-    // hand-picked origin (FINISH_ORIGIN_X) so the post stays visually
-    // planted while the bell/motion-lines/ghosts around it change extent.
+    // The finish flag (see Juice.playFinishFlagAnimation) and spawn portal
+    // are Raven Fantasy Icons #42/#43 and #35, pre-upscaled 4x
+    // nearest-neighbor so they stay crisp under the game's linear filtering.
+    // The two flag frames share one canvas size, so swapping between them
+    // never shifts the pole.
     this.load.image('finish-idle', 'markers/finish-idle.webp');
-    this.load.image('finish-hit', 'markers/finish-hit.webp');
-    this.load.image('finish-ringing', 'markers/finish-ringing.webp');
-    this.load.image('finish-success', 'markers/finish-success.webp');
+    this.load.image('finish-wave', 'markers/finish-wave.webp');
     this.load.image('spawn-marker', 'markers/spawn.webp');
     this.load.image('shield', 'powerups/shield.webp');
     this.load.image('speedBoost', 'powerups/speedBoost.webp');

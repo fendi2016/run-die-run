@@ -59,10 +59,10 @@ import { getRequestedLevelId } from '../levelSelection';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   burstParticles,
-  playFinishBellAnimation,
+  playFinishFlagAnimation,
   playPixelFx,
   setFinishFrame,
-  stopFinishBellAnimation,
+  stopFinishFlagAnimation,
 } from '../systems/Juice';
 import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
@@ -76,7 +76,7 @@ const SPAWN_WARP_GROUND_Y = 0.95;
 // splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
 const SPAWN_WARP_LAND_FRAME = 4;
 const SPAWN_WARP_LAND_MS = (SPAWN_WARP_LAND_FRAME * 1000) / 20;
-// Offsets from the finish bell's top-center, in world px.
+// Offsets from the finish flag's top-center, in world px.
 const FINISH_FIREWORKS = [
   { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
   { key: 'firework-yellow', dx: 50, dy: -70, delayMs: 200 },
@@ -293,9 +293,9 @@ export class GameScene extends Scene {
   private readonly onNavigationKey = (event: KeyboardEvent): void => {
     if (event.repeat || !this.player) return;
     // Dev shortcut: warp to the finish sprite, then trigger the real finish
-    // sequence (particles, camera flash, bell animation, player's dance,
+    // sequence (particles, camera flash, flag animation, player's dance,
     // result overlay) there — triggering in place left the camera (which
-    // just follows the player's x) nowhere near the bell. Dev subreddit
+    // just follows the player's x) nowhere near the flag. Dev subreddit
     // only: anywhere else it would verify unbeaten levels and farm clears.
     if (event.key === '7' && currentSubredditName() === DEV_SUBREDDIT) {
       event.preventDefault();
@@ -550,7 +550,7 @@ export class GameScene extends Scene {
     );
     this.cameras.main.flash(150, 57, 255, 136, false);
     if (this.finishSprite) {
-      playFinishBellAnimation(this, this.finishSprite);
+      playFinishFlagAnimation(this, this.finishSprite);
       this.playFinishFireworks(this.finishSprite);
     }
     playSfx(this, 'clear');
@@ -947,9 +947,9 @@ export class GameScene extends Scene {
     this.time.delayedCall(SPAWN_WARP_LAND_MS, () => sprite.setVisible(true));
   }
 
-  // Three staggered pixel fireworks above the finish bell.
-  private playFinishFireworks(bell: Phaser.GameObjects.Sprite): void {
-    const bounds = bell.getBounds();
+  // Three staggered pixel fireworks above the finish flag.
+  private playFinishFireworks(flag: Phaser.GameObjects.Sprite): void {
+    const bounds = flag.getBounds();
     FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
       this.time.delayedCall(delayMs, () =>
         playPixelFx(this, key, bounds.centerX + dx, bounds.top + dy, { scale: 1.5 })
@@ -991,10 +991,10 @@ export class GameScene extends Scene {
     // Defensive: onFinishReached leaves runEnded=true, and every normal
     // path out of a finish is the result overlay's next-level/editor-return
     // flow rather than restartRun — but if this ever does fire after a
-    // finish (e.g. a stray restart control), the bell shouldn't stay stuck
-    // mid-ding.
+    // finish (e.g. a stray restart control), the flag shouldn't stay stuck
+    // mid-wave.
     if (this.finishSprite) {
-      stopFinishBellAnimation(this, this.finishSprite);
+      stopFinishFlagAnimation(this.finishSprite);
       this.tweens.killTweensOf(this.finishSprite);
       this.finishSprite.setRotation(0);
       setFinishFrame(this.finishSprite, 'finish-idle');

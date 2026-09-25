@@ -41,9 +41,8 @@ export type LoadedLevel = {
   // reload the level) — a power-up collected once shouldn't be gone for
   // every subsequent attempt at the same run.
   powerUpImages: Phaser.GameObjects.Sprite[];
-  // The visible finish bell (VerificationService guarantees exactly one
-  // per level), exposed so GameScene can play the hit/ringing/success
-  // texture swap on it from onFinishReached — undefined for level data that
+  // The visible finish flag (VerificationService guarantees exactly one
+  // per level), exposed so GameScene can play the wave animation on it from onFinishReached — undefined for level data that
   // (invalidly) has none, rather than throwing.
   finishSprite: Phaser.GameObjects.Sprite | undefined;
 };

@@ -1,6 +1,5 @@
 import * as Phaser from 'phaser';
 import { DANCE_FRAME_MS, FINISH_DISPLAY_HEIGHT_PX } from '../constants';
-import { finishOriginX } from '../objects/ObjectRegistry';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
 // death, celebration on finish) — a one-shot particle burst using the
@@ -555,71 +554,52 @@ export function fitHyperspeedTrail(
   trail.setScale(HYPERSPEED_SCALE, Math.max(0, bottomY - topY) / trail.height);
 }
 
-// Swing poses in order, one per victory-dance beat (DANCE_FRAME_MS) so the
-// bell rings in time with the player's dance: the two tilted frames
-// alternate like a pendulum (rings fading as the swing dies down), settle on
-// the resting frame, then the success frame fades in over two beats.
-const FINISH_SWINGS: readonly string[] = [
-  'finish-hit',
-  'finish-ringing',
-  'finish-hit',
-  'finish-ringing',
-  'finish-hit',
-  'finish-ringing',
+// Flag frames in order, one per victory-dance beat (DANCE_FRAME_MS) so the
+// flag waves in time with the player's dance, settling on the resting frame
+// right before the closing burst.
+const FINISH_WAVES: readonly string[] = [
+  'finish-wave',
+  'finish-idle',
+  'finish-wave',
+  'finish-idle',
+  'finish-wave',
   'finish-idle',
 ];
-const FINISH_SUCCESS_FADE_MS = DANCE_FRAME_MS * 2;
-const FINISH_RING_COLOR = 0x39ff88;
+const FINISH_BURST_COLOR = 0x39ff88;
 
-// Sets one of the finish bell's reference-art frames. Origin comes from
-// finishOriginX (see ObjectRegistry.FINISH_ORIGIN_X) so the gallows post
-// stays planted while the bell/motion-lines/ghosts around it change extent.
-// Scale is the SAME for every frame (fit from the resting frame's height):
-// the frames share one pixel scale, and fitting each to the display height
-// separately shrank the taller success frame (its ghosts add headroom) by
-// ~30%, making the whole bell jump. Exported so GameScene can snap the bell
-// back to rest on a same-scene restart without duplicating this math.
+// Sets one of the finish flag's frames. Both frames share one canvas size,
+// so the origin and scale are identical and only the cloth moves. Exported
+// so GameScene can snap the flag back to rest on a same-scene restart
+// without duplicating this math.
 export function setFinishFrame(sprite: Phaser.GameObjects.Sprite, textureKey: string): number {
   sprite.setTexture(textureKey);
-  sprite.setOrigin(finishOriginX(textureKey), 1);
-  const restHeight = sprite.scene.textures.getFrame('finish-idle')?.height ?? sprite.height;
-  const scale = FINISH_DISPLAY_HEIGHT_PX / restHeight;
+  sprite.setOrigin(0.5, 1);
+  const scale = FINISH_DISPLAY_HEIGHT_PX / sprite.height;
   sprite.setScale(scale);
   return scale;
 }
 
-// Pending timers/overlay per bell, so a restart mid-animation can cancel it
-// (stopFinishBellAnimation) instead of a late timer flipping frames on a
-// bell that's supposed to be back at rest.
-const bellRuns = new WeakMap<
-  Phaser.GameObjects.Sprite,
-  { timers: Phaser.Time.TimerEvent[]; overlay: Phaser.GameObjects.Sprite | undefined }
->();
+// Pending timers per flag, so a restart mid-animation can cancel them
+// (stopFinishFlagAnimation) instead of a late timer flipping frames on a
+// flag that's supposed to be back at rest.
+const flagRuns = new WeakMap<Phaser.GameObjects.Sprite, Phaser.Time.TimerEvent[]>();
 
-export function stopFinishBellAnimation(
-  scene: Phaser.Scene,
-  sprite: Phaser.GameObjects.Sprite
-): void {
-  const run = bellRuns.get(sprite);
-  if (!run) return;
-  for (const timer of run.timers) timer.remove(false);
-  if (run.overlay) {
-    scene.tweens.killTweensOf(run.overlay);
-    run.overlay.destroy();
-  }
-  bellRuns.delete(sprite);
+export function stopFinishFlagAnimation(sprite: Phaser.GameObjects.Sprite): void {
+  const timers = flagRuns.get(sprite);
+  if (!timers) return;
+  for (const timer of timers) timer.remove(false);
+  flagRuns.delete(sprite);
 }
 
-// An expanding, fading ring from the bell — the "sound" of each strike.
-// `strength` (0..1) shrinks and fades later rings as the swing dies down.
-function ringPulse(scene: Phaser.Scene, x: number, y: number, depth: number, strength: number): void {
+// An expanding, fading ring from the flag's cloth.
+function ringPulse(scene: Phaser.Scene, x: number, y: number, depth: number): void {
   const ring = scene.add
     .circle(x, y, 22)
-    .setStrokeStyle(4, FINISH_RING_COLOR, 0.9 * strength)
+    .setStrokeStyle(4, FINISH_BURST_COLOR, 0.9)
     .setDepth(depth - 0.1);
   scene.tweens.add({
     targets: ring,
-    scale: 1 + 3.5 * strength,
+    scale: 4.5,
     alpha: 0,
     duration: 520,
     ease: 'Cubic.easeOut',
@@ -627,64 +607,41 @@ function ringPulse(scene: Phaser.Scene, x: number, y: number, depth: number, str
   });
 }
 
-// Plays the bell's swing -> success sequence. Purely cosmetic, same as
+// Plays the flag's wave -> burst sequence. Purely cosmetic, same as
 // burstParticles above — GameScene fires this once from onFinishReached and
-// never awaits it; the post itself never moves or scales.
-export function playFinishBellAnimation(
+// never awaits it; the pole itself never moves or scales.
+export function playFinishFlagAnimation(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite
 ): void {
-  stopFinishBellAnimation(scene, sprite);
+  stopFinishFlagAnimation(sprite);
   scene.tweens.killTweensOf(sprite);
   sprite.setRotation(0).setAlpha(1);
   setFinishFrame(sprite, 'finish-idle');
 
-  // The bell hangs right of the post, a bit below the crossbar.
-  const bellX = sprite.x + sprite.displayWidth * (0.62 - sprite.originX);
-  const bellY = sprite.y - sprite.displayHeight * 0.45;
+  // Center of the cloth: a little right of the pole, in the top third.
+  const clothX = sprite.x + sprite.displayWidth * 0.05;
+  const clothY = sprite.y - sprite.displayHeight * 0.8;
   const depth = sprite.depth;
-  const run: { timers: Phaser.Time.TimerEvent[]; overlay: Phaser.GameObjects.Sprite | undefined } = {
-    timers: [],
-    overlay: undefined,
-  };
-  bellRuns.set(sprite, run);
+  const timers: Phaser.Time.TimerEvent[] = [];
+  flagRuns.set(sprite, timers);
 
   let at = 0;
-  FINISH_SWINGS.forEach((frame, index) => {
-    const strength = 1 - index / FINISH_SWINGS.length;
-    run.timers.push(
+  for (const frame of FINISH_WAVES) {
+    timers.push(
       scene.time.delayedCall(at, () => {
-        if (!sprite.active) return;
-        setFinishFrame(sprite, frame);
-        if (frame !== 'finish-idle') ringPulse(scene, bellX, bellY, depth, strength);
+        if (sprite.active) setFinishFrame(sprite, frame);
       })
     );
     at += DANCE_FRAME_MS;
-  });
+  }
 
-  run.timers.push(
+  timers.push(
     scene.time.delayedCall(at, () => {
+      flagRuns.delete(sprite);
       if (!sprite.active) return;
-      // Cross-fade rather than swap, so the ghosts and glowing eyes rise
-      // out of the resting bell instead of popping in.
-      const overlay = scene.add.sprite(sprite.x, sprite.y, 'finish-success').setDepth(depth + 0.01);
-      setFinishFrame(overlay, 'finish-success');
-      overlay.setAlpha(0);
-      run.overlay = overlay;
-      burstParticles(scene, bellX, bellY, FINISH_RING_COLOR, 18);
-      ringPulse(scene, bellX, bellY, depth, 1);
-      scene.tweens.add({
-        targets: overlay,
-        alpha: 1,
-        duration: FINISH_SUCCESS_FADE_MS,
-        ease: 'Sine.easeOut',
-        onComplete: () => {
-          if (sprite.active) setFinishFrame(sprite, 'finish-success');
-          overlay.destroy();
-          run.overlay = undefined;
-          bellRuns.delete(sprite);
-        },
-      });
+      burstParticles(scene, clothX, clothY, FINISH_BURST_COLOR, 18);
+      ringPulse(scene, clothX, clothY, depth);
     })
   );
 }

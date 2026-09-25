@@ -84,13 +84,11 @@ export const BAT_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
-// The finish bell's 4 frames (idle/hit/ringing/success) are cropped to
-// different native pixel sizes (motion-lines and ghosts extend the canvas
-// unevenly), so they're scaled to a shared target height rather than a
-// fixed display size — width is left to each frame's own aspect ratio.
-export const FINISH_DISPLAY_HEIGHT_PX = 150;
+// The finish flag is scaled to this height (two grid tiles); width follows
+// the art's own aspect ratio.
+export const FINISH_DISPLAY_HEIGHT_PX = 120;
 
-// One beat of the finish-line victory dance (ms per pose). The finish bell's
-// swing (Juice.playFinishBellAnimation) is timed on the same beat so the
+// One beat of the finish-line victory dance (ms per pose). The finish flag's
+// wave (Juice.playFinishFlagAnimation) is timed on the same beat so the
 // two read as one celebration.
 export const DANCE_FRAME_MS = 144;
