@@ -858,9 +858,14 @@ export class Player {
       return;
     }
     if (this.tapWaitMs !== null) {
-      // Second tap inside the window: slide instead of jumping.
+      // Second tap inside the window: slide instead of jumping. If the
+      // player ran off a ledge during the wait there's no ground to slide
+      // on — give them the first tap's jump rather than dropping both.
+      const tapWasGrounded =
+        this.msSinceGrounded <= COYOTE_TIME_MS + this.tapWaitMs;
       this.tapWaitMs = null;
       if (this.isGrounded) this.startSlide();
+      else if (tapWasGrounded) this.jump();
       return;
     }
     // Only a tap on the ground (not mid-slide) can start a double-tap.
