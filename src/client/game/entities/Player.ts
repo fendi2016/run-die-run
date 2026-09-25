@@ -348,6 +348,13 @@ export class Player {
   private tapWaitMs: number | null = null;
   private tapHeldMs: number | null = null;
   private releaseCutInMs: number | null = null;
+  // Same replay for a press buffered in the air (or mid-slide): how long it
+  // was held before release, null while still held. Without it a quick
+  // tap just before landing gave a full-height jump, since its release
+  // came before the jump it was buffering.
+  private bufferedHeldMs: number | null = null;
+  // Whether the current jump has already been cut short (see cutJump).
+  private jumpCut = false;
   private slideRemainingMs = 0;
   private slideDustMs = 0;
   // True from jump() until the next physics step. Arcade steps at a fixed
@@ -531,7 +538,10 @@ export class Player {
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
-    if (hasBufferedJump && canGroundJump) this.jump();
+    if (hasBufferedJump && canGroundJump) {
+      this.jump();
+      this.releaseCutInMs = this.bufferedHeldMs;
+    }
   }
 
   private jump(): void {
@@ -542,6 +552,7 @@ export class Player {
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.awaitingTakeoffStep = true;
+    this.jumpCut = false;
     this.playGroundDust(JUMP_DUST_SCALE);
     playSfx(this.scene, 'jump');
   }
@@ -827,6 +838,7 @@ export class Player {
     this.tapWaitMs = null;
     this.tapHeldMs = null;
     this.releaseCutInMs = null;
+    this.bufferedHeldMs = null;
     this.awaitingTakeoffStep = false;
     this.peakFallSpeed = 0;
     this.endSlide();
@@ -915,6 +927,7 @@ export class Player {
       return;
     }
     this.msSinceJumpPressed = 0;
+    this.bufferedHeldMs = null;
   }
 
 
@@ -924,13 +937,18 @@ export class Player {
       this.tapHeldMs = this.tapWaitMs;
       return;
     }
+    if (this.msSinceJumpPressed !== Number.POSITIVE_INFINITY) {
+      this.bufferedHeldMs = this.msSinceJumpPressed;
+    }
     this.cutJump();
   }
 
   // Hold-to-jump-higher: letting go while still rising cuts the jump short.
+  // Once per jump — extra taps mid-air (e.g. a double-click) used to halve
+  // the rise again on every release, stalling the player in the air.
   private cutJump(): void {
-    if (this.body.velocity.y < 0) {
-      this.sprite.setVelocityY(this.body.velocity.y * JUMP_RELEASE_MULTIPLIER);
-    }
+    if (this.jumpCut || this.body.velocity.y >= 0) return;
+    this.jumpCut = true;
+    this.sprite.setVelocityY(this.body.velocity.y * JUMP_RELEASE_MULTIPLIER);
   }
 }
