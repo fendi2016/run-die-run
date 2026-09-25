@@ -747,7 +747,7 @@ export class Player {
     // pose the player was on.
     this.sprite.setVisible(false);
     playDeathEffect(this.scene, killer, this.sprite.x, this.sprite.y, this.sprite.texture.key, PLAYER_SIZE);
-    playSfx(this.scene, 'death');
+    playSfx(this.scene, killer === 'candle' ? 'deathFire' : 'death');
   }
 
   // Called once, when the finish line is reached (see GameScene.onFinishReached

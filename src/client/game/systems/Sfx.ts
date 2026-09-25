@@ -9,15 +9,17 @@ import type * as Phaser from 'phaser';
 //   jump   Other/whoosh_1
 //   slide  Materials/concrete_scrape (first 0.5s)
 //   death  Combat and Gore/crunch_splat
+//   deathFire  Combat Sounds/fire_punch_02 (candle deaths)
 //   clear  Musical Effects/music_box_level_complete
 //   pickup Items/gem_collect
-export const SFX_KEYS = ['jump', 'slide', 'death', 'clear', 'pickup'] as const;
+export const SFX_KEYS = ['jump', 'slide', 'death', 'deathFire', 'clear', 'pickup'] as const;
 export type SfxKey = (typeof SFX_KEYS)[number];
 
 export const SFX_FILES: Record<SfxKey, string> = {
   jump: 'sfx/jump.wav',
   slide: 'sfx/slide.wav',
   death: 'sfx/death.wav',
+  deathFire: 'sfx/death_fire.wav',
   clear: 'sfx/clear.m4a',
   pickup: 'sfx/pickup.wav',
 };
@@ -27,6 +29,7 @@ const VOLUME: Record<SfxKey, number> = {
   jump: 0.3,
   slide: 0.35,
   death: 0.5,
+  deathFire: 0.5,
   clear: 0.45,
   pickup: 0.35,
 };
