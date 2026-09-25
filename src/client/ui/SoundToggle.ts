@@ -38,39 +38,58 @@ export function initSound(game: Phaser.Game): void {
   // and the run opened on a couple of seconds of silence.
   music.preload = 'auto';
   let muted = readMuted();
-  // Browsers block audio until the player interacts, so nothing calls
-  // play() before the first real tap/key (almost always the tap-to-start
-  // jump). Trying on load instead left some webviews reporting a blocked
-  // play() as started, so later taps never retried and the music never
-  // came on at all.
-  let unlocked = false;
+  // Only real playback counts: the track time has to actually advance.
+  // Some webviews report a blocked play() as started (paused=false, even
+  // a 'playing' event) while staying silent, and trusting that is what
+  // left the music off for good before.
+  let playing = false;
+  let lastTime = 0;
+  music.addEventListener('timeupdate', () => {
+    if (!music.paused && music.currentTime !== lastTime) playing = true;
+    lastTime = music.currentTime;
+  });
+  music.addEventListener('pause', () => {
+    playing = false;
+  });
+  // Bumped on every start attempt so a stale attempt's rejection can't
+  // pause a newer one that's already underway.
+  let attempt = 0;
+
+  const start = (): void => {
+    if (playing) return;
+    const id = ++attempt;
+    // Reset a fake start first — play() on a track that claims to be
+    // unpaused does nothing.
+    music.pause();
+    music.play().catch(() => {
+      // Refused until the player interacts (or the file failed) — the
+      // next tap/key retries.
+      if (id === attempt) music.pause();
+    });
+  };
 
   const sync = (): void => {
     game.sound.mute = muted;
     button.classList.toggle('muted', muted);
     button.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
     button.setAttribute('aria-pressed', String(!muted));
-    if (muted || !unlocked || document.hidden) {
+    if (muted || document.hidden) {
+      attempt++;
       music.pause();
     } else {
-      music.play().catch(() => {
-        // Refused (or the file failed) — stays silent, the next tap/key
-        // retries.
-      });
+      start();
     }
   };
 
-  // Runs on every tap/key, not just the first: play() on a track that is
-  // already playing is a no-op, and this way a refused or interrupted
-  // start always gets another try instead of trusting the webview's
-  // playing/paused reports.
+  // Every tap/key retries until the music is really playing. Touch
+  // browsers only grant audio permission on the tap's release
+  // (pointerup/touchend), not on pointerdown — listen for all of them.
   const unlockEvents = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
   const unlock = (event: Event): void => {
     // The toggle runs its own sync() after flipping mute; starting the
     // music here first would make a first-tap mute blip the track.
     if (event.target instanceof Node && button.contains(event.target)) return;
-    unlocked = true;
-    sync();
+    if (!playing) sync();
   };
 
   button.addEventListener('click', (event) => {
@@ -78,12 +97,9 @@ export function initSound(game: Phaser.Game): void {
     event.stopPropagation();
     muted = !muted;
     writeMuted(muted);
-    unlocked = true;
     sync();
   });
   button.addEventListener('pointerdown', (event) => event.stopPropagation());
-  // Touch browsers only grant audio permission on the tap's release
-  // (pointerup/touchend), not on pointerdown — listen for all of them.
   for (const type of unlockEvents) {
     window.addEventListener(type, unlock, { capture: true });
   }
@@ -93,5 +109,8 @@ export function initSound(game: Phaser.Game): void {
   // Phaser's sound manager finishes booting after this runs; re-apply the
   // saved mute once it's ready so a muted player's SFX stay muted too.
   game.events.once('ready', sync);
+  // Try right away: when the Play tap that opened this view still counts
+  // as permission, the music starts with the game. If the browser blocks
+  // it, the first tap/key anywhere starts it instead.
   sync();
 }
