@@ -148,6 +148,28 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    // The rest of the per-hazard death VFX (see DeathEffects), also Super
+    // Pixel Effects, each repacked into a single-row strip:
+    // blood-spray is directional_splatter_003_large_red, mirrored so it
+    // sprays up and back; bat-impact is directional_impact_004_large_yellow;
+    // ash-smoke is directional_smoke_burst_001_large_white; ghost-skull-smoke
+    // is stylized_skull_smoke_burst_001_large_white.
+    this.load.spritesheet('blood-spray', 'vfx/blood-spray.webp', {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+    this.load.spritesheet('bat-impact', 'vfx/bat-impact.webp', {
+      frameWidth: 80,
+      frameHeight: 80,
+    });
+    this.load.spritesheet('ash-smoke', 'vfx/ash-smoke.webp', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet('ghost-skull-smoke', 'vfx/ghost-skull-smoke.webp', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
 
     // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
     // also from the VFX Free Pack. shield-electric is the source pack's

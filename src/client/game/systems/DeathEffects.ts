@@ -4,6 +4,7 @@ import {
   burstParticles,
   playBloodSplatter,
   playDeathExplosion,
+  playPixelFx,
   playPlayerShatter,
   slicePlayerFrame,
 } from './Juice';
@@ -43,6 +44,9 @@ const SAW_SPARK_COLOR = 0xffd23f;
 const SAW_GORE_COLOR = 0xe0303a;
 // 64px source frames -> ~128px burst, a bit wider than the 80px player.
 const SAW_SPLATTER_SCALE = 2;
+// blood-spray starts in its frame's bottom-right corner and sprays up-left,
+// the same way the top half is flung.
+const SAW_SPRAY_ORIGIN = 0.82;
 
 // Sliced clean through at the waist: the top half is flung up and back,
 // spinning, while the legs stagger a beat and topple — with a spray of
@@ -82,6 +86,12 @@ const sawSlice: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   burstParticles(scene, x, cutY, SAW_SPARK_COLOR, 18);
   burstParticles(scene, x, cutY, SAW_GORE_COLOR, 22);
   playBloodSplatter(scene, x, cutY, SAW_SPLATTER_SCALE);
+  playPixelFx(scene, 'blood-spray', x, cutY, {
+    scale: SAW_SPLATTER_SCALE,
+    frameRate: 20,
+    originX: SAW_SPRAY_ORIGIN,
+    originY: SAW_SPRAY_ORIGIN,
+  });
   scene.cameras.main.shake(140, 0.008);
 };
 
@@ -89,6 +99,9 @@ const CHAR_TINT = 0x1c1414;
 const EMBER_COLOR = 0xff8a2a;
 const ASH_GRID = 4;
 const CANDLE_CHAR_MS = 220;
+// ash-smoke's first puff sits at the bottom of its 64px frame; anchoring
+// there sets it on the floor, rising off the ash pile.
+const ASH_SMOKE_BASE_Y = 60 / 64;
 
 // Burned to a crisp: the player flash-chars black and trembles for a beat,
 // then crumbles into ash that drops to the floor, embers rising off it.
@@ -120,10 +133,15 @@ const candleBurn: DeathEffect = (scene, x, y, textureKey, displaySize) => {
       });
     }
     burstParticles(scene, x, y - 10, EMBER_COLOR, 12);
+    playPixelFx(scene, 'ash-smoke', x, y, { scale: 2, frameRate: 20, originY: ASH_SMOKE_BASE_Y });
   });
 };
 
 const BAT_HIT_COLOR = 0xffffff;
+// bat-impact is a burst off a floor: spikes point up from a ring along its
+// frame's bottom edge. Anchored on that ring and turned 90° clockwise, it
+// bursts off the player's front, back toward where the bat came from.
+const BAT_IMPACT_BASE_Y = 0.9;
 
 // Rammed out of the level: a white impact flash, then the player is sent
 // cartwheeling back the way they came (bats dash in at the player from
@@ -135,6 +153,11 @@ const batKnockout: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   body.setTint(BAT_HIT_COLOR).setTintMode(Phaser.TintModes.FILL);
   scene.time.delayedCall(70, () => body.clearTint());
   burstParticles(scene, x + displaySize / 3, y - displaySize / 2, BAT_HIT_COLOR, 16);
+  playPixelFx(scene, 'bat-impact', x + displaySize / 3, y - displaySize / 2, {
+    scale: 1.5,
+    angle: 90,
+    originY: BAT_IMPACT_BASE_Y,
+  });
   scene.cameras.main.shake(110, 0.007);
 
   scene.tweens.add({
@@ -189,6 +212,8 @@ const ghostSoulDrain: DeathEffect = (scene, x, y, textureKey, displaySize) => {
     onComplete: () => soul.destroy(),
   });
   burstParticles(scene, x, y - displaySize / 2, GHOST_WISP_COLOR, 14);
+  // A skull puffs out of the body as the soul leaves it.
+  playPixelFx(scene, 'ghost-skull-smoke', x, y - displaySize * 0.75, { scale: 2 });
   scene.cameras.main.shake(80, 0.003);
 };
 

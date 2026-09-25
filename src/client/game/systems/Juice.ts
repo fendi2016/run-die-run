@@ -202,27 +202,47 @@ export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void
   burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
 }
 
-const BLOOD_SPLATTER_ANIM_KEY = 'blood-splatter';
-// A touch faster than the pack's intended 15fps so the burst finishes
-// alongside the saw slice (~0.5s) instead of lingering past it.
-const BLOOD_SPLATTER_FRAME_RATE = 20;
+export type PixelFxOptions = {
+  scale: number;
+  // The pack's intended rate is 15fps; some effects run a touch faster so
+  // they finish alongside the tween work they accompany.
+  frameRate?: number;
+  angle?: number;
+  originX?: number;
+  originY?: number;
+};
 
-// Pixel-art blood burst centered on (x, y). Nearest filtering keeps the
-// pixel art crisp at a non-integer scale, same as playSlideDust.
-export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
-  if (!scene.anims.exists(BLOOD_SPLATTER_ANIM_KEY)) {
-    scene.textures.get('blood-splatter').setFilter(Phaser.Textures.FilterMode.NEAREST);
+// One-shot Super Pixel Effects sheet (a single-row strip whose texture and
+// anim share `key`) played at (x, y), then destroyed. Nearest filtering
+// keeps the pixel art crisp at a non-integer scale, same as playSlideDust.
+export function playPixelFx(
+  scene: Phaser.Scene,
+  key: string,
+  x: number,
+  y: number,
+  { scale, frameRate = 15, angle = 0, originX = 0.5, originY = 0.5 }: PixelFxOptions
+): void {
+  if (!scene.anims.exists(key)) {
+    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     scene.anims.create({
-      key: BLOOD_SPLATTER_ANIM_KEY,
-      frames: scene.anims.generateFrameNumbers('blood-splatter'),
-      frameRate: BLOOD_SPLATTER_FRAME_RATE,
+      key,
+      frames: scene.anims.generateFrameNumbers(key),
+      frameRate,
       repeat: 0,
     });
   }
-  const splatter = scene.add.sprite(x, y, 'blood-splatter', 0);
-  splatter.setScale(scale);
-  splatter.play(BLOOD_SPLATTER_ANIM_KEY);
-  splatter.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => splatter.destroy());
+  const fx = scene.add.sprite(x, y, key, 0);
+  fx.setOrigin(originX, originY);
+  fx.setScale(scale);
+  fx.setAngle(angle);
+  fx.play(key);
+  fx.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => fx.destroy());
+}
+
+// Pixel-art blood burst centered on (x, y). A touch faster than the pack's
+// 15fps so it finishes alongside the saw slice (~0.5s).
+export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
+  playPixelFx(scene, 'blood-splatter', x, y, { scale, frameRate: 20 });
 }
 
 const SLIDE_DUST_ANIM_KEY = 'slide-dust';
