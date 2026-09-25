@@ -1,5 +1,10 @@
 import { requireButton, requireElement } from './domUtils';
 
+// A load that finishes within this window never shows a loading screen.
+// A slower one (a level fetch can retry for ~46s) gets one with Browse /
+// Exit, so the player is never stranded on a blank canvas.
+const LOADING_DIALOG_DELAY_MS = 1500;
+
 type Handlers = {
   pause: () => void;
   resume: () => void;
@@ -19,6 +24,7 @@ export class GameplayControls {
   private readonly restart = requireButton('gameplay-restart');
   private readonly retry = requireButton('gameplay-retry-load');
   private readonly buttons: HTMLButtonElement[];
+  private loadingTimer: number | undefined;
 
   constructor(handlers: Handlers, preview: boolean) {
     const actions: [string, () => void][] = [
@@ -62,6 +68,10 @@ export class GameplayControls {
   hideWhileLoading(): void {
     this.dialog.classList.add('hidden');
     this.toggle.classList.add('hidden');
+    window.clearTimeout(this.loadingTimer);
+    this.loadingTimer = window.setTimeout(() => {
+      this.show('Loading level…', '', false, false, false, true);
+    }, LOADING_DIALOG_DELAY_MS);
   }
 
   showLoadError(): void {
@@ -84,6 +94,7 @@ export class GameplayControls {
   // empty canvas: a jarring, unstyled-looking screen wedged between the
   // Preloader's loading bar and the level actually appearing.
   private show(title: string, message: string, resume: boolean, restart: boolean, retry: boolean, emptyCanvas: boolean): void {
+    window.clearTimeout(this.loadingTimer);
     this.title.textContent = title;
     this.message.textContent = message;
     this.resume.classList.toggle('hidden', !resume);
@@ -96,6 +107,7 @@ export class GameplayControls {
   }
 
   hideDialog(): void {
+    window.clearTimeout(this.loadingTimer);
     this.dialog.classList.add('hidden');
     for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = false;
     this.toggle.classList.remove('hidden');
@@ -103,6 +115,7 @@ export class GameplayControls {
   }
 
   destroy(): void {
+    window.clearTimeout(this.loadingTimer);
     this.toggle.classList.add('hidden');
     this.dialog.classList.add('hidden');
     for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = false;

@@ -44,6 +44,10 @@ export class InputSystem {
     // A key or button released while the window is unfocused never sends
     // its up event; drop everything held so jump can't get stuck down.
     window.addEventListener('blur', this.releaseAll);
+    // A paused scene's input plugins drop events, so a key or pointer let go
+    // during pause never reports its release. Keeping it in `held` would
+    // swallow the next press after resume as a repeat of that stale hold.
+    scene.events.on(Phaser.Scenes.Events.PAUSE, this.forgetHeld, this);
   }
 
   destroy(): void {
@@ -55,6 +59,7 @@ export class InputSystem {
     this.scene.input.off('pointerup', this.onPointerUp, this);
     this.scene.input.off('pointerupoutside', this.onPointerUp, this);
     window.removeEventListener('blur', this.releaseAll);
+    this.scene.events.off(Phaser.Scenes.Events.PAUSE, this.forgetHeld, this);
   }
 
   private onKeyDown(key: Phaser.Input.Keyboard.Key, event: KeyboardEvent): void {
@@ -94,6 +99,11 @@ export class InputSystem {
   private release(source: string): void {
     if (!this.held.delete(source) || this.held.size > 0) return;
     if (this.canJump()) this.scene.events.emit(JUMP_UP_EVENT);
+  }
+
+  private forgetHeld(): void {
+    this.held.clear();
+    for (const key of this.jumpKeys) key.reset();
   }
 
   private releaseAll = (): void => {

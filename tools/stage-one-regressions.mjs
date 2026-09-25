@@ -71,6 +71,22 @@ export async function testStageOne(page) {
   assert.equal(await page.evaluate(() => window.__PHASER_GAME__.scene.isPaused('GameScene')), true);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('GameScene'));
+  // A jump key released during pause must not swallow the next press after resume.
+  await page.evaluate(() => {
+    const s = window.__PHASER_GAME__.scene.getScene('GameScene');
+    window.__jumpDowns = 0;
+    s.events.on('jumpdown', () => { window.__jumpDowns++; });
+  });
+  await page.keyboard.down('Space');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PHASER_GAME__.scene.isPaused('GameScene'));
+  await page.keyboard.up('Space');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('GameScene'));
+  const downsBefore = await page.evaluate(() => window.__jumpDowns);
+  await page.keyboard.down('Space');
+  await page.waitForFunction((n) => window.__jumpDowns > n, downsBefore);
+  await page.keyboard.up('Space');
   // Simulate document visibility and page lifecycle events independently of focus.
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
@@ -117,14 +133,17 @@ export async function testStageOne(page) {
   await page.waitForSelector('#run-result-save-retry', { state: 'visible' });
   scoreMode = 'ok';
   await page.click('#run-result-save-retry');
-  await page.waitForFunction(() => document.querySelector('#run-result-save-status').textContent === 'Score saved.');
+  // A saved score clears the status line and the retry button.
+  await page.waitForFunction(() => document.querySelector('#run-result-save-status').textContent === ''
+    && document.querySelector('#run-result-save-retry').classList.contains('hidden'));
   assert.deepEqual(submissions[0], submissions[1], 'save retry reuses the exact clear and id');
   await page.waitForSelector('#run-result-next', { state: 'visible' });
   await page.click('#run-result-next');
   await page.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'second');
   await page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').onPlayerDied());
   await page.click('#death-panel-browse');
-  await page.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('DiscoveryScene'));
+  // Browse is a DOM overlay over the run, not a separate scene.
+  await page.waitForSelector('#discovery-overlay', { state: 'visible' });
 
   // A late score response from an earlier attempt must not add buttons to a new run.
   scoreMode = 'delayed';
@@ -132,9 +151,11 @@ export async function testStageOne(page) {
   await start();
   await ready();
   await finish();
-  await page.waitForFunction(() => document.querySelector('#run-result-next-status').textContent.startsWith('No other levels'));
+  // With no other level, the "Finding another level…" status clears and Next stays hidden.
+  await page.waitForFunction(() => document.querySelector('#run-result-next-status').textContent === '');
   assert.equal(await page.isVisible('#run-result-next'), false);
-  await page.click('#run-result-retry-btn');
+  // The result panel has no Retry button any more; restart the run directly.
+  await page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').restartRun());
   releaseScore();
   scoreMode = 'ok';
   await page.waitForSelector('#run-result', { state: 'hidden' });
