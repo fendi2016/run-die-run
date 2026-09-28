@@ -251,3 +251,33 @@ body {
 .level-daily {
   color: #ff7a45;
 }
+
+/* Tagline + course silhouette, below the art — never over it. The card is
+   a flex column, so this strip takes its height from the scene. */
+.course-strip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px 8px;
+  background: #0d0d16;
+  border-top: 2px solid #000000;
+}
+.course-tagline {
+  color: #ffffff;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-shadow: 1px 1px 0 #000000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.course-preview {
+  height: 30px;
+}
+@media (max-width: 380px) {
+  .course-tagline {
+    font-size: 9.5px;
+  }
+}
