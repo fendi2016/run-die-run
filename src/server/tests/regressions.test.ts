@@ -1011,7 +1011,7 @@ await test('faded-out DOM overlays are removed from hit testing, not just made i
     new URL('../../client/game.css', import.meta.url),
     'utf8'
   );
-  for (const selector of ['#run-result', '#death-panel']) {
+  for (const selector of ['#run-result', '#death-toast']) {
     const rule = css.match(
       new RegExp(`\\${selector}\\.hidden\\s*\\{([^}]*)\\}`)
     );

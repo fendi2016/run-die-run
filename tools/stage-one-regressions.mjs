@@ -141,7 +141,9 @@ export async function testStageOne(page) {
   await page.click('#run-result-next');
   await page.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'second');
   await page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').onPlayerDied());
-  await page.click('#death-panel-browse');
+  // Death no longer stops on a panel; Browse lives in the pause menu.
+  await page.click('#gameplay-menu');
+  await page.click('#gameplay-browse');
   // Browse is a DOM overlay over the run, not a separate scene.
   await page.waitForSelector('#discovery-overlay', { state: 'visible' });
 

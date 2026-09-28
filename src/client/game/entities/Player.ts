@@ -11,8 +11,6 @@ import {
   fitHyperspeedTrail,
   playHyperspeedTrail,
   playPixelFx,
-  playSlideDust,
-  playSlideImpact,
 } from '../systems/Juice';
 import { playDeathEffect } from '../systems/DeathEffects';
 import { DEATH_SFX_BY_TYPE, playSfx } from '../systems/Sfx';
@@ -20,14 +18,11 @@ import type { ObjectType } from '../../../shared/types';
 import {
   COYOTE_TIME_MS,
   DANCE_FRAME_MS,
-  DOUBLE_TAP_MS,
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
   PLAYER_SIZE,
   RUN_SPEED,
-  SLIDE_DURATION_MS,
-  SLIDE_HITBOX_HEIGHT,
   SPEED_BOOST_DURATION_MS,
   SPEED_BOOST_MULTIPLIER,
 } from '../constants';
@@ -41,8 +36,6 @@ import {
 // leg/arm contact poses, not near-duplicates — unlike the original 4x2
 // sheet, which only had one distinct leg pose and no way to fake a second
 // one that didn't look like the character spinning to face backwards).
-// player-slide-1..8 is the slide: drop in (1-2), slide (3-6), get back up
-// (7-8) — see SLIDE_ANIM_KEY.
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -54,14 +47,6 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
-  'player-slide-1',
-  'player-slide-2',
-  'player-slide-3',
-  'player-slide-4',
-  'player-slide-5',
-  'player-slide-6',
-  'player-slide-7',
-  'player-slide-8',
   'player-dance-1',
   'player-dance-2',
   'player-dance-3',
@@ -89,17 +74,6 @@ const RUN_KEYS = [
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
 const FALL_KEY = 'player-jump-fall';
-const SLIDE_ANIM_KEY = 'player-slide';
-// The slide frames are wider than every other pose (legs stretch forward)
-// but share its 362px height, pixel scale, and head
-// position, so they draw at PLAYER_BASE_SCALE without the robot changing
-// size; only the hitbox's x offset needs to know the wider canvas.
-const SLIDE_FRAME_WIDTH = 494;
-// Share of SLIDE_DURATION_MS each slide frame holds: quick drop-in and
-// get-up, longer on the four sliding frames.
-const SLIDE_FRAME_WEIGHTS = [0.09, 0.09, 0.16, 0.16, 0.16, 0.16, 0.09, 0.09];
-// Dust puff cadence under the feet while sliding (Juice.playSlideDust).
-const SLIDE_DUST_INTERVAL_MS = 200;
 // jump-dust is a flat ground burst whose floor line is its frame's bottom
 // row, so anchoring there sets it on the ground under the feet.
 const JUMP_DUST_GROUND_Y = 0.98;
@@ -110,8 +84,7 @@ const LANDING_DUST_SCALE = 1;
 // three tiles or more — so it doesn't fire on every hop.
 const HARD_LANDING_SPEED = 700;
 // Standing hitbox, in source-frame fractions (see PLAYER_FRAME_SIZE):
-// forgiving width, bottom flush with the feet. The slide variant keeps the
-// same width and bottom, just shorter (SLIDE_HITBOX_HEIGHT).
+// forgiving width, bottom flush with the feet.
 const HITBOX_WIDTH = 0.7;
 const HITBOX_HEIGHT = 0.85;
 const DANCE_ANIM_KEY = 'player-dance';
@@ -170,7 +143,7 @@ const opaqueBoundsCache = new Map<string, OpaqueBounds>();
 
 // The drawn (non-transparent) extent of a frame, in unscaled frame pixels.
 // Every player pose sits on a padded canvas (run/idle: 32-80px empty on the
-// left and 33-48px above the head out of 362; slide: ~100px above), so the
+// left and 33-48px above the head out of 362), so the
 // display box badly overstates where the body actually is. Falls back to
 // the full frame if the source can't be read back (e.g. a render texture).
 function opaqueFrameBounds(frame: Phaser.Textures.Frame): OpaqueBounds {
@@ -300,17 +273,6 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
       repeat: 0,
     });
   }
-  if (!scene.anims.exists(SLIDE_ANIM_KEY)) {
-    scene.anims.create({
-      key: SLIDE_ANIM_KEY,
-      frames: SLIDE_FRAME_WEIGHTS.map((weight, i) => ({
-        key: `player-slide-${i + 1}`,
-        duration: Math.round(SLIDE_DURATION_MS * weight),
-      })),
-      frameRate: 22,
-      repeat: 0,
-    });
-  }
   if (!scene.anims.exists(DANCE_ANIM_KEY)) {
     scene.anims.create({
       key: DANCE_ANIM_KEY,
@@ -338,31 +300,20 @@ export class Player {
   private alive = true;
   private msSinceGrounded = Number.POSITIVE_INFINITY;
   private msSinceJumpPressed = Number.POSITIVE_INFINITY;
-  // Double-tap: a tap on the ground starts `tapWaitMs` (ms since that tap,
-  // null when not waiting). A second tap inside DOUBLE_TAP_MS slides;
-  // otherwise the jump fires when the wait runs out. `tapHeldMs` records a
-  // release during the wait (how long the tap was held), and
-  // `releaseCutInMs` replays that release the same time after lift-off, so
-  // the arc is exactly what the tap would have given without the wait.
-  // `slideRemainingMs` > 0 while sliding.
-  private tapWaitMs: number | null = null;
-  private tapHeldMs: number | null = null;
+  // A press buffered in the air: how long it was held before release, null
+  // while still held. `releaseCutInMs` replays that release the same time
+  // after lift-off — without it a quick tap just before landing gave a
+  // full-height jump, since its release came before the jump it was
+  // buffering.
   private releaseCutInMs: number | null = null;
-  // Same replay for a press buffered in the air (or mid-slide): how long it
-  // was held before release, null while still held. Without it a quick
-  // tap just before landing gave a full-height jump, since its release
-  // came before the jump it was buffering.
   private bufferedHeldMs: number | null = null;
   // Whether the current jump has already been cut short (see cutJump).
   private jumpCut = false;
-  private slideRemainingMs = 0;
-  private slideDustMs = 0;
   // True from jump() until the next physics step. Arcade steps at a fixed
   // 60Hz and only refreshes body.blocked on frames that step, so on a
   // 120Hz display (or any frame the accumulator skips) blocked.down still
   // reads true the frame after take-off. Trusting it re-armed coyote time
-  // mid-air, so a tap just after jumping fired a second jump (and a tap on
-  // that frame counted as a ground tap for double-tap).
+  // mid-air, so a tap just after jumping fired a second jump.
   private awaitingTakeoffStep = false;
   // Fastest downward speed since leaving the ground, for landing dust.
   // Read on the landing frame because body.velocity.y is already 0 there.
@@ -464,7 +415,7 @@ export class Player {
   // Juice.playHyperspeedTrail) sits at the pose's leftmost drawn pixel
   // (the player always auto-runs rightward), and its height is squeezed to
   // the pose's drawn top-to-bottom span. Re-fit every tick since the run
-  // cycle's squash/stretch and the jump/slide poses all change the body's
+  // cycle's squash/stretch and the jump poses all change the body's
   // extent — a fixed box put streaks above the head (user report).
   private fitHyperspeedSprite(): void {
     if (!this.hyperspeedSprite) return;
@@ -509,7 +460,6 @@ export class Player {
     }
 
     this.sprite.setVelocityX(RUN_SPEED * this.speedMultiplier);
-    this.updateSlide(deltaMs);
     this.updateAnimation();
 
     if (this.releaseCutInMs !== null) {
@@ -518,22 +468,6 @@ export class Player {
         this.releaseCutInMs = null;
         this.cutJump();
       }
-    }
-
-    if (this.tapWaitMs !== null) {
-      this.tapWaitMs += deltaMs;
-      if (this.tapWaitMs >= DOUBLE_TAP_MS) {
-        // No second tap: it was a jump. The tap happened on the ground, so
-        // coyote time counts from then, not from now.
-        const tapWasGrounded =
-          this.msSinceGrounded <= COYOTE_TIME_MS + this.tapWaitMs;
-        this.tapWaitMs = null;
-        if (tapWasGrounded) {
-          this.jump();
-          this.releaseCutInMs = this.tapHeldMs;
-        }
-      }
-      return;
     }
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
@@ -545,8 +479,6 @@ export class Player {
   }
 
   private jump(): void {
-    // Tapping mid-slide jumps straight out of it.
-    this.endSlide();
     this.releaseCutInMs = null;
     this.sprite.setVelocityY(-JUMP_VELOCITY);
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
@@ -583,73 +515,19 @@ export class Player {
     return this.body.blocked.down && !this.awaitingTakeoffStep;
   }
 
-  private get isSliding(): boolean {
-    return this.slideRemainingMs > 0;
-  }
-
-  // Bottom stays at the feet (offset + height = the full frame), so
-  // shrinking for a slide never lifts the player off the ground or sinks
-  // them into it.
-  // `frameWidth`: the source width of the frames about to be shown, so the
-  // hitbox stays centered under the robot on the wider slide frames.
-  private setHitboxHeight(fraction: number, frameWidth = PLAYER_FRAME_SIZE): void {
+  // Bottom stays at the feet (offset + height = the full frame).
+  private setHitboxHeight(fraction: number): void {
     const width = PLAYER_FRAME_SIZE * HITBOX_WIDTH;
     this.body.setSize(width, PLAYER_FRAME_SIZE * fraction);
-    this.body.setOffset((frameWidth - width) / 2, PLAYER_FRAME_SIZE * (1 - fraction));
-  }
-
-  private startSlide(): void {
-    this.slideRemainingMs = SLIDE_DURATION_MS;
-    this.slideDustMs = SLIDE_DUST_INTERVAL_MS;
-    this.setHitboxHeight(SLIDE_HITBOX_HEIGHT, SLIDE_FRAME_WIDTH);
-    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
-    this.sprite.play(SLIDE_ANIM_KEY);
-    this.sprite.anims.timeScale = 1;
-    // Just behind the feet, at shin height, as the slide kicks off.
-    playSlideImpact(this.scene, this.sprite.x - 20, this.sprite.y - 22);
-    playSlideDust(this.scene, this.sprite.x - 10, this.sprite.y, 1.8);
-    playSfx(this.scene, 'slide');
-  }
-
-  private endSlide(): void {
-    const wasSliding = this.isSliding;
-    this.slideRemainingMs = 0;
-    if (wasSliding) this.setHitboxHeight(HITBOX_HEIGHT);
-  }
-
-  private updateSlide(deltaMs: number): void {
-    if (!this.isSliding) return;
-    // Sliding off a ledge ends it — a crouched hitbox mid-fall would only
-    // make hazards in the air easier to dodge.
-    if (this.msSinceGrounded > COYOTE_TIME_MS) {
-      this.endSlide();
-      return;
-    }
-    if (this.slideRemainingMs <= deltaMs) {
-      this.endSlide();
-      return;
-    }
-    this.slideRemainingMs -= deltaMs;
-    this.slideDustMs -= deltaMs;
-    if (this.slideDustMs <= 0) {
-      this.slideDustMs += SLIDE_DUST_INTERVAL_MS;
-      playSlideDust(this.scene, this.sprite.x - 16, this.sprite.y, 1.3);
-    }
+    this.body.setOffset((PLAYER_FRAME_SIZE - width) / 2, PLAYER_FRAME_SIZE * (1 - fraction));
   }
 
   // Airborne swaps between the rising-leap and falling-sprawl poses off
   // velocity direction — the run cycle only plays while grounded, so it
   // never fights either airborne frame for control of the sprite.
   private updateAnimation(): void {
-    if (this.isSliding) {
-      // startSlide already started the animation.
-      return;
-    }
     if (this.isGrounded) {
-      if (
-        !this.sprite.anims.isPlaying ||
-        this.sprite.anims.getName() === SLIDE_ANIM_KEY
-      ) {
+      if (!this.sprite.anims.isPlaying) {
         this.sprite.play(RUN_ANIM_KEY);
       }
       // Leg-cycle rate tracks actual ground speed — Speed Boost (1.6x)
@@ -834,13 +712,10 @@ export class Player {
     this.body.setAllowGravity(true);
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-    this.tapWaitMs = null;
-    this.tapHeldMs = null;
     this.releaseCutInMs = null;
     this.bufferedHeldMs = null;
     this.awaitingTakeoffStep = false;
     this.peakFallSpeed = 0;
-    this.endSlide();
     this.alive = true;
     this.waitingToStart = waiting;
     if (waiting) {
@@ -884,7 +759,6 @@ export class Player {
 
   clearBufferedInput(): void {
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
-    this.tapWaitMs = null;
   }
 
   private onJumpPressed(): void {
@@ -906,36 +780,14 @@ export class Player {
       this.sprite.play(RUN_ANIM_KEY);
       return;
     }
-    if (this.tapWaitMs !== null) {
-      // Second tap inside the window: slide instead of jumping. If the
-      // player ran off a ledge during the wait there's no ground to slide
-      // on — give them the first tap's jump rather than dropping both.
-      const tapWasGrounded =
-        this.msSinceGrounded <= COYOTE_TIME_MS + this.tapWaitMs;
-      this.tapWaitMs = null;
-      if (this.isGrounded) this.startSlide();
-      else if (tapWasGrounded) this.jump();
-      return;
-    }
-    // Only a tap on the ground (not mid-slide) can start a double-tap.
-    // Mid-slide it jumps out right away; in the air it buffers a jump for
-    // landing, both exactly as before.
-    if (this.isGrounded && !this.isSliding) {
-      this.tapWaitMs = 0;
-      this.tapHeldMs = null;
-      return;
-    }
+    // Jumps on the next update() if grounded (or within coyote time);
+    // otherwise buffers for landing.
     this.msSinceJumpPressed = 0;
     this.bufferedHeldMs = null;
   }
 
-
   private onJumpReleased(): void {
     if (!this.scene.sys.isActive() || !this.alive) return;
-    if (this.tapWaitMs !== null) {
-      this.tapHeldMs = this.tapWaitMs;
-      return;
-    }
     if (this.msSinceJumpPressed !== Number.POSITIVE_INFINITY) {
       this.bufferedHeldMs = this.msSinceJumpPressed;
     }

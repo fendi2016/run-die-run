@@ -23,6 +23,7 @@
             <button type="button" id="gameplay-resume" class="editor-btn editor-btn-primary">Resume</button>
             <button type="button" id="gameplay-retry-load" class="editor-btn editor-btn-primary">Retry Loading</button>
             <button type="button" id="gameplay-restart" class="editor-btn">Restart</button>
+            <button type="button" id="gameplay-share" class="editor-btn hidden">Share</button>
             <button type="button" id="gameplay-browse" class="editor-btn editor-btn-ghost">Browse Levels</button>
             <button type="button" id="gameplay-exit" class="editor-btn editor-btn-ghost">Exit to Menu</button>
           </div>
@@ -31,21 +32,12 @@
       <div id="tap-to-start" class="hidden" aria-live="polite">
         <img id="tap-to-start-logo" src="/assets/ui/tap-to-start-logo.webp" alt="" />
         <div id="tap-to-start-label">Tap to Start</div>
-        <div id="tap-to-start-hint">Tap to jump · Double-tap to slide</div>
+        <div id="tap-to-start-hint">Tap to jump · Hold to jump higher</div>
       </div>
-      <div id="death-panel" class="hidden" aria-live="polite">
-        <div id="death-panel-attribution" class="hidden"></div>
-        <div id="death-panel-kills"></div>
-        <div id="death-panel-tip" class="hidden"></div>
-        <div id="death-panel-actions">
-          <button type="button" id="death-panel-retry-btn" class="editor-btn editor-btn-primary">
-            Retry
-          </button>
-          <button type="button" id="death-panel-back" class="editor-btn hidden">Back to Editor</button>
-          <button type="button" id="death-panel-share" class="editor-btn hidden">Share</button>
-          <button type="button" id="death-panel-browse" class="editor-btn">Browse</button>
-          <button type="button" id="death-panel-menu" class="editor-btn">Exit to Menu</button>
-        </div>
+      <div id="death-toast" class="hidden" aria-live="polite">
+        <div id="death-toast-attribution" class="hidden"></div>
+        <div id="death-toast-kills"></div>
+        <div id="death-toast-tip" class="hidden"></div>
       </div>
       <div id="run-result" class="hidden" aria-live="polite">
         <div id="run-result-panel">

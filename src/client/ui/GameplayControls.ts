@@ -23,6 +23,7 @@ export class GameplayControls {
   private readonly resume = requireButton('gameplay-resume');
   private readonly restart = requireButton('gameplay-restart');
   private readonly retry = requireButton('gameplay-retry-load');
+  private readonly share = requireButton('gameplay-share');
   private readonly buttons: HTMLButtonElement[];
   private loadingTimer: number | undefined;
 
@@ -34,8 +35,6 @@ export class GameplayControls {
       ['gameplay-restart', handlers.restart],
       ['gameplay-browse', handlers.browse],
       ['gameplay-exit', handlers.menu],
-      ['death-panel-browse', handlers.browse],
-      ['death-panel-menu', handlers.menu],
       ['run-result-browse', handlers.browse],
       ['run-result-menu', handlers.menu],
     ];
@@ -44,7 +43,7 @@ export class GameplayControls {
       button.onclick = action;
       return button;
     });
-    for (const id of ['death-panel-browse', 'run-result-browse', 'gameplay-browse']) {
+    for (const id of ['run-result-browse', 'gameplay-browse']) {
       requireButton(id).classList.toggle('hidden', preview);
     }
     this.dialog.onkeydown = (event) => {
@@ -102,14 +101,22 @@ export class GameplayControls {
     this.retry.classList.toggle('hidden', !retry);
     this.toggle.classList.add('hidden');
     this.dialog.classList.toggle('gameplay-dialog-loading', emptyCanvas);
-    for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = true;
+    for (const id of ['run-result', 'editor-preview-back']) requireElement(id).inert = true;
     this.dialog.classList.remove('hidden');
+  }
+
+  // Share lives in the pause menu (deaths no longer stop on a panel).
+  // undefined hides it — nothing public to share on a preview run, or
+  // before the first death.
+  setShareHandler(handler: (() => void) | undefined): void {
+    this.share.classList.toggle('hidden', !handler);
+    this.share.onclick = handler ?? null;
   }
 
   hideDialog(): void {
     window.clearTimeout(this.loadingTimer);
     this.dialog.classList.add('hidden');
-    for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = false;
+    for (const id of ['run-result', 'editor-preview-back']) requireElement(id).inert = false;
     this.toggle.classList.remove('hidden');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   }
@@ -118,8 +125,9 @@ export class GameplayControls {
     window.clearTimeout(this.loadingTimer);
     this.toggle.classList.add('hidden');
     this.dialog.classList.add('hidden');
-    for (const id of ['death-panel', 'run-result', 'editor-preview-back']) requireElement(id).inert = false;
+    for (const id of ['run-result', 'editor-preview-back']) requireElement(id).inert = false;
     for (const button of this.buttons) button.onclick = null;
+    this.share.onclick = null;
     this.dialog.onkeydown = null;
   }
 }

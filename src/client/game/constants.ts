@@ -13,20 +13,20 @@ export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released e
 export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
 
-// Slide (double-tap, on the ground only). A tap on the ground waits
-// DOUBLE_TAP_MS for a second tap before jumping, so a double-tap slides
-// straight from the run and never jumps first. The hitbox shrinks to
-// SLIDE_HITBOX_HEIGHT of the frame so hazards floating at head height pass
-// overhead.
-export const DOUBLE_TAP_MS = 180;
-export const SLIDE_DURATION_MS = 700;
-export const SLIDE_HITBOX_HEIGHT = 0.4;
 export const PLAYER_SIZE = 80;
 // The editor/curse spawn-marker icon reuses the player idle texture but
 // must fit inside one grid tile (unlike the real player, which is allowed
 // to overhang neighboring tiles while running) — otherwise it visually
 // overlaps whatever's placed in the next column over.
 export const SPAWN_ICON_SIZE = Math.min(PLAYER_SIZE, GRID_CELL_SIZE);
+
+// Death respawns on its own after RESPAWN_DELAY_MS — long enough for the
+// hazard's death effect to read — and any jump input after
+// RESPAWN_SKIP_AFTER_MS skips the rest of the wait. The skip floor keeps a
+// jump pressed a hair too late (the one that failed) from also restarting
+// the run before the player even sees what hit them.
+export const RESPAWN_DELAY_MS = 600;
+export const RESPAWN_SKIP_AFTER_MS = 150;
 
 // Finishing is a rarer, deliberate moment (not the tight death/retry loop),
 // so this affords time to read the CLEAR! result — time, rank, PB, WR —

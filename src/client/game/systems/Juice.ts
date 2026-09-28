@@ -178,29 +178,6 @@ export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): v
   });
 }
 
-const SLIDE_IMPACT_ANIM_KEY = 'slide-impact';
-// ~73px on screen: about the robot's height, so the streaks frame the
-// feet rather than swallowing the whole character.
-const SLIDE_IMPACT_SCALE = 0.5;
-
-// One-shot white streak burst where a slide kicks off (Player.startSlide).
-// Left in the world at that spot rather than following the player, so the
-// robot visibly slides away out of it. The source pack runs at 30fps.
-export function playSlideImpact(scene: Phaser.Scene, x: number, y: number): void {
-  if (!scene.anims.exists(SLIDE_IMPACT_ANIM_KEY)) {
-    scene.anims.create({
-      key: SLIDE_IMPACT_ANIM_KEY,
-      frames: scene.anims.generateFrameNumbers('slide-impact'),
-      frameRate: 30,
-      repeat: 0,
-    });
-  }
-  const burst = scene.add.sprite(x, y, 'slide-impact', 0);
-  burst.setScale(SLIDE_IMPACT_SCALE);
-  burst.play(SLIDE_IMPACT_ANIM_KEY);
-  burst.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => burst.destroy());
-}
-
 // Super Pixel Effects sheets, each repacked into a single-row strip at
 // public/assets/vfx/<key>.webp. Preloader loads them all and, once loaded,
 // builds every anim up front (createPixelFxAnims) so an effect's first
@@ -238,8 +215,7 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // symmetrical_smoke_burst_001 brown
 ];
 
-// Nearest filtering keeps the pixel art crisp at a non-integer scale, same
-// as playSlideDust. Anims are global, so this runs once, from Preloader.
+// Nearest filtering keeps the pixel art crisp at a non-integer scale. Anims are global, so this runs once, from Preloader.
 export function createPixelFxAnims(scene: Phaser.Scene): void {
   for (const { key, frameRate, loop } of PIXEL_FX_SHEETS) {
     if (scene.anims.exists(key)) continue;
@@ -332,33 +308,6 @@ export function attachArcaneCrackle(
 // Pixel-art blood burst centered on (x, y).
 export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
   playPixelFx(scene, 'blood-splatter', x, y, { scale });
-}
-
-const SLIDE_DUST_ANIM_KEY = 'slide-dust';
-// vfx 2 pack, 426.png row 5 (white): 64px pixel-art frames whose ground line
-// sits at y=46, so that's the origin — the puff sits on the floor.
-const SLIDE_DUST_GROUND_Y = 46 / 64;
-
-// Pixel-art dust kicked up under the feet while sliding (Player.updateSlide
-// calls this on start and every SLIDE_DUST_INTERVAL_MS after). Mirrored so
-// the debris sprays back, away from the direction of travel. Nearest
-// filtering keeps the pixel art crisp at a non-integer scale.
-export function playSlideDust(scene: Phaser.Scene, x: number, y: number, scale: number): void {
-  if (!scene.anims.exists(SLIDE_DUST_ANIM_KEY)) {
-    scene.textures.get('slide-dust').setFilter(Phaser.Textures.FilterMode.NEAREST);
-    scene.anims.create({
-      key: SLIDE_DUST_ANIM_KEY,
-      frames: scene.anims.generateFrameNumbers('slide-dust'),
-      frameRate: 24,
-      repeat: 0,
-    });
-  }
-  const puff = scene.add.sprite(x, y, 'slide-dust', 0);
-  puff.setOrigin(0.5, SLIDE_DUST_GROUND_Y);
-  puff.setScale(scale);
-  puff.setFlipX(true);
-  puff.play(SLIDE_DUST_ANIM_KEY);
-  puff.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => puff.destroy());
 }
 
 const SHATTER_GRID = 3;

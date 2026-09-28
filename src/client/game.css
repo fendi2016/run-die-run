@@ -298,27 +298,24 @@ body {
   }
 }
 
-/* Death panel: replaces the old auto-restart toast. Death now stops the
-   run and waits on an explicit Retry tap instead of a timer, with
-   attribution ("Killed by u/X's Saw — this trap has N kills") shown above
-   it when a hazard is to blame. Centered like #run-result rather than
-   pinned near the top, so Retry lands under the thumb on mobile instead
-   of up by the status bar. `max-width` + `box-sizing` keep it clear of
-   the screen edges on narrow viewports. */
-#death-panel {
+/* Death toast: dying respawns on its own (GameScene), so this only
+   reports who killed you. Pinned under the top HUD, never interactive —
+   taps pass through to the canvas as jumps. `max-width` + `box-sizing`
+   keep it clear of the screen edges on narrow viewports. */
+#death-toast {
   position: absolute;
-  top: 50%;
+  top: calc(max(12px, env(safe-area-inset-top)) + 56px);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   max-width: min(92vw, 380px);
   box-sizing: border-box;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: rgba(15, 15, 15, 0.75);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(15, 15, 15, 0.7);
   backdrop-filter: blur(6px);
   text-align: center;
   pointer-events: none;
@@ -329,59 +326,38 @@ body {
     visibility 0s linear 0s;
 }
 
-/* Same hit-test leak as #run-result above: #death-panel-actions opts back
-   into `pointer-events: auto`, so a faded-out death panel would keep its
-   Retry button live and intercept taps meant for the canvas. */
-#death-panel.hidden {
+#death-toast.hidden {
   opacity: 0;
   visibility: hidden;
-  pointer-events: none;
   transition:
-    opacity 200ms ease-out,
-    visibility 0s linear 200ms;
+    opacity 300ms ease-out,
+    visibility 0s linear 300ms;
 }
 
-#death-panel-attribution {
+#death-toast-attribution {
   font-size: 14px;
   font-weight: 700;
   color: #ff6b6b;
 }
 
-#death-panel-attribution.hidden {
-  display: none;
-}
-
-#death-panel-kills {
+#death-toast-kills {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
 }
 
-#death-panel-tip {
+#death-toast-kills:empty {
+  display: none;
+}
+
+#death-toast-tip {
   font-size: 12px;
   font-weight: 700;
   color: #ffd23f;
 }
 
-#death-panel-tip.hidden {
+#death-toast-attribution.hidden,
+#death-toast-tip.hidden {
   display: none;
-}
-
-#death-panel-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  margin-top: 4px;
-  pointer-events: auto;
-}
-
-#death-panel-actions .editor-btn {
-  min-width: 96px;
-  flex-direction: row;
-  justify-content: center;
-  padding: 9px 16px;
-  font-size: 14px;
-  font-weight: 600;
 }
 
 /* Editor UI (spec section 12): DOM overlay over the Phaser canvas, same
@@ -1380,7 +1356,6 @@ body {
 }
 
 #run-result { justify-content: safe center; }
-#death-panel-actions { align-items: stretch; }
 #leaderboard-overlay { z-index: 5; }
 /* Above #gameplay-dialog (6): Browse opens from the pause menu too, and
    Back must reveal it again. */

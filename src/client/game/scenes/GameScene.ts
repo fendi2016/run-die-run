@@ -44,7 +44,7 @@ import {
   type LevelVersion,
   type ObjectType,
 } from '../../../shared/types';
-import { DeathPanel } from '../../ui/DeathPanel';
+import { DeathToast } from '../../ui/DeathToast';
 import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
 import { labelFor } from '../../../shared/objectLabels';
@@ -55,10 +55,13 @@ import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { clearRateText } from '../../ui/levelStatsText';
 import {
   FINISH_RESTART_DELAY_MS,
+  RESPAWN_DELAY_MS,
+  RESPAWN_SKIP_AFTER_MS,
   PLAYER_SCREEN_ANCHOR,
   SPAWN_TOMBSTONE_HEIGHT_PX,
 } from '../constants';
 import { Player } from '../entities/Player';
+import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { getRequestedLevelId } from '../levelSelection';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
@@ -133,7 +136,11 @@ function isPostId(id: string): id is T3 {
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
-  private deathPanel!: DeathPanel;
+  private deathToast!: DeathToast;
+  // Pending auto-respawn after a death, and when that death happened (in
+  // scene time, so pausing mid-death doesn't count toward the skip floor).
+  private respawnTimer: Phaser.Time.TimerEvent | undefined;
+  private diedAt = 0;
   private tapToStartPrompt!: TapToStartPrompt;
   private levelVersion: LevelVersion | undefined;
   private levelWidth = 0;
@@ -214,8 +221,8 @@ export class GameScene extends Scene {
     this.scale.on('resize', this.applyResponsiveZoom, this);
 
     this.resultOverlay = new RunResultOverlay();
-    this.deathPanel = new DeathPanel();
-    this.deathPanel.setRetryHandler(() => this.restartRun());
+    this.deathToast = new DeathToast();
+    this.events.on(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.tapToStartPrompt = new TapToStartPrompt();
     this.controls = new GameplayControls({
       pause: () => this.pauseRun(),
@@ -369,14 +376,10 @@ export class GameScene extends Scene {
           });
         }
       };
-      // A curse's Prove It run offers the way back under Retry on the death
-      // panel; the level editor's Test run keeps the top-left button.
-      if (previewReturn?.kind === 'curse') {
-        this.deathPanel.setBackHandler(backToEditor);
-      } else {
-        PreviewBackButton.instance().setOnBack(backToEditor);
-        PreviewBackButton.instance().show();
-      }
+      // Deaths don't stop on a panel any more, so both the editor's Test
+      // run and a curse's Prove It run use the top-left button.
+      PreviewBackButton.instance().setOnBack(backToEditor);
+      PreviewBackButton.instance().show();
       return;
     }
 
@@ -799,9 +802,8 @@ export class GameScene extends Scene {
   }
 
   // `objectId` is absent for a fall-death (running off the level, not a
-  // placed hazard) — there's nothing to attribute in that case, but the
-  // death panel (and its Retry button, the only way to restart now) still
-  // needs to show either way.
+  // placed hazard) — nothing to attribute in that case. Either way the run
+  // respawns on its own (see RESPAWN_DELAY_MS).
   private onPlayerDied(objectId?: string): void {
     if (this.runEnded || !this.player) {
       return;
@@ -811,19 +813,31 @@ export class GameScene extends Scene {
     if (objectId) {
       this.reportHazardDeath(objectId);
     } else {
-      this.deathPanel.show();
+      this.deathToast.show();
       this.reportFallDeath();
     }
     const killer = objectId
       ? this.levelVersion?.objects.find((o) => o.id === objectId)
       : undefined;
     const attributedKiller = killer?.addedBy === SEED_AUTHOR ? undefined : killer;
-    this.deathPanel.setShareHandler(
+    this.controls.setShareHandler(
       this.previewLevel
         ? undefined
         : () => this.share(this.deathShareText(attributedKiller))
     );
     this.player.die(killer?.type);
+    this.diedAt = this.time.now;
+    this.respawnTimer?.remove();
+    this.respawnTimer = this.time.delayedCall(RESPAWN_DELAY_MS, () => this.restartRun());
+  }
+
+  // Any jump input shortly after dying skips the rest of the respawn wait.
+  // Only while dead: a finish also ends the run but waits on its own
+  // result screen.
+  private onJumpDownWhileDead(): void {
+    if (!this.respawnTimer || this.paused) return;
+    if (this.time.now - this.diedAt < RESPAWN_SKIP_AFTER_MS) return;
+    this.restartRun();
   }
 
   // Counts a fall as an attempt (no trap to credit). Best-effort, never
@@ -905,13 +919,13 @@ export class GameScene extends Scene {
   private reportHazardDeath(objectId: string): void {
     const object = this.levelVersion?.objects.find((o) => o.id === objectId);
     if (!object) {
-      this.deathPanel.show();
+      this.deathToast.show();
       return;
     }
 
     const attributedAuthor =
       object.addedBy === SEED_AUTHOR ? undefined : object.addedBy;
-    const shownToken = this.deathPanel.show(
+    const shownToken = this.deathToast.show(
       attributedAuthor,
       attributedAuthor ? object.type : undefined
     );
@@ -938,7 +952,7 @@ export class GameScene extends Scene {
       .then((response) => (response.ok ? response.json() : undefined))
       .then((json: unknown) => {
         if (!attempt.signal.aborted && attributedAuthor !== undefined && isTrapKillResponse(json)) {
-          this.deathPanel.setKillCount(shownToken, json.kills);
+          this.deathToast.setKillCount(shownToken, json.kills);
         }
       })
       .catch(() => {
@@ -989,11 +1003,12 @@ export class GameScene extends Scene {
     this.attempt = new AbortController();
     this.submitting = false;
     this.findingNext = false;
+    this.respawnTimer?.remove();
+    this.respawnTimer = undefined;
     this.tweens.killTweensOf(this.player.sprite);
     this.resumeRun();
     this.controls.hideDialog();
     this.resultOverlay.hide();
-    this.deathPanel.hide();
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
     this.playSpawnWarp(false);
@@ -1053,8 +1068,9 @@ export class GameScene extends Scene {
     // gets a brand new, unpaused World instance anyway, so there was
     // never anything here that needed resuming.
     this.resultOverlay.hide();
-    this.deathPanel.hide();
-    this.deathPanel.setBackHandler(undefined);
+    this.deathToast.hide();
+    this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
+    this.respawnTimer = undefined;
     this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
