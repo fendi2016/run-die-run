@@ -33,7 +33,7 @@ import {
 // — easier to tell which pose is which at a glance, and to swap one out
 // without recomputing a grid offset. See player/*.webp in public/assets.
 //
-// player-run-1..8 is one pencil stride (contact → passing → contact),
+// player-run-1..9 is one pencil stride (contact → passing → contact),
 // picked evenly from the 25-frame autosprite run sheet after sorting its
 // cells by pose — the sheet's grid order isn't playback order.
 export const PLAYER_TEXTURE_KEYS = [
@@ -46,6 +46,7 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-run-6',
   'player-run-7',
   'player-run-8',
+  'player-run-9',
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
@@ -74,6 +75,7 @@ const RUN_KEYS = [
   'player-run-6',
   'player-run-7',
   'player-run-8',
+  'player-run-9',
 ];
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
@@ -184,19 +186,22 @@ function opaqueFrameBounds(frame: Phaser.Textures.Frame): OpaqueBounds {
   opaqueBoundsCache.set(cacheKey, bounds);
   return bounds;
 }
-// Per-frame hold times (ms) for the run cycle. The eight poses are one step,
-// so the loop is ~160ms — about how long a step of this leg span takes at
-// RUN_SPEED, keeping the feet from skating.
-const RUN_FRAME_DURATIONS_MS: readonly number[] = [20, 20, 20, 20, 20, 20, 20, 20];
-// Squash on contact (run-1, legs fully extended), stretch through the
-// passing pose (run-5) — synced to the same eight frames via
-// ANIMATION_UPDATE (see onAnimFrameUpdate). Multiplied against the base
-// PLAYER_SIZE scale, not set absolutely.
+// Per-frame hold times (ms) for the run cycle. The nine poses are one
+// step; it hangs on the full-extension poses (run-8, run-9, run-1 — the
+// widest in the sheet) and snaps through the passing pose, so each step
+// reads as a long bound rather than a quick shuffle.
+const RUN_FRAME_DURATIONS_MS: readonly number[] = [
+  45, 26, 20, 20, 20, 22, 28, 40, 50,
+];
+// Squash on the full-extension poses, stretch through the passing pose
+// (run-5) — synced to the same nine frames via ANIMATION_UPDATE (see
+// onAnimFrameUpdate). Multiplied against the base PLAYER_SIZE scale, not
+// set absolutely.
 const RUN_SCALE_X_FACTORS: readonly number[] = [
-  1.05, 1.03, 0.99, 0.97, 0.96, 0.97, 0.99, 1.03,
+  1.05, 1.03, 0.99, 0.97, 0.96, 0.97, 0.99, 1.03, 1.05,
 ];
 const RUN_SCALE_Y_FACTORS: readonly number[] = [
-  0.94, 0.97, 1.02, 1.05, 1.06, 1.05, 1.02, 0.97,
+  0.94, 0.97, 1.02, 1.05, 1.06, 1.05, 1.02, 0.97, 0.94,
 ];
 // Same trick as the run cycle's squash/stretch above, applied to the dance
 // loop — without it the dance is just a slideshow of static poses cut on
