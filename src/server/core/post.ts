@@ -37,7 +37,7 @@ export async function createLevelPost(opts: {
       : `by u/${opts.creatorUsername}`;
   const title =
     opts.daily !== undefined
-      ? `Cursed Level of the Day #${opts.daily}: "${opts.title}" ${byline}`
+      ? `SKETCHY Level of the Day #${opts.daily}: "${opts.title}" ${byline}`
       : `"${opts.title}" ${byline} — can you beat it?`;
   const postData: CursedPostData =
     opts.daily !== undefined
