@@ -15,7 +15,9 @@ import {
   editorCandidateKey,
   levelCurrentVersionKey,
   levelVersionKey,
+  userCursesKey,
 } from '../core/redisKeys';
+import { cursePlacedFields } from '../services/TrapStatsService';
 import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY } from '../../shared/constants';
 import { announceCurse } from '../core/announcements';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
@@ -381,6 +383,8 @@ curse.post('/publish', async (c) => {
         JSON.stringify(levelVersion)
       );
       await tx.set(levelCurrentVersionKey(levelId), String(newVersionNumber));
+      // So the curser can later see who it caught (GET /api/me/curses).
+      await tx.hSet(userCursesKey(username), cursePlacedFields(newObject.id, levelId, newObject.type));
       await tx.del(editorCandidateKey(username));
       return {
         commit: true,

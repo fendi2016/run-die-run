@@ -13,6 +13,7 @@ import { runs } from './routes/runs';
 import { scheduler } from './routes/scheduler';
 import { triggers } from './routes/triggers';
 import { userStats } from './routes/userStats';
+import { myCurses } from './routes/myCurses';
 
 const app = new Hono();
 const internal = new Hono();
@@ -31,6 +32,7 @@ app.route('/api/discovery', discovery);
 app.route('/api/follow', follow);
 app.route('/api/leaderboard', leaderboard);
 app.route('/api/stats', userStats);
+app.route('/api/me/curses', myCurses);
 
 serve({
   fetch: app.fetch,

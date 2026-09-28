@@ -36,6 +36,21 @@ export const userContributionsKey = (redditId: string): string =>
 export const trapKillsKey = (objectId: string): string =>
   `trap:${objectId}:kills`;
 
+// Unique players a trap has killed (username -> kill count) and unique
+// players who got past it (username -> '1'); hLen of each is the count the
+// trap's owner sees. See TrapStatsService.
+export const trapCaughtByKey = (objectId: string): string =>
+  `trap:${objectId}:caughtBy`;
+export const trapPassedByKey = (objectId: string): string =>
+  `trap:${objectId}:passedBy`;
+
+// Every curse a player has placed (objectId -> JSON { levelId, type,
+// placedAt }), and the caught/passed counts they last saw for each.
+export const userCursesKey = (username: string): string =>
+  `user:${username}:curses`;
+export const userCursesSeenKey = (username: string): string =>
+  `user:${username}:cursesSeen`;
+
 // Per-level "TOP CURSERS" leaderboard (spec section 24): a sorted set of
 // contributor username -> total kills their added objects have scored on
 // this specific level, distinct from `userContributionsKey`'s cross-level

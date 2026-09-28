@@ -19,6 +19,7 @@ import {
   versionLeaderboardKey,
 } from '../core/redisKeys';
 import { getCurrentLevelVersion } from '../services/LevelService';
+import { recordCatch, recordPasses } from '../services/TrapStatsService';
 import type {
   SubmitRunRequest,
   SubmitRunResponse,
@@ -216,6 +217,9 @@ runs.post('/', async (c) => {
     }
   );
 
+  // A clear got past every other player's trap in this version.
+  await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
+
   if (isNewWorldRecord) {
     const event: NewWorldRecordEvent = {
       type: 'newWorldRecord',
@@ -350,6 +354,8 @@ runs.post('/trap-kill', async (c) => {
       return { commit: true, value: { kills, contributorTotalKills } };
     }
   );
+
+  await recordCatch(object.id, object.addedBy, username).catch(() => undefined);
 
   return c.json<TrapKillResponse>({
     objectId: object.id,

@@ -54,3 +54,18 @@ await test('preview svg contains only numeric geometry (no injected text)', () =
   const svg = renderCoursePreviewSvg({ width: 100, ground: [[0, 100]], platforms: [], hazards: [{ x: 50, y: 480, type: 'candle' }], spawnX: 0, finishX: 90 }, 200, 30);
   assert.equal(svg.includes('<text'), false);
 });
+
+import { passedHazardIds } from '../../shared/trapStats';
+
+await test("passes count only other players' traps fully behind the player", () => {
+  const objects = [
+    obj('a', 'candle', 300, GROUND_TOP_Y, 'bob'),
+    obj('b', 'saw', 600, GROUND_TOP_Y, 'bob'),
+    obj('mine', 'candle', 200, GROUND_TOP_Y, 'alice'),
+    obj('seed', 'candle', 100),
+    obj('pw', 'shield', 150, GROUND_TOP_Y, 'bob'),
+  ];
+  assert.deepEqual(passedHazardIds(objects, 400, 'alice'), ['a']);
+  assert.deepEqual(passedHazardIds(objects, 620, 'alice'), ['a'], 'still inside the saw cell');
+  assert.deepEqual(passedHazardIds(objects, 'clear', 'alice').sort(), ['a', 'b']);
+});

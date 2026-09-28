@@ -1,20 +1,28 @@
 // MVP object set from spec section 39. Extend this union (and the client's
 // ObjectRegistry, added in a later phase) rather than hardcoding new types
 // elsewhere.
-export type ObjectType =
-  | 'ground'
-  | 'platform'
-  | 'movingPlatform'
-  | 'saw'
-  | 'movingSaw'
-  | 'candle'
-  | 'bat'
-  | 'ghost'
-  | 'fallingBlock'
-  | 'shield'
-  | 'speedBoost'
-  | 'spawn'
-  | 'finish';
+export const OBJECT_TYPES = [
+  'ground',
+  'platform',
+  'movingPlatform',
+  'saw',
+  'movingSaw',
+  'candle',
+  'bat',
+  'ghost',
+  'fallingBlock',
+  'shield',
+  'speedBoost',
+  'spawn',
+  'finish',
+] as const;
+export type ObjectType = (typeof OBJECT_TYPES)[number];
+
+const OBJECT_TYPE_SET: ReadonlySet<string> = new Set(OBJECT_TYPES);
+
+export function isObjectType(value: unknown): value is ObjectType {
+  return typeof value === 'string' && OBJECT_TYPE_SET.has(value);
+}
 
 // A single placed object within a level version. `addedBy` / `addedInVersion`
 // carry attribution (spec section 23) so trap kills and contributor stats can

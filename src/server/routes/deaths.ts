@@ -12,6 +12,7 @@ import {
 } from '../../shared/constants';
 import { levelDeathsKey, levelVersionKey } from '../core/redisKeys';
 import { getCurrentLevelVersion } from '../services/LevelService';
+import { recordPasses } from '../services/TrapStatsService';
 
 type ErrorResponse = {
   status: 'error';
@@ -94,6 +95,8 @@ deaths.post('/', async (c) => {
     `${bucketX}:${bucketY}`,
     1
   );
+  // Every other player's trap this run got past (curse-owner feedback).
+  await recordPasses(levelId, version, username, x).catch(() => undefined);
 
   return c.json({ ok: true });
 });

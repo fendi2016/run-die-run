@@ -89,6 +89,8 @@ const redis = {
     options?: { reverse?: boolean }
   ) => zRangeSorted(key, start, end, options),
   hGet: async (key: string, field: string) => hashes.get(key)?.get(field),
+  hGetAll: async (key: string) => Object.fromEntries(hashes.get(key) ?? []),
+  hSet: async (key: string, fieldValues: Record<string, string>) => hSet(key, fieldValues),
   hLen: async (key: string) => hashes.get(key)?.size ?? 0,
   hIncrBy: async (key: string, field: string, increment: number) =>
     hIncrBy(key, field, increment),
@@ -206,6 +208,7 @@ const { isCursersLeaderboardResponse } = await import(
 const { withTransaction } = await import('../core/transactions');
 const { clearDiscoveryCache } = await import('../routes/discovery');
 const { STARTER_LEVEL_ID } = await import('../../shared/constants');
+const { userCursesKey } = await import('../core/redisKeys');
 
 beforeEach(() => {
   clearDiscoveryCache();
@@ -942,6 +945,18 @@ await test('a curse can be placed anywhere on the map', async () => {
   }
   assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: -600, y: 480 })
     .includes('Your object is outside the level boundaries.'));
+});
+
+await test('publishing a curse adds it to the curser\'s list', async () => {
+  const initial = await getCurrentLevelVersion('meat-grinder');
+  assert.ok(initial);
+  const proposed = await proposeCurse('alice', initial.levelId, { id: 'x', type: 'saw', x: 700, y: 480 });
+  assert.ok(proposed.body.status === 'ok');
+  await markCandidateVerified('alice', proposed.body.candidateToken, 2000);
+  assert.equal((await publishCurse('alice', proposed.body.candidateToken)).body.status, 'ok');
+  const placed = hashes.get(userCursesKey('alice'))?.get(proposed.body.objectId);
+  assert.ok(placed, 'curse recorded under its object id');
+  assert.match(placed, /"levelId":"meat-grinder","type":"saw"/);
 });
 
 await test('the starter level cannot be cursed', async () => {
