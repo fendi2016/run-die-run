@@ -72,6 +72,7 @@ import {
   playPixelFx,
   stopFinishGateAnimation,
 } from '../systems/Juice';
+import { drawDeathMarkers, fetchDeathMarkers, reportDeathPosition } from '../systems/DeathMarkers';
 import { playSfx } from '../systems/Sfx';
 import { loadLevel, setPowerUpAvailable, type LoadedBat } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
@@ -134,11 +135,17 @@ function isPostId(id: string): id is T3 {
   return id.startsWith('t3_');
 }
 
+// How far above the canvas's bottom edge a fall-death skull sits.
+const FALL_SKULL_INSET_PX = 4;
+
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
   private deathToast!: DeathToast;
   private runHud!: RunHud;
+  // Other players' deaths on this version load in the background; aborted
+  // on shutdown so a late response never draws into a dead scene.
+  private markersRequest: AbortController | undefined;
   // Best distance this viewer has reached on this level version, 0..1
   // (null on a preview run, which never records one).
   private bestProgress: number | null = null;
@@ -520,6 +527,7 @@ export class GameScene extends Scene {
     this.runHud.setProgress(0);
     this.runHud.setBest(this.bestProgress);
     this.runHud.show();
+    if (!this.previewLevel) this.loadDeathMarkers(levelVersion);
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
     // Tiled rather than stretched, so the art keeps its native proportions
@@ -845,10 +853,38 @@ export class GameScene extends Scene {
         : () => this.share(this.deathShareText(attributedKiller))
     );
     this.recordBestProgress(this.currentProgress());
+    this.markDeath();
     this.player.die(killer?.type);
     this.diedAt = this.time.now;
     this.respawnTimer?.remove();
     this.respawnTimer = this.time.delayedCall(RESPAWN_DELAY_MS, () => this.restartRun());
+  }
+
+  private loadDeathMarkers(level: LevelVersion): void {
+    this.markersRequest?.abort();
+    const request = new AbortController();
+    this.markersRequest = request;
+    fetchDeathMarkers(level.levelId, level.version, request.signal)
+      .then((markers) => {
+        if (!request.signal.aborted) drawDeathMarkers(this, markers);
+      })
+      .catch(() => {
+        // Best-effort decoration — the level plays the same without it.
+      });
+  }
+
+  // A skull where you just died, drawn at once so it's there on the next
+  // attempt, and reported so other players see it too (not on a preview
+  // run — that version isn't public yet). A fall dies far below the
+  // screen, so its skull sits at the bottom of the pit instead.
+  private markDeath(): void {
+    if (!this.player) return;
+    const x = this.player.sprite.x;
+    const y = Math.min(this.player.sprite.y, LOGICAL_HEIGHT - FALL_SKULL_INSET_PX);
+    drawDeathMarkers(this, [{ x, y, count: 1 }]);
+    const level = this.levelVersion;
+    if (this.previewLevel || !level) return;
+    reportDeathPosition({ levelId: level.levelId, version: level.version, x, y });
   }
 
   // How far along the level the player is, 0 at the spawn and 1 at the
@@ -1111,6 +1147,8 @@ export class GameScene extends Scene {
     this.resultOverlay.hide();
     this.deathToast.hide();
     this.runHud.hide();
+    this.markersRequest?.abort();
+    this.markersRequest = undefined;
     this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.respawnTimer = undefined;
     this.tapToStartPrompt.hide();
