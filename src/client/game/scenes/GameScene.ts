@@ -58,6 +58,7 @@ import { StarterOffer } from '../../ui/StarterOffer';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunHud, loadBestProgress, saveBestProgress } from '../../ui/RunHud';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
+import { drawGroundDetail, drawPaperBackdrop } from '../systems/PaperScenery';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { TutorialHint } from '../../ui/TutorialHint';
 import { clearRateText } from '../../ui/levelStatsText';
@@ -638,6 +639,8 @@ export class GameScene extends Scene {
       .setTileScale(bgScale, bgScale)
       .setScrollFactor(1, 1)
       .setDepth(-1);
+    drawPaperBackdrop(this, this.levelWidth, levelVersion.levelId);
+    drawGroundDetail(this, levelVersion.objects, levelVersion.levelId);
 
     // The spawn tombstone the player rises from — above the background, behind
     // the player and every level object.

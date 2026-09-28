@@ -12,6 +12,7 @@ import {
   renderLevelObject,
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow, attachPickupShimmer } from './Juice';
+import { GROUND_TILE_DEPTH } from './PaperScenery';
 
 // A bat that hasn't yet locked onto the player and dashed off (see
 // ObjectRegistry.triggerBatFlight). `triggered` is mutated in place by
@@ -84,6 +85,8 @@ export function setPowerUpAvailable(
 // through the ObjectRegistry, wiring collider/overlap against `player`
 // based on each object's category. Callers never touch object types
 // directly — that's entirely the registry's job (spec section 11).
+const GROUND_PAPER_TINT = 0xf6efdc;
+
 export function loadLevel(
   scene: Phaser.Scene,
   levelVersion: LevelVersion,
@@ -197,6 +200,12 @@ export function loadLevel(
       continue;
     }
     sourceObjects.set(rendered, object);
+    if (object.type === 'ground') {
+      // The tile art is pure white; warm it to the page's paper so the
+      // ground reads as drawn on the same sheet, and drop it just below
+      // PaperScenery's hatching layer.
+      rendered.setTint(GROUND_PAPER_TINT).setDepth(GROUND_TILE_DEPTH);
+    }
 
     switch (categoryOf(object.type)) {
       case 'solid':

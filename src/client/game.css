@@ -143,18 +143,17 @@ body {
   width: min(92vw, 380px);
   box-sizing: border-box;
   margin: 0 auto;
-  padding: 30px 24px 22px;
-  border-radius: 24px;
-  background: rgba(251, 248, 239, 0.96);
-  backdrop-filter: blur(18px);
-  border: 2px solid #2b2b2b;
-  box-shadow: 0 20px 44px rgba(43, 43, 43, 0.3);
+  padding: 26px 22px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: var(--line-strong) solid var(--ink);
+  box-shadow: var(--shadow-card);
 }
 
 #run-result-title {
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: clamp(24px, 7vw, 36px);
-  color: #3d6ea5;
+  font-family: var(--font-hand);
+  font-size: clamp(28px, 8vw, 40px);
+  color: var(--ink);
   text-shadow: none;
 }
 
@@ -166,16 +165,16 @@ body {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  font-size: 12px;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 13px;
 }
 #run-result-stats span {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(43, 43, 43, 0.05);
-  border: 1px solid rgba(43, 43, 43, 0.18);
-  color: rgba(43, 43, 43, 0.75);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -187,9 +186,8 @@ body {
    never resets it, so most clears just repeat the same count) — a tinted
    pill instead of an animation, matching this overlay's plain-pill style. */
 #run-result-streak.run-result-streak-increased {
-  background: rgba(169, 199, 232, 0.35);
-  border-color: #3d6ea5;
-  color: #3d6ea5;
+  background: var(--highlighter);
+  color: var(--ink);
 }
 
 #run-result-status {
@@ -200,7 +198,8 @@ body {
 
 #run-result-save-status,
 #run-result-next-status {
-  font: 12px/1.4 Arial, sans-serif;
+  font: 13px/1.4 var(--font-ui);
+  font-size-adjust: none;
 }
 #run-result-save-status:empty,
 #run-result-next-status:empty {
@@ -233,7 +232,8 @@ body {
 #run-result-actions .editor-btn {
   flex-direction: row;
   padding: 12px 18px;
-  font-size: 15px;
+  font-family: var(--font-hand);
+  font-size: 17px;
   font-weight: 700;
 }
 
@@ -259,16 +259,14 @@ body {
 
 .editor-btn-curse {
   padding: 18px 20px;
-  font-size: 17px;
-  background: #e53935;
-  border-color: #e53935;
-  color: #fdf6f0;
+  font-size: 18px;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 @media (hover: hover) {
   .editor-btn-curse:hover:not(:disabled) {
     background: #ef5350;
-    border-color: #ef5350;
   }
 }
 
@@ -287,12 +285,14 @@ body {
 .run-result-link {
   appearance: none;
   border: none;
-  border-top: 1px solid rgba(43, 43, 43, 0.15);
+  border-top: 1px dashed var(--ink-faint);
   background: none;
   padding: 10px;
-  color: rgba(43, 43, 43, 0.65);
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -425,13 +425,13 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 #starter-offer-btn {
   pointer-events: auto;
   padding: 10px 16px;
-  border: 2px solid #2b2b2b;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #2b2b2b;
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: 14px;
-  box-shadow: 0 4px 0 #2b2b2b;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 15px;
+  box-shadow: var(--shadow-hard);
   cursor: pointer;
 }
 
@@ -451,9 +451,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 
 #stats-curses-title {
   margin-top: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #3d6ea5;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 18px;
+  color: var(--ink);
 }
 
 #stats-curses {
@@ -466,19 +467,22 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 
 #stats-curses li {
   padding: 6px 0;
-  border-bottom: 1px solid rgba(43, 43, 43, 0.15);
-  font-size: 13px;
+  border-bottom: 1px dashed var(--ink-faint);
+  font-size: 14px;
 }
 
 .stats-curse-level {
-  color: rgba(43, 43, 43, 0.6);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: 12px;
 }
 
 .stats-curse-new {
   margin-left: 6px;
-  color: #b8860b;
-  font-size: 11px;
+  padding: 0 4px;
+  background: var(--highlighter);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* Death toast: dying respawns on its own (GameScene), so this only
@@ -496,11 +500,11 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   gap: 4px;
   max-width: min(92vw, 380px);
   box-sizing: border-box;
-  padding: 8px 14px;
-  border-radius: 12px;
-  background: rgba(251, 248, 239, 0.94);
-  border: 2px solid #2b2b2b;
-  backdrop-filter: blur(6px);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(251, 248, 239, 0.92);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
   text-align: center;
   pointer-events: none;
   opacity: 1;
@@ -519,14 +523,17 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 #death-toast-attribution {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 17px;
   font-weight: 700;
   color: #e53935;
 }
 
 #death-toast-kills {
-  font-size: 12px;
-  color: rgba(43, 43, 43, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 #death-toast-kills:empty {
@@ -534,7 +541,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 #death-toast-tip {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #b8860b;
 }
@@ -568,20 +575,24 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
-  border: 2px solid #2b2b2b;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #2b2b2b;
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(251, 248, 239, 0.85);
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   white-space: nowrap;
-  box-shadow: 0 3px 0 #2b2b2b;
 }
 
 #run-hud-attempt-number {
   display: inline-block;
-  color: #3d6ea5;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: var(--ink);
 }
 
 /* Restarted from setAttempt() by toggling this class off then back on
@@ -619,10 +630,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 #run-hud-progress-track {
   position: relative;
   flex: 1 1 auto;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(251, 248, 239, 0.85);
-  border: 1px solid #2b2b2b;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--paper-card);
+  border: var(--line) solid var(--ink);
   overflow: visible;
 }
 
@@ -630,7 +641,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: #3d6ea5;
+  background: var(--rule-blue);
   transform-origin: left center;
   transform: scaleX(0);
   will-change: transform;
@@ -659,9 +670,11 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   flex: 0 0 auto;
   min-width: 32px;
   text-align: right;
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
   font-size: 12px;
-  color: #2b2b2b;
+  font-weight: 800;
+  color: var(--ink);
   text-shadow: none;
 }
 
@@ -891,6 +904,17 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   min-width: 260px;
 }
 
+.editor-dialog-panel {
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+}
+
+.editor-dialog-panel .editor-btn {
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 16px;
+}
+
 .editor-dialog-panel label {
   font-family: var(--font-ui);
   font-size-adjust: none;
@@ -961,10 +985,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 /* Leaderboard overlay: reuses .editor-dialog/.editor-dialog-panel (same
    modal chrome as the publish/JSON dialogs) plus its own title and table. */
 #leaderboard-title {
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  color: #b8860b;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 26px;
+  color: var(--ink);
   text-align: center;
 }
 
@@ -979,11 +1003,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 #leaderboard-table thead th {
   padding: 6px 10px;
   text-align: left;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: rgba(43, 43, 43, 0.55);
-  border-bottom: 1px solid rgba(43, 43, 43, 0.25);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  border-bottom: var(--line) solid var(--ink);
 }
 
 #leaderboard-table tbody td {
@@ -992,7 +1015,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 #leaderboard-table tbody tr:first-child td {
-  color: #3d6ea5;
+  background: var(--highlighter);
   font-weight: 700;
 }
 
@@ -1000,10 +1023,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
    leaderboard above, with a plain label/value list instead of a table
    (five numbers, no ranking to visually emphasize). */
 #stats-title {
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  color: #b8860b;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 26px;
+  color: var(--ink);
   text-align: center;
 }
 
@@ -1033,9 +1056,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   align-items: center;
   justify-content: space-between;
   padding: 8px 4px;
-  font-size: 14px;
-  color: rgba(43, 43, 43, 0.85);
-  border-bottom: 1px solid rgba(43, 43, 43, 0.12);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px dashed var(--ink-faint);
 }
 
 .stats-row:last-child {
@@ -1043,10 +1067,9 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 .stats-label {
-  color: rgba(43, 43, 43, 0.55);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* Level browser overlay (spec sections 26-27): reuses .editor-dialog/
@@ -1068,10 +1091,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 #discovery-title {
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  color: #3d6ea5;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 24px;
+  color: var(--ink);
 }
 
 #discovery-sorts {
@@ -1083,10 +1106,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   min-width: 0;
   min-height: 36px;
   padding: 6px 14px;
-  font-size: 12px;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 #discovery-message {
@@ -1118,37 +1141,42 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   align-items: stretch;
   gap: 4px;
   padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(43, 43, 43, 0.25);
-  background: #ffffff;
-  color: #2b2b2b;
+  margin-bottom: 3px;
+  border-radius: var(--radius-md);
+  border: var(--line) solid var(--ink);
+  background: var(--paper-card);
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
   flex-shrink: 0;
   transition:
-    background-color 120ms ease-out,
-    border-color 120ms ease-out;
+    transform 80ms ease-out,
+    box-shadow 80ms ease-out,
+    background-color 120ms ease-out;
 }
 
 .discovery-card:active {
-  transform: scale(0.98);
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 @media (hover: hover) {
   .discovery-card:hover {
-    background: rgba(169, 199, 232, 0.18);
-    border-color: #3d6ea5;
+    background: var(--paper-warm);
   }
 }
 
 .discovery-card-title {
-  font-size: 15px;
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 18px;
   font-weight: 700;
 }
 
 .discovery-card-meta {
-  font-size: 12px;
-  color: rgba(43, 43, 43, 0.6);
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 .discovery-card-stats {
@@ -1161,11 +1189,11 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 .discovery-card-stats span {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(43, 43, 43, 0.06);
-  color: rgba(43, 43, 43, 0.7);
-  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--paper-warm);
+  color: var(--ink);
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1180,13 +1208,15 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   transform: translateX(-50%);
   max-width: min(92vw, 420px);
   padding: 10px 18px;
-  border-radius: 999px;
-  background: rgba(251, 248, 239, 0.96);
-  backdrop-filter: blur(6px);
-  border: 2px solid #2b2b2b;
-  color: #2b2b2b;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  border: var(--line) solid var(--ink);
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 14px;
+  font-weight: 700;
   text-align: center;
   pointer-events: none;
   opacity: 1;
@@ -1578,11 +1608,11 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 2px solid #2b2b2b;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #2b2b2b;
-  box-shadow: 0 3px 0 #2b2b2b;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-hard);
   cursor: pointer;
 }
 
@@ -1632,7 +1662,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   z-index: 3;
   min-height: 44px;
   padding: 8px 14px;
-  background: #ffffff;
+  flex-direction: row;
+  gap: 6px;
+  font-family: var(--font-hand);
+  font-size: 15px;
 }
 #gameplay-menu.hidden { display: none; }
 /* No blur and only a light dim here, unlike the data-entry dialogs
@@ -1644,33 +1677,31 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   z-index: 6;
   padding: 16px;
   box-sizing: border-box;
-  background: rgba(251, 248, 239, 0.35);
+  background: rgba(43, 43, 43, 0.22);
 }
 #gameplay-dialog .gameplay-dialog-panel {
-  width: min(340px, 100%);
+  width: min(320px, 100%);
   min-width: 0;
   max-height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
+  padding: 22px 20px 16px;
   text-align: center;
   align-items: center;
-  background: none;
-  backdrop-filter: none;
-  border: none;
-  box-shadow: none;
 }
 #gameplay-dialog-title {
   margin: 0;
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: clamp(26px, 7vw, 34px);
-  color: #3d6ea5;
-  text-shadow: 0 1px 3px rgba(251, 248, 239, 0.9);
+  font-family: var(--font-hand);
+  font-size: clamp(28px, 7vw, 36px);
+  color: var(--ink);
 }
 #gameplay-dialog-message {
   margin: 0;
   line-height: 1.4;
-  color: #2b2b2b;
-  text-shadow: 0 1px 3px rgba(251, 248, 239, 0.9);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 14px;
+  color: var(--ink-soft);
 }
 #gameplay-dialog-message:empty { display: none; }
 .gameplay-actions {
@@ -1682,19 +1713,15 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 .gameplay-actions .editor-btn {
   min-height: 50px;
   flex-direction: row;
-  font-size: 15px;
-  font-weight: 600;
-}
-/* Without the card backing above, a plain button (Restart) needs its own
-   real background to stay legible over arbitrary level art — ghost
-   buttons (Browse Levels/Exit to Menu) instead stay fully see-through and
-   lean on this text-shadow, the same trick the title/message use. */
-.gameplay-actions .editor-btn:not(.editor-btn-primary):not(.editor-btn-ghost) {
-  background: rgba(251, 248, 239, 0.92);
-  border-color: #2b2b2b;
+  font-family: var(--font-hand);
+  font-size: 18px;
+  font-weight: 700;
 }
 .gameplay-actions .editor-btn-ghost {
-  text-shadow: 0 1px 3px rgba(251, 248, 239, 0.9);
+  min-height: 40px;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 14px;
 }
 
 /* Loading/load-error happen before any level art exists to sit over — the
@@ -1706,10 +1733,6 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   background: rgba(43, 43, 43, 0.2);
 }
 #gameplay-dialog.gameplay-dialog-loading .gameplay-dialog-panel {
-  background: rgba(251, 248, 239, 0.96);
-  backdrop-filter: blur(16px);
-  border: 2px solid #2b2b2b;
-  box-shadow: 0 20px 50px rgba(43, 43, 43, 0.25);
   padding: 26px 22px;
 }
 
@@ -1719,4 +1742,4 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
    Back must reveal it again. */
 #discovery-overlay { z-index: 7; }
 #stats-overlay { z-index: 5; }
-button:focus-visible { outline: 2px solid #3d6ea5; outline-offset: 3px; }
+button:focus-visible { outline: var(--line) dashed var(--rule-blue); outline-offset: 3px; }
