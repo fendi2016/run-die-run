@@ -1136,7 +1136,7 @@ export class GameScene extends Scene {
   private share(text: string): void {
     const postId = this.levelStats?.postId;
     showShareSheet({
-      title: `CURSED: ${this.levelName()}`,
+      title: `SKETCHY: ${this.levelName()}`,
       text,
       post: postId !== undefined && isPostId(postId) ? postId : undefined,
     }).catch(() => undefined);

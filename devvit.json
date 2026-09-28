@@ -20,28 +20,28 @@
   "menu": {
     "items": [
       {
-        "label": "Create a CURSED post",
-        "description": "Post the CURSED hub (play, build, browse)",
+        "label": "Create a SKETCHY post",
+        "description": "Post the SKETCHY hub (play, build, browse)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
       },
       {
-        "label": "CURSED: post Level of the Day now",
+        "label": "SKETCHY: post Level of the Day now",
         "description": "Feature the top trending level in a new post",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/daily-level"
       },
       {
-        "label": "CURSED: reseed built-in levels (dev)",
+        "label": "SKETCHY: reseed built-in levels (dev)",
         "description": "Sync meat-grinder with seedLevels.ts",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reseed-levels"
       },
       {
-        "label": "CURSED: reset built-in level stats (dev)",
+        "label": "SKETCHY: reset built-in level stats (dev)",
         "description": "Zero Meat Grinder's attempt/clear counts (keeps curses)",
         "location": "subreddit",
         "forUserType": "moderator",

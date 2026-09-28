@@ -69,7 +69,7 @@ async function loadStats(): Promise<void> {
 
     statValue.textContent = body.attempts.toLocaleString();
     creatorName.textContent =
-      body.creatorUsername === SEED_AUTHOR ? 'CURSED' : `u/${body.creatorUsername}`;
+      body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
     requireElement('level-title').textContent = body.title;
     requireElement('level-difficulty').textContent = body.difficulty;
     requireElement('level-version').textContent = versionText(body);

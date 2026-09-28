@@ -13,9 +13,9 @@ const postUrl = (id: T3): string =>
 // level and leads with Play / Build / Browse.
 export async function createHubPost(): Promise<CreatedPost> {
   const post = await reddit.submitCustomPost({
-    title: 'CURSED — beat the level, then curse it for the next player',
+    title: 'SKETCHY — beat the level, then curse it for the next player',
     textFallback: {
-      text: 'CURSED is a Reddit platformer where every player who beats a level can add one trap to it. Open this post on new Reddit or the app to play.',
+      text: 'SKETCHY is a Reddit platformer where every player who beats a level can add one trap to it. Open this post on new Reddit or the app to play.',
     },
   });
   return { id: post.id, url: postUrl(post.id) };
@@ -33,7 +33,7 @@ export async function createLevelPost(opts: {
 }): Promise<CreatedPost> {
   const byline =
     opts.creatorUsername === SEED_AUTHOR
-      ? 'a CURSED original'
+      ? 'a SKETCHY original'
       : `by u/${opts.creatorUsername}`;
   const title =
     opts.daily !== undefined
@@ -48,7 +48,7 @@ export async function createLevelPost(opts: {
     title,
     postData,
     textFallback: {
-      text: `"${opts.title}" is a CURSED level ${byline}. Beat it, then curse it with a trap of your own. Open this post on new Reddit or the app to play.`,
+      text: `"${opts.title}" is a SKETCHY level ${byline}. Beat it, then curse it with a trap of your own. Open this post on new Reddit or the app to play.`,
     },
   });
   await redis.set(levelPostKey(opts.levelId), post.id, { nx: true });

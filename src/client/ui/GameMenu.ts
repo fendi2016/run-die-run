@@ -93,7 +93,7 @@ export class GameMenu {
 
       this.statValueEl.textContent = body.attempts.toLocaleString();
       this.creatorNameEl.textContent =
-        body.creatorUsername === SEED_AUTHOR ? 'CURSED' : `u/${body.creatorUsername}`;
+        body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
     } catch {
       // Leave the placeholder dashes — the menu already works either way.
     }
