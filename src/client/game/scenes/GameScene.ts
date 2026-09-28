@@ -631,7 +631,12 @@ export class GameScene extends Scene {
     if (this.tutorial) {
       PreviewBackButton.instance().hide();
       this.resultOverlay.showSaveStatus('Tutorial complete! Now for a real one…');
-      this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => this.leaveTutorial());
+      // A Restart from the pause menu aborts the attempt; don't then yank
+      // the player out of the new run.
+      const attempt = this.attempt;
+      this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
+        if (!attempt.signal.aborted) this.leaveTutorial();
+      });
     } else if (devWarp) {
       this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
     } else if (this.previewLevel && this.candidateToken) {
@@ -945,7 +950,12 @@ export class GameScene extends Scene {
   private onJumpDownWhileDead(): void {
     if (!this.respawnTimer || this.paused) return;
     if (this.time.now - this.diedAt < RESPAWN_SKIP_AFTER_MS) return;
-    this.restartRun();
+    // Deferred until this emit has finished: Player listens to the same
+    // event (registered after this one), and reviving it first would let
+    // the skip tap also queue a jump at the spawn.
+    queueMicrotask(() => {
+      if (this.respawnTimer) this.restartRun();
+    });
   }
 
   // Counts a fall as an attempt (no trap to credit). Best-effort, never
@@ -1033,7 +1043,8 @@ export class GameScene extends Scene {
 
     const attributedAuthor =
       object.addedBy === SEED_AUTHOR ? undefined : object.addedBy;
-    const shownToken = this.deathToast.show(
+    const toast = this.deathToast;
+    const shownToken = toast.show(
       attributedAuthor,
       attributedAuthor ? object.type : undefined
     );
@@ -1049,18 +1060,20 @@ export class GameScene extends Scene {
       return;
     }
 
-    const attempt = this.attempt;
+    // Not tied to `this.attempt`: the auto-respawn aborts that within
+    // 600ms, which would drop the kill on a slow response. The toast's
+    // token already ignores a count that arrives after a newer death.
     const request: TrapKillRequest = { levelId, version, objectId };
     fetch('/api/runs/trap-kill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
-      signal: attempt.signal,
+      keepalive: true,
     })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((json: unknown) => {
-        if (!attempt.signal.aborted && attributedAuthor !== undefined && isTrapKillResponse(json)) {
-          this.deathToast.setKillCount(shownToken, json.kills);
+        if (attributedAuthor !== undefined && isTrapKillResponse(json)) {
+          toast.setKillCount(shownToken, json.kills);
         }
       })
       .catch(() => {
