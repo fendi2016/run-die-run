@@ -88,6 +88,11 @@ export const BAT_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
+// Pencil test: multiply tint for the scribble hazards (white fill, black
+// outline), so the fill turns red and the outline stays black. null leaves
+// them plain white-and-black, for comparing the two looks.
+export const HAZARD_TINT: number | null = 0xe53935;
+
 // The finish gate is scaled to this height (~3.3 grid tiles, tall enough
 // that the player fits under its banner); width follows the art's own
 // aspect ratio.

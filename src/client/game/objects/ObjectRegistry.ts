@@ -7,6 +7,7 @@ import {
   CANDLE_DISPLAY_HEIGHT_PX,
   GHOST_DISPLAY_HEIGHT_PX,
   FINISH_DISPLAY_HEIGHT_PX,
+  HAZARD_TINT,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
   MOVING_PLATFORM_AMPLITUDE_PX,
@@ -269,6 +270,10 @@ export function pickPlatformTexture(
   return PLATFORM_CENTER_KEYS[index] as string;
 }
 
+// Hazards drawn with the scribble art (see HAZARD_TINT). The bat and ghost
+// keep their old painted art, which a multiply tint would only muddy.
+const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw', 'candle']);
+
 // A solid's `y` is authored as its walkable top face (spawn position and
 // fall-death both assume that), so it must be top-anchored — the tile's
 // body extends downward, below the surface, out of view. A hazard or the
@@ -333,6 +338,9 @@ export function renderLevelObject(
     // Aspect preserved (unlike bat's forced squash).
     sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.height);
     attachArcaneCrackle(scene, sprite, 1);
+  }
+  if (HAZARD_TINT !== null && SCRIBBLE_HAZARD_TYPES.has(object.type)) {
+    sprite.setTint(HAZARD_TINT);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
 
