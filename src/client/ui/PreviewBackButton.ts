@@ -15,11 +15,18 @@ export class PreviewBackButton {
 
   private handler: (() => void) | undefined;
   private readonly root = requireElement('editor-preview-back');
+  private readonly button = requireButton('editor-preview-back-btn');
 
   private constructor() {
-    requireButton('editor-preview-back-btn').addEventListener('click', () => {
+    this.button.addEventListener('click', () => {
       this.handler?.();
     });
+  }
+
+  // Every caller sets its own label — the button is shared between the
+  // editor/curse previews ("← Back to Editor") and the tutorial ("Skip").
+  setLabel(text: string): void {
+    this.button.textContent = text;
   }
 
   setOnBack(handler: () => void): void {

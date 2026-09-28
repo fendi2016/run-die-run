@@ -292,6 +292,41 @@ body {
   }
 }
 
+/* Tutorial prompt: big and centered in the open sky above the run, never
+   interactive (taps are jumps). */
+#tutorial-hint {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(90vw, 520px);
+  box-sizing: border-box;
+  padding: 10px 18px;
+  border: 2px solid #000000;
+  border-radius: 14px;
+  background: rgba(24, 24, 36, 0.85);
+  box-shadow: 0 3px 0 #000000;
+  color: #39ff88;
+  font-family: 'Arial Black', sans-serif;
+  font-size: clamp(16px, 4.5vw, 24px);
+  text-align: center;
+  pointer-events: none;
+}
+
+#tutorial-hint.hidden {
+  display: none;
+}
+
+/* The top-left Back / Skip button (editor Test, curse Prove It, tutorial)
+   takes the attempt chip's corner, so the chip drops below the progress
+   bar (the top row has no room for it on a portrait phone). */
+body:has(#editor-preview-back:not(.hidden)) #run-hud-attempt {
+  top: calc(max(12px, env(safe-area-inset-top)) + 44px + 8px + 18px);
+}
+body:has(#editor-preview-back:not(.hidden)) #death-toast {
+  top: calc(max(12px, env(safe-area-inset-top)) + 116px);
+}
+
 /* Death toast: dying respawns on its own (GameScene), so this only
    reports who killed you. Pinned under the run HUD's progress bar, never interactive —
    taps pass through to the canvas as jumps. `max-width` + `box-sizing`

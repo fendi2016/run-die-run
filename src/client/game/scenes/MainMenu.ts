@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { SPLASH_AUTOSTART_KEY } from '../../../shared/constants';
 import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { GameMenu } from '../../ui/GameMenu';
+import { isTutorialDone } from '../levels/tutorial';
 
 // The menu scene for game.html (the popped-out/expanded webview). Renders
 // no Phaser content of its own — GameMenu is a DOM overlay styled to match
@@ -28,7 +29,7 @@ export class MainMenu extends Scene {
     }
     if (autostart) {
       if (autostart === 'game') {
-        this.scene.start('GameScene');
+        this.play();
         return;
       }
       if (autostart === 'editor') {
@@ -47,7 +48,7 @@ export class MainMenu extends Scene {
 
     const menu = GameMenu.instance();
     menu.setHandlers({
-      onPlay: () => this.scene.start('GameScene'),
+      onPlay: () => this.play(),
       onBuild: () => this.scene.start('EditorScene'),
       onBrowse: () => this.openDiscovery(),
     });
@@ -58,6 +59,13 @@ export class MainMenu extends Scene {
       discovery.hide();
     });
     if (browseRequested) this.openDiscovery();
+  }
+
+  // A first Play on this device runs the tutorial, which then continues to
+  // the level this post plays. Picking a level from Browse skips it — that
+  // player already knows what they want.
+  private play(): void {
+    this.scene.start('GameScene', isTutorialDone() ? {} : { tutorial: true });
   }
 
   // DiscoveryOverlay is a DOM overlay shown on top of GameMenu (same

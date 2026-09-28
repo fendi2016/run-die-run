@@ -164,9 +164,42 @@ try {
   await phone.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
   assert.equal(await phone.evaluate(() => window.__PHASER_GAME__.textures.exists('player-idle')), true);
   await phone.close();
+  // First Play on a device runs the tutorial; Skip remembers that and
+  // carries on to the requested level, and later Plays go straight there.
+  const fresh = await browser.newPage({ viewport: { width: 844, height: 390 } });
+  fresh.on('pageerror', (error) => errors.push(error.message));
+  const requested = [];
+  const realLevel = { levelId: 'real', version: 1, parentVersion: null, contributorUsername: 'test',
+    verificationTimeMs: 1, createdAt: 0, objects: [
+      { id: 'spawn', type: 'spawn', x: 90, y: 480 }, { id: 'finish', type: 'finish', x: 900, y: 480 },
+      ...Array.from({ length: 16 }, (_, i) => ({ id: `g${i}`, type: 'ground', x: 30 + i * 60, y: 480 })),
+    ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 })) };
+  await fresh.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    requested.push(path);
+    if (path === '/api/levels/real') return route.fulfill({ json: realLevel });
+    return route.fulfill({ status: 404, body: '' });
+  });
+  await fresh.goto(`http://127.0.0.1:${server.address().port}/game.html?level=real`);
+  await fresh.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
+  await fresh.click('#game-menu-play');
+  await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.levelVersion?.levelId === 'tutorial');
+  assert.equal(await fresh.isVisible('#editor-preview-back-btn'), true);
+  assert.equal(requested.includes('/api/levels/tutorial'), false, 'the tutorial is never fetched');
+  await fresh.click('#editor-preview-back-btn');
+  await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').tutorial === false);
+  await fresh.waitForFunction(() => document.querySelector('#editor-preview-back').classList.contains('hidden'));
+  assert.equal(await fresh.evaluate(() => localStorage.getItem('cursed:tutorial-done')), '1');
+  await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'real');
+  await fresh.evaluate(() => window.__PHASER_GAME__.scene.start('MainMenu'));
+  await fresh.click('#game-menu-play');
+  await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('GameScene'));
+  assert.equal(await fresh.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').tutorial), false);
+  await fresh.close();
+
   await testStageOne(page);
   assert.deepEqual(errors, []);
-  console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, and touch retry after an asset failure.');
+  console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, touch retry after an asset failure, and first-play tutorial routing.');
 } finally {
   await browser?.close();
   server.closeAllConnections();

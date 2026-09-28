@@ -53,6 +53,7 @@ import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunHud, loadBestProgress, saveBestProgress } from '../../ui/RunHud';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
+import { TutorialHint } from '../../ui/TutorialHint';
 import { clearRateText } from '../../ui/levelStatsText';
 import {
   FINISH_RESTART_DELAY_MS,
@@ -64,6 +65,7 @@ import {
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { getRequestedLevelId } from '../levelSelection';
+import { TUTORIAL_LEVEL, hintAt, markTutorialDone } from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   attachArcaneCrackle,
@@ -123,7 +125,9 @@ type GameSceneData = {
   previewLevel?: LevelVersion;
   candidateToken?: string;
   previewReturn?: PreviewReturn;
+  // With `tutorial`, `levelId` is where to go once it's done or skipped.
   levelId?: string;
+  tutorial?: boolean;
 };
 
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
@@ -182,6 +186,8 @@ export class GameScene extends Scene {
   private candidateToken: string | undefined;
   private previewReturn: PreviewReturn | undefined;
   private explicitLevelId: string | undefined;
+  private tutorial = false;
+  private tutorialHint!: TutorialHint;
 
   // Realtime (spec section 29): subscribed only for a real (non-preview)
   // level, since a preview isn't published and has no live channel. Events
@@ -199,7 +205,11 @@ export class GameScene extends Scene {
   }
 
   init(data: GameSceneData): void {
-    this.previewLevel = data.previewLevel;
+    this.tutorial = data.tutorial === true;
+    // The tutorial runs as a preview so nothing about it is reported or
+    // saved (deaths, best distance, share); it only differs at load and at
+    // the finish.
+    this.previewLevel = this.tutorial ? TUTORIAL_LEVEL : data.previewLevel;
     this.candidateToken = data.candidateToken;
     this.previewReturn = data.previewReturn;
     this.explicitLevelId = data.levelId;
@@ -235,6 +245,7 @@ export class GameScene extends Scene {
     this.resultOverlay = new RunResultOverlay();
     this.deathToast = new DeathToast();
     this.runHud = new RunHud();
+    this.tutorialHint = new TutorialHint();
     this.events.on(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.tapToStartPrompt = new TapToStartPrompt();
     this.controls = new GameplayControls({
@@ -308,6 +319,9 @@ export class GameScene extends Scene {
     if (this.runStarted && !this.runEnded) {
       this.runHud.setProgress(this.currentProgress());
     }
+    if (this.tutorial) {
+      this.tutorialHint.set(this.runEnded ? '' : hintAt(this.player.sprite.x));
+    }
 
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
       this.onPlayerDied();
@@ -371,6 +385,14 @@ export class GameScene extends Scene {
   }
 
   private async loadAndStart(): Promise<void> {
+    if (this.tutorial) {
+      this.levelVersion = TUTORIAL_LEVEL;
+      this.startRun(TUTORIAL_LEVEL);
+      PreviewBackButton.instance().setLabel('Skip Tutorial →');
+      PreviewBackButton.instance().setOnBack(() => this.leaveTutorial());
+      PreviewBackButton.instance().show();
+      return;
+    }
     if (this.previewLevel) {
       this.levelVersion = this.previewLevel;
       this.startRun(this.previewLevel);
@@ -395,6 +417,7 @@ export class GameScene extends Scene {
       };
       // Deaths don't stop on a panel any more, so both the editor's Test
       // run and a curse's Prove It run use the top-left button.
+      PreviewBackButton.instance().setLabel('← Back to Editor');
       PreviewBackButton.instance().setOnBack(backToEditor);
       PreviewBackButton.instance().show();
       return;
@@ -605,7 +628,11 @@ export class GameScene extends Scene {
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime();
 
-    if (devWarp) {
+    if (this.tutorial) {
+      PreviewBackButton.instance().hide();
+      this.resultOverlay.showSaveStatus('Tutorial complete! Now for a real one…');
+      this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => this.leaveTutorial());
+    } else if (devWarp) {
       this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
@@ -887,6 +914,13 @@ export class GameScene extends Scene {
     reportDeathPosition({ levelId: level.levelId, version: level.version, x, y });
   }
 
+  // Done or skipped: never shown again on this device; carry on to the
+  // level the player asked for in the first place.
+  private leaveTutorial(): void {
+    markTutorialDone();
+    this.scene.start('GameScene', { levelId: this.explicitLevelId });
+  }
+
   // How far along the level the player is, 0 at the spawn and 1 at the
   // finish gate.
   private currentProgress(): number {
@@ -1147,6 +1181,7 @@ export class GameScene extends Scene {
     this.resultOverlay.hide();
     this.deathToast.hide();
     this.runHud.hide();
+    this.tutorialHint.hide();
     this.markersRequest?.abort();
     this.markersRequest = undefined;
     this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
