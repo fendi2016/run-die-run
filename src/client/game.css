@@ -1,3 +1,18 @@
+/* Doodlefont by Boogie ("Doodle RPG" asset pack; free for commercial use).
+   Only Regular and Bold ship: every heavier weight in this file maps to Bold. */
+@font-face {
+  font-family: 'Doodlefont';
+  src: url('/assets/fonts/doodlefont-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Doodlefont';
+  src: url('/assets/fonts/doodlefont-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
 html, body {
   overscroll-behavior: none;
 }
@@ -11,9 +26,20 @@ button {
   touch-action: manipulation;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
   padding: 0;
+  font-family: 'Doodlefont', 'Helvetica Neue', Arial, sans-serif;
+  /* Doodlefont's letters run small for their point size; scale by x-height
+     so every existing font-size reads about as big as it did in Arial Black. */
+  font-size-adjust: 0.55;
   color: #2b2b2b;
   background-color: #fbf8ef;
 }
@@ -92,7 +118,7 @@ body {
 }
 
 #run-result-title {
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: clamp(24px, 7vw, 36px);
   color: #3d6ea5;
   text-shadow: none;
@@ -279,7 +305,7 @@ body {
 }
 
 #tap-to-start-label {
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: clamp(20px, 6vw, 32px);
   color: #2b2b2b;
   text-shadow: none;
@@ -327,7 +353,7 @@ body {
   background: rgba(251, 248, 239, 0.96);
   box-shadow: 0 3px 0 #2b2b2b;
   color: #3d6ea5;
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: clamp(16px, 4.5vw, 24px);
   text-align: center;
   pointer-events: none;
@@ -369,7 +395,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   border-radius: 12px;
   background: #ffffff;
   color: #2b2b2b;
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 14px;
   box-shadow: 0 4px 0 #2b2b2b;
   cursor: pointer;
@@ -513,7 +539,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   border-radius: 10px;
   background: #ffffff;
   color: #2b2b2b;
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 13px;
   white-space: nowrap;
   box-shadow: 0 3px 0 #2b2b2b;
@@ -599,7 +625,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   flex: 0 0 auto;
   min-width: 32px;
   text-align: right;
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 12px;
   color: #2b2b2b;
   text-shadow: none;
@@ -903,7 +929,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 /* Leaderboard overlay: reuses .editor-dialog/.editor-dialog-panel (same
    modal chrome as the publish/JSON dialogs) plus its own title and table. */
 #leaderboard-title {
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 16px;
   letter-spacing: 0.04em;
   color: #b8860b;
@@ -942,7 +968,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
    leaderboard above, with a plain label/value list instead of a table
    (five numbers, no ranking to visually emphasize). */
 #stats-title {
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 16px;
   letter-spacing: 0.04em;
   color: #b8860b;
@@ -1010,7 +1036,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 #discovery-title {
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: 16px;
   letter-spacing: 0.04em;
   color: #3d6ea5;
@@ -1266,7 +1292,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   padding: 16px 46px;
   background: #e53935;
   color: #fdf6f0;
-  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
   font-size: 26px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1288,7 +1314,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   padding: 8px 28px;
   background: #ffffff;
   color: #2b2b2b;
-  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
   font-size: 15px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1313,7 +1339,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   padding: 6px 14px;
   background: #ff4500;
   color: #ffffff;
-  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1539,7 +1565,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 #gameplay-dialog-title {
   margin: 0;
-  font-family: 'Arial Black', sans-serif;
+  font-family: 'Doodlefont', 'Arial Black', sans-serif;
   font-size: clamp(26px, 7vw, 34px);
   color: #3d6ea5;
   text-shadow: 0 1px 3px rgba(251, 248, 239, 0.9);
