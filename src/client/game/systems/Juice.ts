@@ -99,85 +99,6 @@ export function applyOutlineGlow(
   glow.setPaddingOverride(null);
 }
 
-const DEATH_EXPLOSION_ANIM_KEY = 'death-explosion';
-// The spritesheet loaded in Preloader is already trimmed to the source
-// pack's first 24 frames (of 30) — this stops short of even those, at the
-// frame where the fireball's still a visible sparking ring rather than
-// riding it out to fully invisible, so the anim doesn't end on a dead
-// frame.
-const DEATH_EXPLOSION_FRAME_COUNT = 20;
-// Fast enough that all 20 frames clear in well under half a second — the
-// source pack's native ~1s pace reads as a slow cutscene, not a death in a
-// fast-retry punishing platformer (spec section 6's retry-loop target).
-const DEATH_EXPLOSION_FRAME_RATE = 50;
-const DEATH_EXPLOSION_SCALE = 0.62;
-const KABOOM_SCALE = 0.62;
-const KABOOM_POP_DURATION_MS = 90;
-const KABOOM_HOLD_MS = 220;
-const KABOOM_FADE_DURATION_MS = 160;
-
-function ensureDeathExplosionAnim(scene: Phaser.Scene): void {
-  if (scene.anims.exists(DEATH_EXPLOSION_ANIM_KEY)) {
-    return;
-  }
-  scene.anims.create({
-    key: DEATH_EXPLOSION_ANIM_KEY,
-    frames: scene.anims.generateFrameNumbers('death-explosion', {
-      start: 0,
-      end: DEATH_EXPLOSION_FRAME_COUNT - 1,
-    }),
-    frameRate: DEATH_EXPLOSION_FRAME_RATE,
-    repeat: 0,
-  });
-}
-
-// "Quick and absurd" death VFX (spec section 31's squish/pop/explosion,
-// escalated) — a fireball spritesheet burst layered with a comic-book
-// "KABOOM" pop-in, both one-shot and self-destroying like burstParticles
-// above. Two separate GameObjects (not one composited texture) since they
-// animate on entirely different mechanisms: the fireball is a genuine
-// frame-by-frame spritesheet anim, while the KABOOM source art is static
-// per-frame (see Preloader's comment) and gets its motion from a tween
-// instead.
-export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): void {
-  ensureDeathExplosionAnim(scene);
-
-  const fireball = scene.add.sprite(x, y, 'death-explosion', 0);
-  fireball.setScale(DEATH_EXPLOSION_SCALE);
-  // Additive blending so the bright core reads as a flash of light against
-  // the level's dark background scrim (GameScene's -0.5-depth rectangle)
-  // instead of a flat orange sticker.
-  fireball.setBlendMode(Phaser.BlendModes.ADD);
-  fireball.play(DEATH_EXPLOSION_ANIM_KEY);
-  fireball.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-    fireball.destroy();
-  });
-
-  // A slight random tilt per death — a perfectly axis-aligned comic burst
-  // reads as a UI element; a few degrees off reads as text slapped onto
-  // the scene in a hurry, which is the joke.
-  const kaboom = scene.add.image(x, y, 'death-kaboom');
-  kaboom.setAngle(Phaser.Math.Between(-8, 8));
-  kaboom.setAlpha(0);
-  kaboom.setScale(KABOOM_SCALE * 0.6);
-  scene.tweens.add({
-    targets: kaboom,
-    alpha: 1,
-    scale: KABOOM_SCALE,
-    duration: KABOOM_POP_DURATION_MS,
-    ease: 'Back.easeOut',
-  });
-  scene.tweens.add({
-    targets: kaboom,
-    alpha: 0,
-    scale: KABOOM_SCALE * 1.1,
-    delay: KABOOM_POP_DURATION_MS + KABOOM_HOLD_MS,
-    duration: KABOOM_FADE_DURATION_MS,
-    ease: 'Quad.easeIn',
-    onComplete: () => kaboom.destroy(),
-  });
-}
-
 // Super Pixel Effects sheets, each repacked into a single-row strip at
 // public/assets/vfx/<key>.webp. Preloader loads them all and, once loaded,
 // builds every anim up front (createPixelFxAnims) so an effect's first
@@ -192,11 +113,6 @@ export const PIXEL_FX_SHEETS: readonly {
   loop?: boolean;
 }[] = [
   // Hazard deaths (DeathEffects)
-  { key: 'blood-splatter', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // burst_splatter_001 red
-  { key: 'blood-spray', frameWidth: 48, frameHeight: 48, frameRate: 20 }, // directional_splatter_003 red, mirrored to spray up-left
-  { key: 'bat-impact', frameWidth: 80, frameHeight: 80, frameRate: 15 }, // directional_impact_004 yellow
-  { key: 'ash-smoke', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // directional_smoke_burst_001 white
-  { key: 'ghost-skull-smoke', frameWidth: 64, frameHeight: 64, frameRate: 15 }, // stylized_skull_smoke_burst_001 white
   // Movement and power-ups (Player, GameScene, LevelLoader)
   { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 20 }, // directional_impact_002 white
   { key: 'pickup-sparkle', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // round_sparkle_burst_001 blue
@@ -205,13 +121,6 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'shield-zap', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // lightning_burst_002 violet
   { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 15, loop: true }, // status_sparkling_001 yellow
   // Level flow and curses (GameScene, CurseScene, EditorScene)
-  { key: 'spawn-warp', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // scifi_warp_003 blue
-  { key: 'spawn-burst', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // lightning_burst_003 violet
-  { key: 'finish-blast', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // stylized_explosion_002 violet
-  { key: 'arcane-crackle', frameWidth: 64, frameHeight: 64, frameRate: 15 }, // lightning_burst_001 violet
-  { key: 'firework-green', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_001 green
-  { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // round_firework_burst_002 yellow
-  { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20 }, // lightning_strike_001 violet
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // symmetrical_smoke_burst_001 brown
 ];
 
@@ -269,145 +178,6 @@ export function attachPickupShimmer(
   const shimmer = scene.add.sprite(x, y, 'pickup-shimmer', 0);
   shimmer.play('pickup-shimmer');
   return shimmer;
-}
-
-// Crackles of violet lightning at random spots on the spawn tombstone and
-// finish gate, one every ARCANE_CRACKLE_MIN_MS..MAX_MS, for as long as the
-// target lives. Editors destroy and redraw their sprites on every change,
-// so the loop checks `target.active` and ends itself once it's gone.
-const ARCANE_CRACKLE_MIN_MS = 500;
-const ARCANE_CRACKLE_MAX_MS = 1100;
-// Crackles land in the target's upper part (its art), not the bottom edge.
-const ARCANE_CRACKLE_TOP_FRACTION = 0.85;
-
-export function attachArcaneCrackle(
-  scene: Phaser.Scene,
-  target: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
-  scale: number
-): void {
-  const next = (): void => {
-    scene.time.delayedCall(
-      Phaser.Math.Between(ARCANE_CRACKLE_MIN_MS, ARCANE_CRACKLE_MAX_MS),
-      () => {
-        if (!target.active) return;
-        const bounds = target.getBounds();
-        playPixelFx(
-          scene,
-          'arcane-crackle',
-          Phaser.Math.FloatBetween(bounds.left + bounds.width * 0.15, bounds.right - bounds.width * 0.15),
-          Phaser.Math.FloatBetween(bounds.top, bounds.top + bounds.height * ARCANE_CRACKLE_TOP_FRACTION),
-          { scale, angle: Phaser.Math.Between(0, 3) * 90, depth: target.depth + 0.01 }
-        );
-        next();
-      }
-    );
-  };
-  next();
-}
-
-// Pixel-art blood burst centered on (x, y).
-export function playBloodSplatter(scene: Phaser.Scene, x: number, y: number, scale: number): void {
-  playPixelFx(scene, 'blood-splatter', x, y, { scale });
-}
-
-const SHATTER_GRID = 3;
-const SHATTER_DURATION_MS = 380;
-
-// Slices the player's current pose into a cols x rows grid of image pieces
-// laid over exactly where the (bottom-center-origin, see Player.ts) sprite
-// was drawn, each centered on its own cell so it can move and spin
-// independently. Pure runtime cropping of the already-loaded texture — no
-// new art. Shared by every death effect that breaks the player apart
-// (playPlayerShatter here, the candle's crumble in DeathEffects); callers
-// own the pieces' motion and must destroy them.
-export function slicePlayerFrame(
-  scene: Phaser.Scene,
-  x: number,
-  y: number,
-  textureKey: string,
-  displaySize: number,
-  cols: number,
-  rows: number
-): { piece: Phaser.GameObjects.Image; col: number; row: number }[] {
-  const frame = scene.textures.getFrame(textureKey);
-  const scale = displaySize / frame.width;
-  const cellSourceW = frame.width / cols;
-  const cellSourceH = frame.height / rows;
-  const topLeftX = x - displaySize / 2;
-  const topLeftY = y - displaySize;
-  const texture = scene.textures.get(textureKey);
-  // Texture.add() makes the first frame ever added the texture's default,
-  // so a later plain setTexture(key) (Player's fall pose) would show one
-  // corner slice — an invisible player whose shrunken frame also threw its
-  // physics body off the ground — on every attempt after this death.
-  const defaultFrame = texture.firstFrame;
-  const pieces: { piece: Phaser.GameObjects.Image; col: number; row: number }[] = [];
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // A real sub-frame per cell rather than setCrop: a cropped image still
-      // renders at its crop offset and rotates about the full image's
-      // origin, whereas a frame gives each piece its own center to position
-      // and spin around. Registered once per texture and grid, reused after.
-      const frameName = `__slice_${cols}x${rows}_${col}_${row}`;
-      if (!texture.has(frameName)) {
-        texture.add(
-          frameName,
-          frame.sourceIndex,
-          frame.cutX + col * cellSourceW,
-          frame.cutY + row * cellSourceH,
-          cellSourceW,
-          cellSourceH
-        );
-      }
-      const piece = scene.add.image(
-        topLeftX + (col + 0.5) * cellSourceW * scale,
-        topLeftY + (row + 0.5) * cellSourceH * scale,
-        textureKey,
-        frameName
-      );
-      piece.setScale(scale);
-      pieces.push({ piece, col, row });
-    }
-  }
-  texture.firstFrame = defaultFrame;
-  return pieces;
-}
-
-// "Ripped apart" death VFX (user ask, replacing the old single frozen
-// player-death pose): slices whatever frame the player was on at the
-// moment of death into a grid of pieces that fly outward and spin away.
-// The default death (falls, and any hazard without its own entry in
-// DeathEffects) fires this immediately before playDeathExplosion so the
-// fireball reads as consuming the pieces rather than the other way round.
-export function playPlayerShatter(
-  scene: Phaser.Scene,
-  x: number,
-  y: number,
-  textureKey: string,
-  displaySize: number
-): void {
-  const center = (SHATTER_GRID - 1) / 2;
-  for (const { piece, col, row } of slicePlayerFrame(
-    scene, x, y, textureKey, displaySize, SHATTER_GRID, SHATTER_GRID
-  )) {
-    // Flies outward from the grid center — corner pieces go diagonally,
-    // the middle piece has no natural direction so it gets a random one.
-    const dirX = col - center || Phaser.Math.FloatBetween(-1, 1);
-    const dirY = row - center || Phaser.Math.FloatBetween(-1, 1);
-    const magnitude = Phaser.Math.Between(40, 90);
-
-    scene.tweens.add({
-      targets: piece,
-      x: piece.x + dirX * magnitude,
-      y: piece.y + dirY * magnitude + 30,
-      angle: Phaser.Math.Between(-240, 240),
-      alpha: 0,
-      duration: SHATTER_DURATION_MS,
-      ease: 'Quad.easeOut',
-      onComplete: () => piece.destroy(),
-    });
-  }
 }
 
 const SHIELD_ANIM_KEY = 'shield-electric';
@@ -549,12 +319,7 @@ export function fitHyperspeedTrail(
 // Squash pulses on the finish gate, one per victory-dance beat
 // (DANCE_FRAME_MS), each weaker than the last.
 const FINISH_PULSES = 3;
-const FINISH_BLAST_SCALE = 1.6;
-// The gem on top of each pillar, as fractions of the gate's width/height
-// from its bottom-center origin; both flare with violet lightning on a clear.
-const FINISH_GEM_DX = 0.32;
-const FINISH_GEM_DY = 0.66;
-const FINISH_SPARK_COLOR = 0xc77dff;
+const FINISH_SPARK_COLOR = 0xffc233;
 
 // Puts the finish gate back at its resting size. Exported so GameScene can
 // snap it back on a same-scene restart without duplicating this math.
@@ -584,20 +349,8 @@ export function playFinishGateAnimation(
 
   // Middle of the arch's opening, under the banner.
   const openingY = sprite.y - sprite.displayHeight * 0.4;
-  playPixelFx(scene, 'finish-blast', sprite.x, openingY, {
-    scale: FINISH_BLAST_SCALE,
-    depth: sprite.depth + 0.01,
-  });
+  playScribbleBlast(scene, sprite.x, openingY, sprite.displayHeight * 0.8, 0x39c46a, sprite.depth + 0.01);
   burstParticles(scene, sprite.x, openingY, FINISH_SPARK_COLOR, 18);
-  for (const side of [-1, 1]) {
-    playPixelFx(
-      scene,
-      'spawn-burst',
-      sprite.x + side * sprite.displayWidth * FINISH_GEM_DX,
-      sprite.y - sprite.displayHeight * FINISH_GEM_DY,
-      { scale: 1.2, depth: sprite.depth + 0.01 }
-    );
-  }
 
   scene.tweens.chain({
     targets: sprite,
@@ -611,5 +364,29 @@ export function playFinishGateAnimation(
         yoyo: true,
       };
     }),
+  });
+}
+
+// A doodled blast (Kenney Scribble Platformer art, loaded by Preloader via
+// DeathEffects.SCRIBBLE_FX) that pops in and fades, centered on (x, y) and
+// `size` px tall. The notebook-style stand-in for the old pixel bursts.
+export function playScribbleBlast(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  size: number,
+  tint: number,
+  depth = 5
+): void {
+  const image = scene.add.image(x, y, size > 70 ? 'scribble-blast-large' : 'scribble-blast');
+  const scale = size / image.height;
+  image.setTint(tint).setDepth(depth).setScale(scale * 0.3);
+  scene.tweens.add({
+    targets: image,
+    scale,
+    duration: 140,
+    ease: 'Back.easeOut',
+    onComplete: () =>
+      scene.tweens.add({ targets: image, alpha: 0, duration: 260, delay: 120, onComplete: () => image.destroy() }),
   });
 }

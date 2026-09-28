@@ -2,8 +2,8 @@ import { GRID_CELL_SIZE, GROUND_TOP_Y, SEED_AUTHOR } from '../../../shared/const
 import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/types';
 
 // The first-play tutorial: a short level that teaches the one control, one
-// obstacle at a time (jump a candle, hold longer across a gap, stay low
-// under a ghost, a quick double), then hands off to the level the player asked
+// obstacle at a time (jump the spikes, hold longer across a gap, stay low
+// under a floater, a quick double), then hands off to the level the player asked
 // for. It lives on the client only — never published, so it can't be
 // cursed, browsed, or show up on any stats — and plays like a preview run.
 // Built by SEED_AUTHOR, so a death names no player.
@@ -51,9 +51,9 @@ export const TUTORIAL_LEVEL: LevelVersion = {
 
 // Prompts shown while the player's x is inside [fromX, toX).
 export const TUTORIAL_HINTS: { fromX: number; toX: number; text: string }[] = [
-  { fromX: 0, toX: 680, text: 'Tap to jump the candle' },
+  { fromX: 0, toX: 680, text: 'Tap to jump the spikes' },
   { fromX: 860, toX: GAP_END_X, text: 'Hold to jump farther' },
-  { fromX: 1560, toX: 1980, text: "Don't jump! Let the ghost pass overhead" },
+  { fromX: 1560, toX: 1980, text: "Don't jump! Let the floater pass overhead" },
   { fromX: 2100, toX: 2600, text: 'Two in a row' },
   { fromX: 2680, toX: LEVEL_END_X, text: 'Reach the gate!' },
 ];

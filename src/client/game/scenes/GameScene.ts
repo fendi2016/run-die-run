@@ -75,7 +75,7 @@ import { getRequestedLevelId } from '../levelSelection';
 import { TUTORIAL_LEVEL, hintAt, markTutorialDone } from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
-  attachArcaneCrackle,
+  playScribbleBlast,
   burstParticles,
   playFinishGateAnimation,
   playPixelFx,
@@ -88,21 +88,15 @@ import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { triggerBatFlight } from '../objects/ObjectRegistry';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
-// spawn-warp's splash sits on its frame's bottom edge (~122 of 128px).
-const SPAWN_WARP_GROUND_Y = 0.95;
-// The spawn-burst lightning goes off over the tombstone's glowing glyph,
-// this far up its height.
-const SPAWN_BURST_HEIGHT = 0.55;
-const SPAWN_BURST_SCALE = 2.2;
 // Frames 0-3 are the bolt dropping; frame 4 is where it hits the floor and
 // splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
 const SPAWN_WARP_LAND_FRAME = 4;
 const SPAWN_WARP_LAND_MS = (SPAWN_WARP_LAND_FRAME * 1000) / 20;
 // Offsets from the finish gate's top-center, in world px.
 const FINISH_FIREWORKS = [
-  { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
-  { key: 'firework-yellow', dx: 50, dy: -70, delayMs: 200 },
-  { key: 'firework-green', dx: 10, dy: -110, delayMs: 400 },
+  { tint: 0x39c46a, dx: -40, dy: -40, delayMs: 0 },
+  { tint: 0xffc233, dx: 50, dy: -70, delayMs: 200 },
+  { tint: 0xe53935, dx: 10, dy: -110, delayMs: 400 },
 ] as const;
 
 // Where a preview ("Test"/"Prove it's possible") run sends the player back
@@ -611,12 +605,11 @@ export class GameScene extends Scene {
 
     // The spawn tombstone the player rises from — above the background, behind
     // the player and every level object.
-    const tombstone = this.add
+    this.add
       .image(this.spawn.x, this.spawn.y, 'spawn-marker')
       .setOrigin(0.5, 1)
       .setScale(SPAWN_TOMBSTONE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
       .setDepth(-0.25);
-    attachArcaneCrackle(this, tombstone, 0.8);
 
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
     // — update() starts the timer and hides the prompt once Player itself
@@ -1172,30 +1165,19 @@ export class GameScene extends Scene {
   // so nothing is lost. A retry starts running at once, so it skips the
   // drop and plays just the landing splash around the visible player.
   private playSpawnWarp(beamIn: boolean): void {
-    playPixelFx(
-      this,
-      'spawn-burst',
-      this.spawn.x,
-      this.spawn.y - SPAWN_TOMBSTONE_HEIGHT_PX * SPAWN_BURST_HEIGHT,
-      { scale: SPAWN_BURST_SCALE, depth: -0.2 }
-    );
-    playPixelFx(this, 'spawn-warp', this.spawn.x, this.spawn.y, {
-      scale: 1,
-      originY: SPAWN_WARP_GROUND_Y,
-      startFrame: beamIn ? 0 : SPAWN_WARP_LAND_FRAME,
-    });
+    playScribbleBlast(this, this.spawn.x, this.spawn.y - 40, beamIn ? 110 : 70, 0x2b2b2b, -0.2);
     if (!beamIn || !this.player) return;
     const sprite = this.player.sprite;
     sprite.setVisible(false);
     this.time.delayedCall(SPAWN_WARP_LAND_MS, () => sprite.setVisible(true));
   }
 
-  // Three staggered pixel fireworks above the finish gate.
+  // Three staggered doodled bursts above the finish flag.
   private playFinishFireworks(gate: Phaser.GameObjects.Sprite): void {
     const bounds = gate.getBounds();
-    FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
+    FINISH_FIREWORKS.forEach(({ tint, dx, dy, delayMs }) => {
       this.time.delayedCall(delayMs, () =>
-        playPixelFx(this, key, bounds.centerX + dx, bounds.top + dy, { scale: 1.5 })
+        playScribbleBlast(this, bounds.centerX + dx, bounds.top + dy, 80, tint)
       );
     });
   }

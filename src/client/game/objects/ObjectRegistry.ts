@@ -17,7 +17,6 @@ import {
   PLATFORM_DISPLAY_HEIGHT_PX,
   SPAWN_ICON_SIZE,
 } from '../constants';
-import { attachArcaneCrackle } from '../systems/Juice';
 
 export type ObjectCategory =
   'solid' | 'hazard' | 'finish' | 'spawn' | 'powerup' | 'unsupported';
@@ -60,9 +59,10 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
 // size of each, for the Preloader. The texture keys stay the plain type
 // names, so TEXTURE_BY_TYPE above didn't change.
 export const HAZARD_SPRITESHEETS = [
-  { key: 'ghost', file: 'hazards/ghost-sheet.webp', frameWidth: 140, frameHeight: 150 },
+  // Scribble creatures (Kenney Scribble Platformer): one frame each for now.
+  { key: 'ghost', file: 'hazards/ghost-sheet.webp', frameWidth: 83, frameHeight: 123 },
   { key: 'candle', file: 'hazards/candle-sheet.webp', frameWidth: 84, frameHeight: 120 },
-  { key: 'bat', file: 'hazards/bat-sheet.webp', frameWidth: 129, frameHeight: 120 },
+  { key: 'bat', file: 'hazards/bat-sheet.webp', frameWidth: 84, frameHeight: 127 },
 ] as const;
 
 // Hazards whose art is an animated spritesheet rather than a static image —
@@ -337,7 +337,6 @@ export function renderLevelObject(
   } else if (object.type === 'finish') {
     // Aspect preserved (unlike bat's forced squash).
     sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.height);
-    attachArcaneCrackle(scene, sprite, 1);
   }
   if (HAZARD_TINT !== null && SCRIBBLE_HAZARD_TYPES.has(object.type)) {
     sprite.setTint(HAZARD_TINT);
@@ -380,6 +379,5 @@ export function renderSpawnMarker(
 ): Phaser.GameObjects.Sprite {
   const marker = scene.add.sprite(x, y, 'spawn-marker').setOrigin(0.5, 1).setAlpha(0.85);
   marker.setScale(SPAWN_ICON_SIZE / marker.height);
-  attachArcaneCrackle(scene, marker, 0.6);
   return marker;
 }

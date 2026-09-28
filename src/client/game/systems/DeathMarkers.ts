@@ -5,13 +5,12 @@ import {
   type ReportDeathRequest,
 } from '../../../shared/deathsApi';
 
-// Faint skulls where other players died on this level version (the
-// server keeps per-version counts, bucketed — see deathsApi). The
-// skull-and-crossbones pose of the skull-smoke VFX sheet doubles as the
-// marker, so no extra texture to load.
-const SKULL_TEXTURE = 'ghost-skull-smoke';
-const SKULL_FRAME = 2;
-const SKULL_SCALE = 0.6;
+// Faint pencil ✗'s where other players died on this level version (the
+// server keeps per-version counts, bucketed — see deathsApi). Reuses the
+// scribble ✗ from the death animation (DeathEffects.SCRIBBLE_FX).
+const MARK_TEXTURE = 'scribble-x';
+const MARK_SCALE = 0.35;
+const MARK_TINT = 0x2b2b2b;
 // Busier spots read darker: alpha ramps from MIN to MAX with the count,
 // relative to the level's worst spot.
 const MIN_ALPHA = 0.3;
@@ -41,9 +40,10 @@ export function drawDeathMarkers(
   return markers.map((marker) => {
     const t = Math.sqrt(marker.count / worst);
     return scene.add
-      .image(marker.x, marker.y, SKULL_TEXTURE, SKULL_FRAME)
+      .image(marker.x, marker.y, MARK_TEXTURE)
       .setOrigin(0.5, 1)
-      .setScale(SKULL_SCALE)
+      .setScale(MARK_SCALE)
+      .setTint(MARK_TINT)
       .setAlpha(MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * t)
       .setDepth(MARKER_DEPTH);
   });
