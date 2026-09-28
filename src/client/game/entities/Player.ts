@@ -33,9 +33,9 @@ import {
 // — easier to tell which pose is which at a glance, and to swap one out
 // without recomputing a grid offset. See player/*.webp in public/assets.
 //
-// player-run-1..9 is one pencil stride (contact → passing → contact),
-// picked evenly from the 25-frame autosprite run sheet after sorting its
-// cells by pose — the sheet's grid order isn't playback order.
+// player-run-1..19 is one pencil stride (full extension → passing → full
+// extension): every distinct pose of the 25-frame autosprite run sheet,
+// sorted by pose — the sheet's grid order isn't playback order.
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -47,6 +47,16 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-run-7',
   'player-run-8',
   'player-run-9',
+  'player-run-10',
+  'player-run-11',
+  'player-run-12',
+  'player-run-13',
+  'player-run-14',
+  'player-run-15',
+  'player-run-16',
+  'player-run-17',
+  'player-run-18',
+  'player-run-19',
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
@@ -76,6 +86,16 @@ const RUN_KEYS = [
   'player-run-7',
   'player-run-8',
   'player-run-9',
+  'player-run-10',
+  'player-run-11',
+  'player-run-12',
+  'player-run-13',
+  'player-run-14',
+  'player-run-15',
+  'player-run-16',
+  'player-run-17',
+  'player-run-18',
+  'player-run-19',
 ];
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
@@ -186,23 +206,21 @@ function opaqueFrameBounds(frame: Phaser.Textures.Frame): OpaqueBounds {
   opaqueBoundsCache.set(cacheKey, bounds);
   return bounds;
 }
-// Per-frame hold times (ms) for the run cycle. The nine poses are one
-// step; it hangs on the full-extension poses (run-8, run-9, run-1 — the
-// widest in the sheet) and snaps through the passing pose, so each step
-// reads as a long bound rather than a quick shuffle.
-const RUN_FRAME_DURATIONS_MS: readonly number[] = [
-  45, 26, 20, 20, 20, 22, 28, 40, 50,
-];
+// Per-frame hold time (ms) for the run cycle. Even timing across all
+// nineteen poses (~230ms a step) keeps the stride long but fluid — holding
+// the wide poses and snapping through the rest read as robotic. Frames
+// shorter than a display frame are fine: Phaser advances several per tick.
+const RUN_FRAME_MS = 12;
 // Squash on the full-extension poses, stretch through the passing pose
-// (run-5) — synced to the same nine frames via ANIMATION_UPDATE (see
-// onAnimFrameUpdate). Multiplied against the base PLAYER_SIZE scale, not
-// set absolutely.
-const RUN_SCALE_X_FACTORS: readonly number[] = [
-  1.05, 1.03, 0.99, 0.97, 0.96, 0.97, 0.99, 1.03, 1.05,
-];
-const RUN_SCALE_Y_FACTORS: readonly number[] = [
-  0.94, 0.97, 1.02, 1.05, 1.06, 1.05, 1.02, 0.97, 0.94,
-];
+// (run-9, the narrowest), following one smooth cosine over the stride
+// rather than stepping. Synced to the frames via ANIMATION_UPDATE (see
+// onAnimFrameUpdate). Multiplied against the base PLAYER_SIZE scale.
+const RUN_PASSING_INDEX = 8;
+const runSquash = RUN_KEYS.map(
+  (_, i) => -Math.cos((2 * Math.PI * (i - RUN_PASSING_INDEX)) / RUN_KEYS.length)
+);
+const RUN_SCALE_X_FACTORS: readonly number[] = runSquash.map((t) => 1 + 0.045 * t);
+const RUN_SCALE_Y_FACTORS: readonly number[] = runSquash.map((t) => 1 - 0.06 * t);
 // Same trick as the run cycle's squash/stretch above, applied to the dance
 // loop — without it the dance is just a slideshow of static poses cut on
 // every frame, since none of the source art itself has any built-in
@@ -287,10 +305,7 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (!scene.anims.exists(RUN_ANIM_KEY)) {
     scene.anims.create({
       key: RUN_ANIM_KEY,
-      frames: RUN_KEYS.map((key, i) => ({
-        key,
-        duration: RUN_FRAME_DURATIONS_MS[i] ?? 45,
-      })),
+      frames: RUN_KEYS.map((key) => ({ key, duration: RUN_FRAME_MS })),
       // frameRate is ignored once every frame has an explicit duration, but
       // Phaser's AnimationConfig requires one to be set.
       frameRate: 22,
@@ -430,10 +445,10 @@ export class Player {
 
   // Drives the run cycle's and dance loop's squash/stretch bounce
   // frame-by-frame instead of a tween — a tween racing the animation's own
-  // frame timing would drift out of sync as soon as RUN_FRAME_DURATIONS_MS's
-  // asymmetric holds (or a future non-uniform dance timing) kick in. Keyed
-  // off the sprite's current texture rather than AnimationFrame.index since
-  // each pose is its own texture, not a spritesheet index.
+  // frame timing would drift out of sync as soon as any non-uniform frame
+  // timing kicks in. Keyed off the sprite's current texture rather than
+  // AnimationFrame.index since each pose is its own texture, not a
+  // spritesheet index.
   private onAnimFrameUpdate(anim: Phaser.Animations.Animation): void {
     const table = ANIM_SCALE_TABLES[anim.key];
     if (!table) {
