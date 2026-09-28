@@ -113,7 +113,7 @@ export class Preloader extends Scene {
     this.load.image('spawn-marker', 'markers/spawn.webp');
     this.load.image('shield', 'powerups/shield.webp');
     this.load.image('speedBoost', 'powerups/speedBoost.webp');
-    this.load.image('level-background', 'ui/scene-bg.webp');
+    this.load.image('level-background', 'ui/paper-bg.webp');
 
     // Death VFX (see Juice.playDeathExplosion) — sourced from the VFX Free
     // Pack at repo root. death-explosion is a trimmed spritesheet (first 24
