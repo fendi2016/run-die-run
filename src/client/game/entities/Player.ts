@@ -366,7 +366,7 @@ export class Player {
 
     // Forgiving hitbox: smaller than the visible sprite so near-misses read
     // as survivable rather than cheap deaths (spec section 3).
-    this.setHitboxHeight(HITBOX_HEIGHT);
+    this.setPoseScale(1, 1);
 
     this.inputSystem = new InputSystem(scene);
     scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.onWorldStep, this);
@@ -394,20 +394,16 @@ export class Player {
     if (poseIndex === -1) {
       return;
     }
-    this.sprite.setScale(
-      PLAYER_BASE_SCALE * (table.scaleX[poseIndex] ?? 1),
-      PLAYER_BASE_SCALE * (table.scaleY[poseIndex] ?? 1)
-    );
+    this.setPoseScale(table.scaleX[poseIndex] ?? 1, table.scaleY[poseIndex] ?? 1);
   }
 
   // Neither effect sprite has any position logic of its own (Juice's
   // attachElectricShield/playHyperspeedTrail just place-and-return) — this
-  // is what actually makes them "escort" the player. Runs unconditionally,
-  // ahead of update()'s alive/waitingToStart early-return, since a sprite
-  // can still be showing in the single frame death/freeze fires in (both
-  // explicitly destroy their own escorts, but only after this would've
-  // already run this frame).
-  private syncEffectSprites(): void {
+  // is what actually makes them "escort" the player. GameScene calls it
+  // every frame after PhysicsInterpolation has placed the sprite where it
+  // will be drawn — syncing in update() pinned the escorts to the stepped
+  // position instead, visibly trailing or leading the drawn player.
+  syncEffectSprites(): void {
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
     this.fitHyperspeedSprite();
@@ -447,7 +443,6 @@ export class Player {
   }
 
   update(deltaMs: number): void {
-    this.syncEffectSprites();
     this.updateLandingDust();
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
     this.msSinceGrounded = this.isGrounded
@@ -475,8 +470,7 @@ export class Player {
     }
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
-    const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
-    if (hasBufferedJump && canGroundJump) {
+    if (hasBufferedJump && this.canGroundJump) {
       this.jump();
       this.releaseCutInMs =
         this.bufferedHeldMs === null ? null : Math.max(this.bufferedHeldMs, MIN_JUMP_HOLD_MS);
@@ -521,11 +515,24 @@ export class Player {
     return this.body.blocked.down && !this.awaitingTakeoffStep;
   }
 
-  // Bottom stays at the feet (offset + height = the full frame).
-  private setHitboxHeight(fraction: number): void {
-    const width = PLAYER_FRAME_SIZE * HITBOX_WIDTH;
-    this.body.setSize(width, PLAYER_FRAME_SIZE * fraction);
-    this.body.setOffset((PLAYER_FRAME_SIZE - width) / 2, PLAYER_FRAME_SIZE * (1 - fraction));
+  // On the ground, or just ran off it (coyote time).
+  private get canGroundJump(): boolean {
+    return this.isGrounded || this.msSinceGrounded <= COYOTE_TIME_MS;
+  }
+
+  // Scales the sprite by a squash/stretch factor on top of PLAYER_SIZE while
+  // keeping the hitbox fixed. Arcade sizes the body as source size × sprite
+  // scale, so the run cycle's squash/stretch used to grow and shrink the
+  // hitbox by ~4px every pose — the same hazard hit or missed depending on
+  // which frame of the stride the player was on. Dividing the source size
+  // by the factor cancels that out. Bottom stays at the feet (offset +
+  // height = the full frame), centered horizontally.
+  private setPoseScale(scaleX: number, scaleY: number): void {
+    this.sprite.setScale(PLAYER_BASE_SCALE * scaleX, PLAYER_BASE_SCALE * scaleY);
+    const width = (PLAYER_FRAME_SIZE * HITBOX_WIDTH) / scaleX;
+    const height = (PLAYER_FRAME_SIZE * HITBOX_HEIGHT) / scaleY;
+    this.body.setSize(width, height, false);
+    this.body.setOffset((PLAYER_FRAME_SIZE - width) / 2, PLAYER_FRAME_SIZE - height);
   }
 
   // Airborne swaps between the rising-leap and falling-sprawl poses off
@@ -550,7 +557,7 @@ export class Player {
     // whichever pose was mid-bounce when the player left the ground stays
     // stretched/squashed for the entire jump, shared by both airborne cases
     // below.
-    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+    this.setPoseScale(1, 1);
     if (this.body.velocity.y < 0) {
       // Ascending: play the rise→tuck sequence once instead of a hard cut
       // straight to a single rise texture — see JUMP_ASCEND_ANIM_KEY.
@@ -694,7 +701,7 @@ export class Player {
     // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — otherwise
     // whichever pose was mid-bounce when the run ended stays
     // squashed/stretched underneath the dance animation.
-    this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
+    this.setPoseScale(1, 1);
     this.sprite.play(DANCE_ANIM_KEY);
   }
 
@@ -710,10 +717,10 @@ export class Player {
     this.sprite.setVisible(true);
     this.sprite.setPosition(x, y);
     this.sprite.setVelocity(0, 0);
-    // setDisplaySize, not setScale(1, 1) — the sprite's native frame size
+    // Base scale, not setScale(1, 1) — the sprite's native frame size
     // (362px, from the source sheet) isn't PLAYER_SIZE, unlike the old
     // placeholder texture where scale 1 happened to mean "correct size".
-    this.sprite.setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+    this.setPoseScale(1, 1);
     this.sprite.setAngle(0);
     this.body.setAllowGravity(true);
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
@@ -787,10 +794,14 @@ export class Player {
       this.sprite.play(RUN_ANIM_KEY);
       return;
     }
-    // Jumps on the next update() if grounded (or within coyote time);
-    // otherwise buffers for landing.
+    // Jumps right away if grounded (or within coyote time); otherwise
+    // buffers for landing. Right away, not on the next update(): input is
+    // dispatched in PRE_UPDATE, before this frame's physics step, while
+    // update() runs after it — waiting for update() cost every jump a full
+    // physics step (~17ms) of input lag.
     this.msSinceJumpPressed = 0;
     this.bufferedHeldMs = null;
+    if (this.canGroundJump) this.jump();
   }
 
   private onJumpReleased(): void {

@@ -64,6 +64,7 @@ import {
 } from '../constants';
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
+import { PhysicsInterpolation } from '../systems/PhysicsInterpolation';
 import { getRequestedLevelId } from '../levelSelection';
 import { TUTORIAL_LEVEL, hintAt, markTutorialDone } from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
@@ -180,6 +181,9 @@ export class GameScene extends Scene {
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private bats: LoadedBat[] = [];
+  // Smooths the player and bats between fixed physics steps (see
+  // PhysicsInterpolation); rebuilt with each startRun().
+  private interpolation: PhysicsInterpolation | undefined;
   private finishSprite: Phaser.GameObjects.Sprite | undefined;
 
   private previewLevel: LevelVersion | undefined;
@@ -229,6 +233,7 @@ export class GameScene extends Scene {
     this.resetMovingObjects = undefined;
     this.powerUpImages = [];
     this.bats = [];
+    this.interpolation = undefined;
     this.finishSprite = undefined;
     this.pendingVersionPublished = undefined;
     this.pendingWorldRecord = undefined;
@@ -260,6 +265,11 @@ export class GameScene extends Scene {
     window.addEventListener('blur', this.onLeaveApp);
     window.addEventListener('pagehide', this.onLeaveApp);
     window.addEventListener('keydown', this.onNavigationKey);
+    // Registered after ArcadePhysics' own listeners (added on scene start,
+    // before create), so POST_UPDATE here runs once Arcade has already
+    // written this frame's steps back to the sprites.
+    this.events.on(Phaser.Scenes.Events.PRE_UPDATE, this.onPreUpdate, this);
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.onPostUpdate, this);
     this.events.once('shutdown', this.cleanup, this);
 
     void this.loadAndStart();
@@ -286,28 +296,17 @@ export class GameScene extends Scene {
       }
     }
 
-    // Vertical zoom is locked to LOGICAL_HEIGHT (see applyResponsiveZoom),
-    // so the world-space width actually on screen varies with device
-    // aspect ratio — narrower on a tall phone, wider on a desktop.
-    const visibleWorldWidth = this.scale.width / this.cameras.main.zoom;
-    const targetScrollX =
-      this.player.sprite.x - visibleWorldWidth * PLAYER_SCREEN_ANCHOR;
-    this.cameras.main.scrollX = Phaser.Math.Clamp(
-      targetScrollX,
-      0,
-      Math.max(0, this.levelWidth - visibleWorldWidth)
-    );
-
     // A bat fires the instant its x crosses into view (see BAT_DASH_SPEED_PX's
     // comment on why that's the trigger, not proximity) — checked from the
-    // same locally-computed scrollX/visibleWorldWidth used above, not
+    // locally computed scroll for the player's true position, not
     // camera.worldView, since that's the one the zoom-pivot gotcha (see
     // memory) warns isn't trustworthy synchronously after a same-tick
     // scrollX change. Gated on runStarted so a bat visible from the spawn
     // viewport doesn't lock on before the tap-to-start gate even lifts,
     // same as every other moving hazard staying paused until then.
     if (this.runStarted && !this.runEnded) {
-      const viewRightEdge = this.cameras.main.scrollX + visibleWorldWidth;
+      const viewRightEdge =
+        this.cameraScrollXFor(this.player.sprite.x) + this.visibleWorldWidth();
       for (const bat of this.bats) {
         if (!bat.triggered && bat.sprite.x <= viewRightEdge) {
           bat.triggered = true;
@@ -326,6 +325,37 @@ export class GameScene extends Scene {
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
       this.onPlayerDied();
     }
+  }
+
+  private onPreUpdate(): void {
+    this.interpolation?.restore();
+  }
+
+  // Drawing happens right after this, so the camera follows the player's
+  // interpolated position — following the stepped one (or, as it used to,
+  // reading sprite.x in update() before Arcade had moved it this frame)
+  // shook the player on screen whenever a frame ran zero or two steps.
+  private onPostUpdate(): void {
+    if (!this.player) return;
+    this.interpolation?.apply();
+    this.player.syncEffectSprites();
+    this.cameras.main.scrollX = this.cameraScrollXFor(this.player.sprite.x);
+  }
+
+  // Vertical zoom is locked to LOGICAL_HEIGHT (see applyResponsiveZoom),
+  // so the world-space width actually on screen varies with device
+  // aspect ratio — narrower on a tall phone, wider on a desktop.
+  private visibleWorldWidth(): number {
+    return this.scale.width / this.cameras.main.zoom;
+  }
+
+  private cameraScrollXFor(playerX: number): number {
+    const visibleWorldWidth = this.visibleWorldWidth();
+    return Phaser.Math.Clamp(
+      playerX - visibleWorldWidth * PLAYER_SCREEN_ANCHOR,
+      0,
+      Math.max(0, this.levelWidth - visibleWorldWidth)
+    );
   }
 
   private readonly onVisibilityChange = (): void => {
@@ -595,6 +625,11 @@ export class GameScene extends Scene {
       tween.pause();
     }
     this.tapToStartPrompt.show();
+    this.interpolation?.destroy();
+    this.interpolation = new PhysicsInterpolation(this, [
+      player.sprite,
+      ...this.bats.map((bat) => bat.sprite),
+    ]);
     if (document.hidden) this.pauseRun();
   }
 
@@ -1198,6 +1233,10 @@ export class GameScene extends Scene {
     this.markersRequest?.abort();
     this.markersRequest = undefined;
     this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
+    this.events.off(Phaser.Scenes.Events.PRE_UPDATE, this.onPreUpdate, this);
+    this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.onPostUpdate, this);
+    this.interpolation?.destroy();
+    this.interpolation = undefined;
     this.respawnTimer = undefined;
     this.tapToStartPrompt.hide();
     this.player?.destroy();
