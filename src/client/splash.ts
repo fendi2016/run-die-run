@@ -5,11 +5,13 @@ import {
   SPLASH_AUTOSTART_KEY,
   type SplashAutostart,
 } from '../shared/constants';
+import { isCoursePreview, type CoursePreview } from '../shared/coursePreview';
 import { isLevelStats } from '../shared/discoveryApi';
 import { isCursedPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
+import { renderCoursePreviewSvg } from './ui/coursePreviewSvg';
 import { clearRateText, versionText } from './ui/levelStatsText';
 
 const playButton = document.getElementById('play-button') as HTMLButtonElement;
@@ -82,3 +84,26 @@ async function loadStats(): Promise<void> {
 }
 
 void loadStats();
+
+const previewEl = requireElement('course-preview');
+let preview: CoursePreview | undefined;
+function drawPreview(): void {
+  if (!preview) return;
+  previewEl.innerHTML = renderCoursePreviewSvg(preview, previewEl.clientWidth, 30);
+}
+async function loadPreview(): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/levels/${encodeURIComponent(levelId)}/preview`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    const body: unknown = await response.json();
+    if (!response.ok || !isCoursePreview(body)) return;
+    preview = body;
+    drawPreview();
+  } catch {
+    // The strip keeps its tagline; PLAY works either way.
+  }
+}
+window.addEventListener('resize', drawPreview);
+void loadPreview();
