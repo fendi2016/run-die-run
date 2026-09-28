@@ -17,6 +17,13 @@ export const versionLeaderboardKey = (
   version: number
 ): string => `level:${levelId}:version:${version}:leaderboard`;
 
+// Death markers (faint skulls the client draws on the level): a sorted set
+// of death-x-bucket -> death count, scoped to one level version so a
+// republish's changed geometry never inherits a stale skull field from an
+// earlier version's layout.
+export const levelDeathsKey = (levelId: string, version: number): string =>
+  `level:${levelId}:version:${version}:deaths`;
+
 export const userStatsKey = (redditId: string): string =>
   `user:${redditId}:stats`;
 
