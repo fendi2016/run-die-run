@@ -118,7 +118,16 @@ export class Preloader extends Scene {
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
     for (const { key, file } of SCRIBBLE_FX) this.load.image(key, file);
 
-    // Doodle effect strips (see Juice.PIXEL_FX_SHEETS).
+    // Death VFX (see Juice.playDeathExplosion), from the VFX Free Pack.
+    // death-explosion is trimmed to the source's first 24 of 30 frames and
+    // played fast; death-kaboom is one frame of the pack's comic "KABOOM",
+    // popped in and out with a tween.
+    this.load.spritesheet('death-explosion', 'vfx/death-explosion.webp', {
+      frameWidth: 355,
+      frameHeight: 355,
+    });
+    this.load.image('death-kaboom', 'vfx/death-kaboom.webp');
+    // Effect strips (see Juice.PIXEL_FX_SHEETS).
     for (const { key, frameWidth, frameHeight } of PIXEL_FX_SHEETS) {
       this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
     }

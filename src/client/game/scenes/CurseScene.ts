@@ -38,12 +38,13 @@ import {
   renderSpawnMarker,
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
-import { playPixelFx, playScribbleBlast } from '../systems/Juice';
+import { playPixelFx } from '../systems/Juice';
 import { PLATFORM_DISPLAY_HEIGHT_PX } from '../constants';
 
 // curse-strike's impact sits near its frame's bottom (~112 of 128px); it
 // lands on the placed curse's base. Both effects draw above the board,
 // which is rebuilt (redrawBase/redrawPending) after they start.
+const CURSE_STRIKE_GROUND_Y = 0.88;
 const CURSE_FX_DEPTH = 10;
 
 type CursePreselect = {
@@ -377,7 +378,11 @@ export class CurseScene extends Scene {
     this.setPendingAt(world.x, world.y);
     if (this.pendingImage) {
       const base = this.pendingImage.getBottomCenter();
-      playScribbleBlast(this, base.x, base.y - 30, 90, 0xe53935, CURSE_FX_DEPTH);
+      playPixelFx(this, 'curse-strike', base.x, base.y, {
+        scale: 1,
+        originY: CURSE_STRIKE_GROUND_Y,
+        depth: CURSE_FX_DEPTH,
+      });
     }
   }
 

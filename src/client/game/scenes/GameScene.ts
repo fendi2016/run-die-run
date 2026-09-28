@@ -70,6 +70,7 @@ import {
   CAMERA_FOLLOW_Y_LERP,
   CAMERA_PLAYER_Y_ANCHOR,
   SPAWN_TOMBSTONE_HEIGHT_PX,
+  PLAYER_SIZE,
 } from '../constants';
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
@@ -78,7 +79,7 @@ import { getRequestedLevelId } from '../levelSelection';
 import { TUTORIAL_LEVEL, hintAt, markTutorialDone } from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
-  playScribbleBlast,
+  playScribbleIn,
   burstParticles,
   playFinishGateAnimation,
   playPixelFx,
@@ -91,15 +92,17 @@ import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { triggerBatFlight } from '../objects/ObjectRegistry';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
-// Frames 0-3 are the bolt dropping; frame 4 is where it hits the floor and
-// splashes. spawn-warp plays at 20fps (Juice.PIXEL_FX_SHEETS).
-const SPAWN_WARP_LAND_FRAME = 4;
-const SPAWN_WARP_LAND_MS = (SPAWN_WARP_LAND_FRAME * 1000) / 20;
+// The scribble-in (Juice.playScribbleIn): on level load the player is
+// hidden while the scrawl draws and appears as it finishes; a retry starts
+// running at once, so it gets a quicker flourish around the visible player.
+const SPAWN_SCRIBBLE_MS = 260;
+const SPAWN_SCRIBBLE_RETRY_MS = 150;
+const SPAWN_SCRIBBLE_WIDTH = PLAYER_SIZE * 0.6;
 // Offsets from the finish gate's top-center, in world px.
 const FINISH_FIREWORKS = [
-  { tint: 0x39c46a, dx: -40, dy: -40, delayMs: 0 },
-  { tint: 0xffc233, dx: 50, dy: -70, delayMs: 200 },
-  { tint: 0xe53935, dx: 10, dy: -110, delayMs: 400 },
+  { key: 'firework-green', dx: -40, dy: -40, delayMs: 0 },
+  { key: 'firework-yellow', dx: 50, dy: -70, delayMs: 200 },
+  { key: 'firework-green', dx: 10, dy: -110, delayMs: 400 },
 ] as const;
 
 // Where a preview ("Test"/"Prove it's possible") run sends the player back
@@ -1192,26 +1195,27 @@ export class GameScene extends Scene {
       });
   }
 
-  // The player beams in at the spawn point (the splash sits on
-  // spawn-warp's bottom edge, hence the origin). On level load
-  // (`beamIn`) the player stays hidden while the bolt drops and appears
-  // the moment it hits the floor; the player is idle at tap-to-start then,
-  // so nothing is lost. A retry starts running at once, so it skips the
-  // drop and plays just the landing splash around the visible player.
+  // The player is scribbled in at the spawn point (see SPAWN_SCRIBBLE_MS).
   private playSpawnWarp(beamIn: boolean): void {
-    playScribbleBlast(this, this.spawn.x, this.spawn.y - 40, beamIn ? 110 : 70, 0x2b2b2b, -0.2);
-    if (!beamIn || !this.player) return;
-    const sprite = this.player.sprite;
-    sprite.setVisible(false);
-    this.time.delayedCall(SPAWN_WARP_LAND_MS, () => sprite.setVisible(true));
+    const sprite = this.player?.sprite;
+    if (beamIn) sprite?.setVisible(false);
+    playScribbleIn(
+      this,
+      this.spawn.x,
+      this.spawn.y,
+      SPAWN_SCRIBBLE_WIDTH,
+      PLAYER_SIZE,
+      beamIn ? SPAWN_SCRIBBLE_MS : SPAWN_SCRIBBLE_RETRY_MS,
+      () => sprite?.setVisible(true)
+    );
   }
 
-  // Three staggered doodled bursts above the finish flag.
+  // Three staggered pixel fireworks above the finish flag.
   private playFinishFireworks(gate: Phaser.GameObjects.Sprite): void {
     const bounds = gate.getBounds();
-    FINISH_FIREWORKS.forEach(({ tint, dx, dy, delayMs }) => {
+    FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
       this.time.delayedCall(delayMs, () =>
-        playScribbleBlast(this, bounds.centerX + dx, bounds.top + dy, 80, tint)
+        playPixelFx(this, key, bounds.centerX + dx, bounds.top + dy, { scale: 1.5 })
       );
     });
   }
