@@ -208,7 +208,8 @@ const { isCursersLeaderboardResponse } = await import(
 const { withTransaction } = await import('../core/transactions');
 const { clearDiscoveryCache } = await import('../routes/discovery');
 const { STARTER_LEVEL_ID } = await import('../../shared/constants');
-const { userCursesKey } = await import('../core/redisKeys');
+const { userCursesKey, dailyCountKey } = await import('../core/redisKeys');
+const { postLevelOfTheDay } = await import('../services/DailyService');
 
 beforeEach(() => {
   clearDiscoveryCache();
@@ -313,6 +314,29 @@ await test('simultaneous publishes with the same title create distinct intact le
   assert.equal(await getCandidate('alice'), undefined);
   assert.equal(await getCandidate('bob'), undefined);
   for (const id of ids) assert.ok(await getCurrentLevelVersion(id));
+});
+
+await test('a quota write failure after commit still reports the publish as ok', async () => {
+  const token = await ready('alice');
+  const realIncrBy = redis.incrBy;
+  redis.incrBy = async () => {
+    throw new Error('redis down');
+  };
+  try {
+    const { response, body } = await publishAs('alice', token, 'Quota hiccup');
+    assert.equal(response.status, 200);
+    assert.equal(body.status, 'ok');
+  } finally {
+    redis.incrBy = realIncrBy;
+  }
+});
+
+await test('the first Level of the Day is numbered 1, not NaN', async () => {
+  await publishAs('alice', await ready('alice'), 'Daily pick');
+  const result = await postLevelOfTheDay(true);
+  assert.equal(result.status, 'posted');
+  if (result.status === 'posted') assert.equal(result.number, 1);
+  assert.equal(values.get(dailyCountKey()), '1');
 });
 
 await test('a replaced candidate cannot be verified by an earlier run', async () => {

@@ -59,6 +59,7 @@ export class EditorScene extends Scene {
   private toolbar!: EditorToolbar;
   private currentTool: EditorTool = 'select';
   private testRequest: AbortController | undefined;
+  private publishRequest: AbortController | undefined;
   private verified = false;
   private verifiedToken: string | undefined;
 
@@ -376,8 +377,12 @@ export class EditorScene extends Scene {
       this.toolbar.showMessage('Give the level a title first.');
       return;
     }
+    if (this.publishRequest) return;
+    const requestController = new AbortController();
+    this.publishRequest = requestController;
     try {
       const response = await fetch('/api/publish/publish', {
+        signal: requestController.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -387,6 +392,8 @@ export class EditorScene extends Scene {
         }),
       });
       const json: unknown = await response.json();
+      // The player may have left the editor while this was in flight.
+      if (this.publishRequest !== requestController) return;
       if (!isPublishLevelResponse(json)) {
         this.toolbar.showMessage('Unexpected server response.');
         return;
@@ -404,13 +411,21 @@ export class EditorScene extends Scene {
       });
       this.scene.start('GameScene', { levelId: json.levelId });
     } catch {
-      this.toolbar.showMessage('Failed to reach the server.');
+      if (this.publishRequest === requestController) {
+        this.toolbar.showMessage('Failed to reach the server.');
+      }
+    } finally {
+      if (this.publishRequest === requestController) {
+        this.publishRequest = undefined;
+      }
     }
   }
 
   private cleanup(): void {
     this.testRequest?.abort();
     this.testRequest = undefined;
+    this.publishRequest?.abort();
+    this.publishRequest = undefined;
     // The board wires its own 'shutdown' -> destroy() hook when created
     // (Board's constructor registers it before this scene's own shutdown
     // listener below), so it tears itself down without help here.

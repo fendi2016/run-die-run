@@ -21,7 +21,14 @@ export async function recordDailyUse(
   action: string,
   username: string
 ): Promise<void> {
-  const key = dailyQuotaKey(action, username, currentDay());
-  const used = await redis.incrBy(key, 1);
-  if (used === 1) await redis.expire(key, (2 * DAY_MS) / 1000);
+  // Runs after the work has committed (and consumed its one-shot token), so
+  // a Redis hiccup here must not turn that success into an error the client
+  // can't retry. Losing one count only lets the player one use over the cap.
+  try {
+    const key = dailyQuotaKey(action, username, currentDay());
+    const used = await redis.incrBy(key, 1);
+    if (used === 1) await redis.expire(key, (2 * DAY_MS) / 1000);
+  } catch (error) {
+    console.error(`Failed to record daily ${action} use for ${username}: ${error}`);
+  }
 }

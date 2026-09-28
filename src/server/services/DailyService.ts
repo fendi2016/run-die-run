@@ -33,7 +33,7 @@ export async function postLevelOfTheDay(force: boolean): Promise<DailyPostResult
   const pick = pickLevelOfTheDay(levels, featured);
   if (!pick) return { status: 'skipped', reason: 'No levels to feature' };
 
-  const number = Number(await redis.get(dailyCountKey())) + 1;
+  const number = Number((await redis.get(dailyCountKey())) ?? 0) + 1;
   const post = await createLevelPost({
     levelId: pick.levelId,
     title: pick.title,
