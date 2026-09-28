@@ -1,0 +1,94 @@
+import { requireElement } from './domUtils';
+
+const BEST_PROGRESS_KEY_PREFIX = 'cursed:best:';
+
+function bestProgressKey(levelId: string, version: number): string {
+  return `${BEST_PROGRESS_KEY_PREFIX}${levelId}:${version}`;
+}
+
+// Per-viewer "best so far" progress through a level, kept in localStorage
+// only (never synced to the server) so RunHud can show a mark even across
+// sessions. localStorage can throw in private browsing and some preview
+// iframes, so every access here is wrapped, and a missing/corrupt/
+// out-of-range value is just treated as "no best" rather than crashing.
+export function loadBestProgress(levelId: string, version: number): number | null {
+  try {
+    const raw = localStorage.getItem(bestProgressKey(levelId, version));
+    if (raw === null) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 1) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function saveBestProgress(levelId: string, version: number, fraction: number): void {
+  if (!Number.isFinite(fraction) || fraction < 0 || fraction > 1) return;
+  // Reads through loadBestProgress, which has its own try/catch, so a
+  // storage failure here just falls through to "no existing best".
+  const existing = loadBestProgress(levelId, version);
+  if (existing !== null && fraction <= existing) return;
+  try {
+    localStorage.setItem(bestProgressKey(levelId, version), String(fraction));
+  } catch {
+    // Best-so-far is a nice-to-have; a lost write isn't worth surfacing.
+  }
+}
+
+// Gameplay HUD: an attempt counter (top-left) and a thin level-progress bar
+// across the top of the screen, with a tick marking the best-so-far point.
+// Entirely `pointer-events: none` — taps anywhere on the gameplay area are
+// the jump input, same as #run-result/#death-panel. GameScene is expected
+// to call setProgress() every frame, so that path stays cheap: it only
+// touches the DOM when the rounded percentage actually changes, and moves
+// the fill with `transform: scaleX` instead of `width` to avoid layout.
+export class RunHud {
+  private readonly root = requireElement('run-hud');
+  private readonly attemptNumberEl = requireElement('run-hud-attempt-number');
+  private readonly fillEl = requireElement('run-hud-progress-fill');
+  private readonly bestMarkEl = requireElement('run-hud-progress-best');
+  private readonly pctEl = requireElement('run-hud-progress-pct');
+  private lastAttempt: number | undefined;
+  private lastPercent = -1;
+
+  show(): void {
+    this.root.classList.remove('hidden');
+  }
+
+  hide(): void {
+    this.root.classList.add('hidden');
+  }
+
+  setAttempt(n: number): void {
+    if (n === this.lastAttempt) return;
+    this.lastAttempt = n;
+    this.attemptNumberEl.textContent = String(n);
+    // Restart the punch animation even if one is already mid-play: clearing
+    // the class and reading offsetWidth forces a synchronous reflow before
+    // it's re-added, which is what actually restarts a CSS animation on the
+    // same element (re-adding the class alone would be a no-op).
+    this.attemptNumberEl.classList.remove('run-hud-attempt-punch');
+    void this.attemptNumberEl.offsetWidth;
+    this.attemptNumberEl.classList.add('run-hud-attempt-punch');
+  }
+
+  setProgress(fraction: number): void {
+    const clamped = Math.min(1, Math.max(0, fraction));
+    const percent = Math.round(clamped * 100);
+    if (percent === this.lastPercent) return;
+    this.lastPercent = percent;
+    this.fillEl.style.transform = `scaleX(${clamped})`;
+    this.pctEl.textContent = `${percent}%`;
+  }
+
+  setBest(fraction: number | null): void {
+    if (fraction === null) {
+      this.bestMarkEl.classList.add('hidden');
+      return;
+    }
+    const clamped = Math.min(1, Math.max(0, fraction));
+    this.bestMarkEl.style.left = `${clamped * 100}%`;
+    this.bestMarkEl.classList.remove('hidden');
+  }
+}

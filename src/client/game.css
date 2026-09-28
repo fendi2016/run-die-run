@@ -384,6 +384,127 @@ body {
   font-weight: 600;
 }
 
+/* Run HUD: attempt counter (top-left) + level-progress bar with a
+   best-so-far tick, sitting below the sound/pause corner buttons so it
+   never overlaps them. Entirely non-interactive — same reasoning as
+   #run-result/#death-panel: taps anywhere on the gameplay area are the
+   jump input. RunHud.setProgress() runs every frame, so the fill uses
+   `transform: scaleX` (compositor-only, no layout) instead of `width`. */
+#run-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+#run-hud.hidden {
+  display: none;
+}
+
+#run-hud-attempt {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: #181824;
+  color: #ffffff;
+  font-family: 'Arial Black', sans-serif;
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 #000000;
+}
+
+#run-hud-attempt-number {
+  display: inline-block;
+  color: #39ff88;
+}
+
+/* Restarted from setAttempt() by toggling this class off then back on
+   after a forced reflow, so a rapid string of attempts (fast deaths) each
+   get their own punch instead of the animation silently no-oping. */
+.run-hud-attempt-punch {
+  animation: run-hud-attempt-punch 260ms ease-out;
+}
+
+@keyframes run-hud-attempt-punch {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Below the 44px button row (`max(12px, safe-area) + 44px` tall) plus a
+   gap, regardless of how large the safe-area inset is — never overlapping
+   #sound-toggle/#gameplay-menu rather than trying to dodge them sideways. */
+#run-hud-progress-row {
+  position: absolute;
+  top: calc(max(12px, env(safe-area-inset-top)) + 44px + 8px);
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#run-hud-progress-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #000000;
+  overflow: visible;
+}
+
+#run-hud-progress-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #39ff88;
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+/* A tick marking the best-so-far point, positioned by `left: <pct>%` off
+   the track. Allowed to poke slightly above/below the thin track (that's
+   what #run-hud-progress-track's `overflow: visible` is for) so it stays
+   readable at 6px bar height. */
+#run-hud-progress-best {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  border-radius: 2px;
+  background: #ffd166;
+  box-shadow: 0 0 0 1px #000000;
+  transform: translateX(-50%);
+}
+
+#run-hud-progress-best.hidden {
+  display: none;
+}
+
+#run-hud-progress-pct {
+  flex: 0 0 auto;
+  min-width: 32px;
+  text-align: right;
+  font-family: 'Arial Black', sans-serif;
+  font-size: 12px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
 /* Editor UI (spec section 12): DOM overlay over the Phaser canvas, same
    pattern as #run-result. The container is non-interactive so taps over
    empty canvas still reach Phaser; only the toolbar itself opts back in. */
