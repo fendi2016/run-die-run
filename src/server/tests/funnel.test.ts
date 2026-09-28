@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { GRID_CELL_SIZE, GROUND_TOP_Y, SEED_AUTHOR } from '../../shared/constants';
 import type { LevelObject, LevelVersion, ObjectType } from '../../shared/types';
 import { buildCoursePreview, isCoursePreview } from '../../shared/coursePreview';
-import { renderCoursePreviewSvg } from '../../client/ui/coursePreviewSvg';
+import { renderCoursePreviewSvg } from '../../shared/coursePreviewSvg';
 
 export function obj(id: string, type: ObjectType, x: number, y = GROUND_TOP_Y, addedBy = SEED_AUTHOR): LevelObject {
   return { id, type, x, y, properties: {}, addedBy, addedInVersion: 1 };

@@ -11,7 +11,7 @@ import { isCursedPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
-import { renderCoursePreviewSvg } from './ui/coursePreviewSvg';
+import { renderCoursePreviewSvg } from '../shared/coursePreviewSvg';
 import { clearRateText, versionText } from './ui/levelStatsText';
 
 const playButton = document.getElementById('play-button') as HTMLButtonElement;

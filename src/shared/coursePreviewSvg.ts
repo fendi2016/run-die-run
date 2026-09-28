@@ -1,6 +1,6 @@
-import { GROUND_TOP_Y } from '../../shared/constants';
-import type { CoursePreview } from '../../shared/coursePreview';
-import type { ObjectType } from '../../shared/types';
+import { GROUND_TOP_Y } from './constants';
+import type { CoursePreview } from './coursePreview';
+import type { ObjectType } from './types';
 
 // The feed card's course silhouette. Scaled horizontally to the strip, but
 // markers keep a fixed on-screen size so a 90-column level still shows

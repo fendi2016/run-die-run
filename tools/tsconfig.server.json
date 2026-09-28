@@ -13,9 +13,6 @@
   "references": [
     {
       "path": "./tsconfig.shared.json"
-    },
-    {
-      "path": "./tsconfig.client.json"
     }
   ]
 }
