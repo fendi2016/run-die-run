@@ -66,6 +66,9 @@ import {
   RESPAWN_DELAY_MS,
   RESPAWN_SKIP_AFTER_MS,
   PLAYER_SCREEN_ANCHOR,
+  CAMERA_ZOOM_BOOST,
+  CAMERA_FOLLOW_Y_LERP,
+  CAMERA_PLAYER_Y_ANCHOR,
   SPAWN_TOMBSTONE_HEIGHT_PX,
 } from '../constants';
 import { Player } from '../entities/Player';
@@ -347,10 +350,32 @@ export class GameScene extends Scene {
     if (!this.player) return;
     this.interpolation?.apply();
     this.player.syncVisuals();
-    this.cameras.main.scrollX = this.cameraScrollXFor(this.player.sprite.x);
+    // centerOnX, not scrollX: with zoom != 1 scrollX isn't the left edge
+    // (zoom-pivot gotcha), which pushed the player off-screen in portrait.
+    this.cameras.main.centerOnX(
+      this.cameraScrollXFor(this.player.sprite.x) + this.visibleWorldWidth() / 2
+    );
+    this.followPlayerY(false);
   }
 
-  // Vertical zoom is locked to LOGICAL_HEIGHT (see applyResponsiveZoom),
+  // Centre-based (centerOnY), not scrollY, per the zoom-pivot gotcha; the
+  // camera bounds clamp it so the ground row never leaves the screen.
+  private cameraCenterY = LOGICAL_HEIGHT / 2;
+  private followPlayerY(snap: boolean): void {
+    if (!this.player) return;
+    const visibleHeight = LOGICAL_HEIGHT / this.zoomBoost();
+    const target = Phaser.Math.Clamp(
+      this.player.sprite.y + visibleHeight * (0.5 - CAMERA_PLAYER_Y_ANCHOR),
+      visibleHeight / 2,
+      LOGICAL_HEIGHT - visibleHeight / 2
+    );
+    this.cameraCenterY = snap
+      ? target
+      : Phaser.Math.Linear(this.cameraCenterY, target, CAMERA_FOLLOW_Y_LERP);
+    this.cameras.main.centerOnY(this.cameraCenterY);
+  }
+
+  // Vertical zoom is locked to LOGICAL_HEIGHT / CAMERA_ZOOM_BOOST (see applyResponsiveZoom),
   // so the world-space width actually on screen varies with device
   // aspect ratio — narrower on a tall phone, wider on a desktop.
   private visibleWorldWidth(): number {
@@ -419,7 +444,15 @@ export class GameScene extends Scene {
   }
 
   private applyResponsiveZoom(): void {
-    this.cameras.main.setZoom(this.scale.height / LOGICAL_HEIGHT);
+    this.cameras.main.setZoom(
+      (this.scale.height / LOGICAL_HEIGHT) * this.zoomBoost()
+    );
+  }
+
+  // Landscape only: a portrait screen is already narrow in world px, and
+  // zooming further would leave only a few tiles of warning ahead.
+  private zoomBoost(): number {
+    return this.scale.width >= this.scale.height ? CAMERA_ZOOM_BOOST : 1;
   }
 
   private async loadAndStart(): Promise<void> {
@@ -615,6 +648,7 @@ export class GameScene extends Scene {
     // — update() starts the timer and hides the prompt once Player itself
     // reports the wait is over.
     player.reset(this.spawn.x, this.spawn.y, true);
+    this.followPlayerY(true);
     this.playSpawnWarp(true);
     // Keep gravity, collision callbacks, and moving objects idle together.
     // Scene input remains active so the first tap can release the gate.
@@ -1198,6 +1232,7 @@ export class GameScene extends Scene {
     this.resultOverlay.hide();
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
+    this.followPlayerY(true);
     this.runHud.setAttempt(this.deathsThisLevel + 1);
     this.runHud.setProgress(0);
     this.runHud.show();

@@ -48,6 +48,15 @@ export const FINISH_TRIGGER_HEIGHT_PX = 320;
 // so there's always more upcoming level geometry visible than trailing.
 export const PLAYER_SCREEN_ANCHOR = 0.35;
 
+// In landscape the run camera shows LOGICAL_HEIGHT / CAMERA_ZOOM_BOOST world px of
+// height, so everything (player, traps, platforms) draws this much bigger
+// with gameplay untouched. Above 1 the level no longer fits vertically, so
+// the camera eases after the player's y (CAMERA_FOLLOW_Y_LERP per frame),
+// keeping them CAMERA_PLAYER_Y_ANCHOR of the way down the screen.
+export const CAMERA_ZOOM_BOOST = 1.3;
+export const CAMERA_FOLLOW_Y_LERP = 0.12;
+export const CAMERA_PLAYER_Y_ANCHOR = 0.6;
+
 // Power-up tuning (spec section 21). All auto-activate on pickup, all
 // deterministic (no randomness), none add a new input.
 export const SPEED_BOOST_MULTIPLIER = 1.6;
