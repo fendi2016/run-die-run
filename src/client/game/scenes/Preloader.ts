@@ -118,7 +118,7 @@ export class Preloader extends Scene {
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
     for (const { key, file } of SCRIBBLE_FX) this.load.image(key, file);
 
-    // Super Pixel Effects (see Juice.PIXEL_FX_SHEETS).
+    // Doodle effect strips (see Juice.PIXEL_FX_SHEETS).
     for (const { key, frameWidth, frameHeight } of PIXEL_FX_SHEETS) {
       this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
     }

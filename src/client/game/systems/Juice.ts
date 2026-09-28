@@ -99,12 +99,13 @@ export function applyOutlineGlow(
   glow.setPaddingOverride(null);
 }
 
-// Super Pixel Effects sheets, each repacked into a single-row strip at
-// public/assets/vfx/<key>.webp. Preloader loads them all and, once loaded,
-// builds every anim up front (createPixelFxAnims) so an effect's first
-// play mid-run doesn't pay for anim setup. The pack's intended rate is
-// 15fps; most run a touch faster so they finish alongside the tween work
-// they accompany. Source effect per key (all _large_):
+// Doodle effect sheets, built from Boogie's "Doodle RPG" pack
+// (Particles/*.png; free for commercial use, edits allowed) and each packed
+// into a single-row strip at public/assets/vfx/<key>.webp on the same frame
+// size the old pixel effects used, so every caller's scale still fits.
+// Preloader loads them all and, once loaded, builds every anim up front
+// (createPixelFxAnims) so an effect's first play mid-run doesn't pay for
+// anim setup. Source per key:
 export const PIXEL_FX_SHEETS: readonly {
   key: string;
   frameWidth: number;
@@ -112,23 +113,21 @@ export const PIXEL_FX_SHEETS: readonly {
   frameRate: number;
   loop?: boolean;
 }[] = [
-  // Hazard deaths (DeathEffects)
   // Movement and power-ups (Player, GameScene, LevelLoader)
-  { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 20 }, // directional_impact_002 white
-  { key: 'pickup-sparkle', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // round_sparkle_burst_001 blue
-  { key: 'pickup-flash', frameWidth: 256, frameHeight: 144, frameRate: 20 }, // round_light_burst_001 yellow
-  { key: 'shield-break', frameWidth: 96, frameHeight: 96, frameRate: 15 }, // symmetrical_impact_002 blue
-  { key: 'shield-zap', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // lightning_burst_002 violet
-  { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 15, loop: true }, // status_sparkling_001 yellow
+  { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 14 }, // Particle1, mirrored to both sides
+  { key: 'pickup-sparkle', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Glimmer, inked yellow
+  { key: 'pickup-flash', frameWidth: 256, frameHeight: 144, frameRate: 18 }, // Wham
+  { key: 'shield-break', frameWidth: 96, frameHeight: 96, frameRate: 14 }, // Particle2
+  { key: 'shield-zap', frameWidth: 64, frameHeight: 64, frameRate: 18 }, // Wham
+  { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 12, loop: true }, // three Glimmers, staggered
   // Level flow and curses (GameScene, CurseScene, EditorScene)
-  { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // symmetrical_smoke_burst_001 brown
+  { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Puff
 ];
 
-// Nearest filtering keeps the pixel art crisp at a non-integer scale. Anims are global, so this runs once, from Preloader.
+// Anims are global, so this runs once, from Preloader.
 export function createPixelFxAnims(scene: Phaser.Scene): void {
   for (const { key, frameRate, loop } of PIXEL_FX_SHEETS) {
     if (scene.anims.exists(key)) continue;
-    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     scene.anims.create({
       key,
       frames: scene.anims.generateFrameNumbers(key),
@@ -168,7 +167,7 @@ export function playPixelFx(
   fx.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => fx.destroy());
 }
 
-// Looping pixel sparkles drawn over an uncollected power-up so it catches
+// Looping doodle twinkles drawn over an uncollected power-up so it catches
 // the eye. LevelLoader.setPowerUpAvailable shows/hides it with the pickup.
 export function attachPickupShimmer(
   scene: Phaser.Scene,
