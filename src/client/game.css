@@ -438,11 +438,14 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 /* "Your curses" (StatsOverlay) and the STATS chip's "N new" badge. */
 #game-menu-stats-badge {
   margin-left: 6px;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: #e53935;
-  color: #ffffff;
-  font-size: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 700;
 }
 
 #game-menu-stats-badge.hidden {
@@ -1245,90 +1248,61 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   display: none;
 }
 
-/* Browse/Play/Build live in the header, above its black border, so the
-   art below stays clear. Narrow screens give them a second row; wide ones
-   fit everything on the one 44px row. */
+/* Only utility items live in the header now — Follow, the STATS/RUNS
+   chips and (outside #game-menu) #sound-toggle. Browse/Build/Leaderboard
+   moved down into #game-menu-cta's secondary row so Play can be the one
+   thing this bar points at beneath it. A single 44px row always fits: no
+   nav row means no narrow-screen wrap to plan for. */
 #game-menu-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-rows: 44px auto;
-  grid-template-areas:
-    'follow . chips'
-    'nav nav nav';
+  display: flex;
   align-items: center;
-  column-gap: 8px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
   /* Right side leaves room for #sound-toggle. */
-  padding: 0 58px 10px 14px;
-  padding-top: env(safe-area-inset-top);
-  background: #f1ecdf;
-  border-bottom: 2px solid #2b2b2b;
+  padding: 6px 58px 6px 14px;
+  padding-top: calc(env(safe-area-inset-top) + 6px);
+  background: var(--paper-warm);
+  border-bottom: var(--line) solid var(--ink);
   flex-shrink: 0;
 }
 
-#game-menu-follow-btn {
-  grid-area: follow;
-  justify-self: start;
-}
-
 #game-menu-chips {
-  grid-area: chips;
-}
-
-#game-menu-nav {
-  grid-area: nav;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  /* Span under #sound-toggle too, so the row centres on the screen. */
-  margin-right: -44px;
-}
-
-@media (min-width: 640px) {
-  #game-menu-header {
-    grid-template-rows: 44px;
-    grid-template-areas: 'follow nav chips';
-    padding-bottom: 0;
-  }
-
-  #game-menu-nav {
-    margin-right: 0;
-  }
-}
-
-#game-menu-chips {
-  justify-self: end;
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
+/* STATS/RUNS read as small stat labels, not a title — --font-ui (with
+   font-size-adjust disabled) instead of Doodlefont keeps them legible at
+   the smallest size this UI allows. */
 #game-menu-chip,
 #game-menu-stats-chip {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #2b2b2b;
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 700;
+  letter-spacing: 0.03em;
   text-shadow: none;
 }
 
 /* Reset the default button chrome so this reads identically to the plain
    #game-menu-chip span beside it — the only difference is it's tappable
-   (opens #stats-overlay, see GameMenu.ts). */
+   (opens #stats-overlay, see GameMenu.ts). Font properties are already
+   explicit on the shared rule above, so there's nothing to inherit here. */
 #game-menu-stats-chip {
   background: none;
   border: none;
   padding: 0;
-  /* Not the `font` shorthand — that would reset the shared 12px size. */
-  font-family: inherit;
-  font-weight: inherit;
   cursor: pointer;
 }
 
 #game-menu-stat-value {
-  color: #3d6ea5;
+  color: var(--rule-blue);
 }
 
 #game-menu-scene {
@@ -1361,48 +1335,87 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   }
 }
 
-/* The SKETCHY title, in the open paper above the PLAY button. */
-#game-menu-title {
+/* Title + Play + Browse/Build/Leaderboard as one group, so the eye lands
+   on the logo and slides straight down into the one big thing to tap.
+   Positioned in the open sky/paper beside or above the pencil — never over
+   his face or body — with its own breakpoints below mirroring the old
+   per-element ones so the group still dodges him at every aspect ratio. */
+#game-menu-cta {
   position: absolute;
-  left: 50%;
-  top: 16%;
   z-index: 1;
-  width: min(78%, 360px);
-  transform: translateX(-50%) rotate(-3deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  left: 50%;
+  top: 6%;
+  width: min(85%, 380px);
+  transform: translateX(-50%);
+}
+
+/* Short/wide portrait screens (in-feed view, browser bars, tablets):
+   background-size: cover crops less off the sides and more off the top for
+   these ratios, so the pencil reads bigger and reaches higher — the whole
+   group has to sit smaller and higher still to stay clear of his eraser. */
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
+  #game-menu-cta {
+    top: 2%;
+    gap: 6px;
+    width: min(55%, 240px);
+  }
+}
+
+/* Landscape: the pencil stands left of centre looking right, so the group
+   sits right of him, above where his gaze leads. */
+@media (orientation: landscape) {
+  #game-menu-cta {
+    left: 63%;
+    top: 10%;
+    width: min(46%, 360px);
+  }
+}
+
+/* Short landscape (phones on their side): less headroom between the
+   header and the ground row, so shrink the gap rather than let Play
+   crowd the secondary row or spill past the fold. */
+@media (orientation: landscape) and (max-height: 420px) {
+  #game-menu-cta {
+    top: 6%;
+    gap: 8px;
+  }
+}
+
+#game-menu-title {
+  width: min(80%, 340px);
+  transform: rotate(-3deg);
   pointer-events: none;
   user-select: none;
 }
 
-/* Short portrait screens (in-feed view, browser bars): less sky above the
-   pencil, so a smaller, higher title keeps clear of his eraser. */
-@media (orientation: portrait) and (min-aspect-ratio: 3/5) {
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
   #game-menu-title {
-    top: 9%;
-    width: min(52%, 240px);
+    width: min(75%, 200px);
   }
 }
 
-/* Landscape: the pencil stands left of centre, so the title sits right of
-   him, above PLAY. */
-@media (orientation: landscape) {
+@media (orientation: landscape) and (max-height: 420px) {
   #game-menu-title {
-    left: 62%;
-    top: 22%;
-    width: min(40%, 320px);
+    width: min(65%, 220px);
   }
 }
 
+/* The one big thing to tap — everything else in the group is smaller. */
 .game-menu-play {
-  padding: 5px 24px;
-  background: #e53935;
-  color: #fdf6f0;
-  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 18px;
+  padding: 12px 48px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-hand);
+  font-size: 26px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  border: 3px solid #2b2b2b;
-  border-radius: 8px;
-  box-shadow: 0 4px 0 #2b2b2b;
+  border: var(--line-strong) solid var(--ink);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard-lg);
   cursor: pointer;
   transition:
     transform 0.08s ease,
@@ -1410,21 +1423,56 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 .game-menu-play:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 #2b2b2b;
+  transform: translateY(5px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
+  .game-menu-play {
+    padding: 6px 24px;
+    font-size: 17px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .game-menu-play {
+    padding: 8px 30px;
+    font-size: 19px;
+  }
+}
+
+/* Browse, Build and Leaderboard as one secondary cluster right under Play
+   — same notebook style, smaller, never floating alone over the art. */
+#game-menu-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
+  #game-menu-secondary-row {
+    gap: 6px;
+  }
+
+  #game-menu-secondary-row .game-menu-secondary {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
 }
 
 .game-menu-secondary {
-  padding: 7px 16px;
-  background: #ffffff;
-  color: #2b2b2b;
-  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 13px;
+  padding: 6px 14px;
+  background: var(--paper-card);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 12px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  border: 3px solid #2b2b2b;
-  border-radius: 8px;
-  box-shadow: 0 4px 0 #2b2b2b;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard);
   cursor: pointer;
   transition:
     transform 0.08s ease,
@@ -1432,24 +1480,27 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 .game-menu-secondary:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 #2b2b2b;
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 /* Reddit-orange accent — distinct from the ink-and-paper secondary buttons,
    since this is specifically a "follow us on Reddit" CTA. Mirrors
-   splash.css's .follow-button, sized for the 44px header. */
+   splash.css's .follow-button, sized for the 44px header. Label uses
+   --font-ui (not Doodlefont) so it stays legible this small. */
 .game-menu-follow-btn {
   padding: 6px 14px;
   background: #ff4500;
   color: #ffffff;
-  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.05em;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 700;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  border: 2px solid #2b2b2b;
-  border-radius: 6px;
-  box-shadow: 0 3px 0 #2b2b2b;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 3px 0 var(--ink);
   cursor: pointer;
   transition:
     transform 0.08s ease,
@@ -1458,53 +1509,49 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 
 .game-menu-follow-btn:active {
   transform: translateY(3px);
-  box-shadow: 0 0 0 #2b2b2b;
+  box-shadow: 0 0 0 var(--ink);
 }
 
 .game-menu-follow-btn:disabled {
-  background: rgba(43, 43, 43, 0.12);
-  color: rgba(43, 43, 43, 0.5);
+  background: var(--ink-faint);
+  color: var(--ink-soft);
   cursor: default;
   transform: none;
-  box-shadow: 0 3px 0 #2b2b2b;
+  box-shadow: 0 3px 0 var(--ink);
 }
 
-.game-menu-corner {
-  position: absolute;
-  top: 14px;
-  z-index: 1;
-  padding: 7px 18px;
-  font-size: 13px;
-}
-
-.game-menu-leaderboard {
-  left: 50%;
-  transform: translateX(-50%);
-}
-
+/* Quiet credit line, not another outlined box: a soft translucent wash
+   (no border) so it stays readable over either art variant without
+   competing with the group above it. */
 #game-menu-attribution {
   position: absolute;
   left: max(10px, env(safe-area-inset-left));
   bottom: max(8px, env(safe-area-inset-bottom));
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 5px;
   line-height: 1.3;
   padding: 4px 9px;
-  background: rgba(251, 248, 239, 0.85);
-  border: 1px solid rgba(43, 43, 43, 0.3);
-  border-radius: 6px;
+  background: rgba(255, 253, 246, 0.6);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(3px);
 }
 
 #game-menu-attribution-label {
-  color: rgba(43, 43, 43, 0.6);
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 #game-menu-creator-name {
-  color: #2b2b2b;
-  font-size: 13px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 700;
   text-shadow: none;
 }
 

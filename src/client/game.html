@@ -174,17 +174,6 @@
           >
             Follow
           </button>
-          <nav id="game-menu-nav">
-            <button type="button" id="game-menu-browse" class="game-menu-secondary">
-              Browse
-            </button>
-            <button type="button" id="game-menu-play" class="game-menu-play">
-              Play
-            </button>
-            <button type="button" id="game-menu-build" class="game-menu-secondary">
-              Build
-            </button>
-          </nav>
           <div id="game-menu-chips">
             <button type="button" id="game-menu-stats-chip" aria-label="Your stats">
               <span id="game-menu-stats-label">STATS</span>
@@ -197,14 +186,23 @@
           </div>
         </div>
         <div id="game-menu-scene">
-          <button
-            type="button"
-            id="game-menu-leaderboard"
-            class="game-menu-secondary game-menu-corner game-menu-leaderboard"
-          >
-            Leaderboard
-          </button>
-          <img id="game-menu-title" src="/assets/ui/title-logo.webp" alt="SKETCHY" />
+          <div id="game-menu-cta">
+            <img id="game-menu-title" src="/assets/ui/title-logo.webp" alt="SKETCHY" />
+            <button type="button" id="game-menu-play" class="game-menu-play">
+              Play
+            </button>
+            <div id="game-menu-secondary-row">
+              <button type="button" id="game-menu-browse" class="game-menu-secondary">
+                Browse
+              </button>
+              <button type="button" id="game-menu-build" class="game-menu-secondary">
+                Build
+              </button>
+              <button type="button" id="game-menu-leaderboard" class="game-menu-secondary">
+                Leaderboard
+              </button>
+            </div>
+          </div>
           <div id="game-menu-attribution">
             <span id="game-menu-attribution-label">Made by</span>
             <span id="game-menu-creator-name">SKETCHY</span>
