@@ -1276,6 +1276,21 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   overflow: hidden;
 }
 
+/* Portrait phones get their own composition (pencil centred, standing on
+   two rows of blocks so PLAY sits below his feet); the wide art would crop
+   him out. Anchored to the bottom so shorter screens lose sky, not ground. */
+@media (orientation: portrait) {
+  #game-menu-scene {
+    background-image: linear-gradient(
+        rgba(43, 43, 43, 0) 0%,
+        rgba(43, 43, 43, 0.04) 55%,
+        rgba(43, 43, 43, 0.14) 100%
+      ),
+      url('/assets/ui/menu-background-portrait.webp');
+    background-position: center bottom;
+  }
+}
+
 /* The SKETCHY title, in the open paper above the PLAY button. */
 #game-menu-title {
   position: absolute;
@@ -1286,6 +1301,15 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   transform: translateX(-50%) rotate(-3deg);
   pointer-events: none;
   user-select: none;
+}
+
+/* Short portrait screens (in-feed view, browser bars): less sky above the
+   pencil, so a smaller, higher title keeps clear of his eraser. */
+@media (orientation: portrait) and (min-aspect-ratio: 3/5) {
+  #game-menu-title {
+    top: 9%;
+    width: min(52%, 240px);
+  }
 }
 
 /* Landscape: the pencil stands left of centre, so the title sits right of
