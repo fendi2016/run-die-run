@@ -45,36 +45,32 @@
   gap: 14px;
 }
 
-/* STATS/RUNS read as small stat labels, not a title — --font-ui (with
-   font-size-adjust disabled) instead of Doodlefont keeps them legible at
-   the smallest size this UI allows. */
-#game-menu-chip,
+/* "Your stats" opens #stats-overlay — a real button in the same ink style
+   as Follow, sized for the 44px header. */
 #game-menu-stats-chip {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 6px 12px;
+  background: var(--paper-card);
   color: var(--ink);
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard);
   font-family: var(--font-ui);
   font-size-adjust: none;
-  font-size: var(--text-min);
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-shadow: none;
-}
-
-/* Reset the default button chrome so this reads identically to the plain
-   #game-menu-chip span beside it — the only difference is it's tappable
-   (opens #stats-overlay, see GameMenu.ts). Font properties are already
-   explicit on the shared rule above, so there's nothing to inherit here. */
-#game-menu-stats-chip {
-  background: none;
-  border: none;
-  padding: 0;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
 }
 
-#game-menu-stat-value {
-  color: var(--rule-blue);
+#game-menu-stats-chip:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 #game-menu-scene {
@@ -320,13 +316,18 @@
 /* Quiet credit line, not another outlined box: a soft translucent wash
    (no border) so it stays readable over either art variant without
    competing with the group above it. */
+/* Bottom-right: the pencil always stands left of centre or in the middle,
+   so this corner is open ground in every layout. */
 #game-menu-attribution {
   position: absolute;
-  left: max(10px, env(safe-area-inset-left));
-  bottom: max(8px, env(safe-area-inset-bottom));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: 8px;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 5px;
+  max-width: calc(100% - 20px);
+  box-sizing: border-box;
   line-height: 1.3;
   padding: 4px 9px;
   background: rgba(255, 253, 246, 0.6);
@@ -367,4 +368,45 @@
 
 #game-menu-stats-badge.hidden {
   display: none;
+}
+
+/* How many runs everyone has made on the level this menu's Play starts —
+   said in words, next to who made it, so it can't read as a total. */
+#game-menu-runs {
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 600;
+}
+
+#game-menu-runs::before {
+  content: '·';
+  margin-right: 5px;
+}
+
+#game-menu-stat-value {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* The pitch, in a paper strip under the art. */
+#game-menu-tagline {
+  flex-shrink: 0;
+  padding: 7px 12px max(8px, env(safe-area-inset-bottom));
+  background: var(--paper-warm);
+  border-top: var(--line) solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 19px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 400px) {
+  #game-menu-tagline {
+    font-size: 16px;
+  }
 }

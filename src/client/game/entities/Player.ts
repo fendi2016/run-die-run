@@ -22,6 +22,7 @@ import {
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
   MIN_JUMP_HOLD_MS,
+  PLAYER_DISPLAY_WIDTH_SCALE,
   PLAYER_SIZE,
   RUN_SPEED,
   SPEED_BOOST_DURATION_MS,
@@ -497,7 +498,7 @@ export class Player {
     }
     display.setVisible(sprite.visible);
     const stretch = 1 + this.squash;
-    display.setScale(sprite.scaleX / stretch, sprite.scaleY * stretch);
+    display.setScale((sprite.scaleX * PLAYER_DISPLAY_WIDTH_SCALE) / stretch, sprite.scaleY * stretch);
     display.setPosition(sprite.x, sprite.y);
   }
 

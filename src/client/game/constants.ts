@@ -18,6 +18,9 @@ export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
 
 export const PLAYER_SIZE = 80;
+// Draws the pencil wider than its art without touching the physics sprite
+// or hitbox (Player's separate display sprite only) — purely how he looks.
+export const PLAYER_DISPLAY_WIDTH_SCALE = 1.25;
 // The editor/curse spawn-marker icon reuses the player idle texture but
 // must fit inside one grid tile (unlike the real player, which is allowed
 // to overhang neighboring tiles while running) — otherwise it visually

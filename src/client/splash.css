@@ -33,6 +33,11 @@ button:focus-visible {
   display: none !important;
 }
 
+/* No sound toggle on the feed card, so no room to reserve for it. */
+#game-menu-header {
+  padding-right: 14px;
+}
+
 /* A level post names its level in the header's free middle; the hub post
    keeps it empty. Truncates rather than pushing the chips off the card. */
 #splash-level {
