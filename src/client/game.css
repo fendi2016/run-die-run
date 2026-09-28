@@ -13,6 +13,40 @@
   font-display: swap;
 }
 
+/* The notebook design system — every button, card, HUD chip and dialog
+   draws from these so the menu, gameplay and editor read as one game:
+   warm paper fills, ink outlines, a restrained hard (offset, unblurred)
+   shadow, and three corner sizes. Doodlefont is for titles and prominent
+   buttons only; small labels and stats use --font-ui so they stay legible
+   at 12px on a phone. */
+:root {
+  --paper: #fbf8ef;
+  --paper-warm: #f4ecd8;
+  --paper-card: #fffdf6;
+  --ink: #2b2b2b;
+  --ink-soft: rgba(43, 43, 43, 0.62);
+  --ink-faint: rgba(43, 43, 43, 0.14);
+  --rule-blue: #3d6ea5;
+  --rule-blue-soft: rgba(61, 110, 165, 0.18);
+  --accent: #e53935;
+  --accent-ink: #fdf6f0;
+  --highlighter: #ffe66d;
+
+  --line: 2px;
+  --line-strong: 3px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --shadow-hard: 0 3px 0 var(--ink);
+  --shadow-hard-lg: 0 5px 0 var(--ink);
+  --shadow-card: 0 6px 0 rgba(43, 43, 43, 0.85);
+
+  --font-hand: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  --font-ui: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --text-min: 12px;
+}
+
 html, body {
   overscroll-behavior: none;
 }
@@ -738,20 +772,22 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   min-width: 56px;
   min-height: 52px;
   padding: 6px 8px;
-  border-radius: 14px;
-  border: 1px solid rgba(43, 43, 43, 0.25);
-  background: #ffffff;
-  color: #2b2b2b;
+  border-radius: var(--radius-md);
+  border: var(--line) solid var(--ink);
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-hard);
   cursor: pointer;
   flex-shrink: 0;
   transition:
     transform 80ms ease-out,
-    background-color 120ms ease-out,
-    border-color 120ms ease-out;
+    box-shadow 80ms ease-out,
+    background-color 120ms ease-out;
 }
 
-.editor-btn:active {
-  transform: scale(0.94);
+.editor-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 /* `(hover: hover)` keeps this to real pointers (mouse/trackpad) — on touch,
@@ -759,17 +795,14 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
    elsewhere, reading as a button "jammed" highlighted. */
 @media (hover: hover) {
   .editor-btn:hover:not(:disabled) {
-    background: rgba(43, 43, 43, 0.06);
-    border-color: rgba(43, 43, 43, 0.4);
+    background: var(--paper-warm);
   }
   .editor-btn-primary:hover:not(:disabled) {
     background: #ef5350;
-    border-color: #ef5350;
   }
   .editor-btn-ghost:hover:not(:disabled) {
-    background: rgba(43, 43, 43, 0.06);
-    border-color: rgba(43, 43, 43, 0.2);
-    color: #2b2b2b;
+    background: var(--ink-faint);
+    color: var(--ink);
   }
 }
 
@@ -786,11 +819,12 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 .editor-btn-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  line-height: 1;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: var(--text-min);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
 }
 
 .editor-btn-compact {
@@ -799,38 +833,37 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 }
 
 .editor-btn.active {
-  background: rgba(169, 199, 232, 0.35);
-  border-color: #3d6ea5;
-  color: #205585;
-  box-shadow: 0 0 0 1px rgba(61, 110, 165, 0.3) inset;
+  background: var(--highlighter);
+  border-width: var(--line-strong);
+  box-shadow: var(--shadow-hard);
 }
 
 .editor-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.35;
   cursor: default;
   transform: none;
+  box-shadow: none;
 }
 
 .editor-btn-primary {
-  background: #e53935;
-  border-color: #e53935;
-  color: #fdf6f0;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .editor-btn-primary:disabled {
-  background: rgba(43, 43, 43, 0.06);
-  color: rgba(43, 43, 43, 0.4);
-  border-color: rgba(43, 43, 43, 0.15);
+  background: var(--paper-card);
+  color: var(--ink-soft);
 }
 
 .editor-btn-danger .editor-btn-icon {
-  color: #e53935;
+  color: var(--accent);
 }
 
 .editor-btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: rgba(43, 43, 43, 0.6);
+  box-shadow: none;
+  color: var(--ink-soft);
 }
 
 .editor-dialog {
@@ -839,8 +872,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(43, 43, 43, 0.35);
-  backdrop-filter: blur(4px);
+  background: rgba(43, 43, 43, 0.3);
 }
 
 .editor-dialog.hidden {
@@ -852,19 +884,19 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   flex-direction: column;
   gap: 14px;
   padding: 24px;
-  border-radius: 20px;
-  background: #fbf8ef;
-  border: 2px solid #2b2b2b;
-  box-shadow: 0 16px 40px rgba(43, 43, 43, 0.3);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: var(--line-strong) solid var(--ink);
+  box-shadow: var(--shadow-card);
   min-width: 260px;
 }
 
 .editor-dialog-panel label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(43, 43, 43, 0.6);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 
 #editor-title-input {
