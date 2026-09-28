@@ -29,6 +29,10 @@ export const HUB_LEVEL_ID = '@today';
 // so it stays forgiving forever, and never featured as Level of the Day.
 export const STARTER_LEVEL_ID = 'first-blood';
 export const CURSE_LOCKED_LEVEL_IDS: ReadonlySet<string> = new Set([STARTER_LEVEL_ID]);
+// Offer the starter to a player who has died this many times on one
+// community level while their best distance is still under this fraction.
+export const STRUGGLE_DEATHS = 8;
+export const STRUGGLE_MAX_PROGRESS = 0.5;
 
 // Editor grid bounds (spec section 12). A soft cap, not a hard "this is too
 // long" validator — spec section 38's phase notes call for enforcing

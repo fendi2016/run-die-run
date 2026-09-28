@@ -9,6 +9,10 @@ import type { T3 } from '@devvit/web/shared';
 import {
   CURSE_LOCKED_LEVEL_IDS,
   DEV_SUBREDDIT,
+  HUB_LEVEL_ID,
+  STARTER_LEVEL_ID,
+  STRUGGLE_DEATHS,
+  STRUGGLE_MAX_PROGRESS,
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
   SEED_AUTHOR,
@@ -50,6 +54,7 @@ import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
 import { labelFor } from '../../../shared/objectLabels';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
+import { StarterOffer } from '../../ui/StarterOffer';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunHud, loadBestProgress, saveBestProgress } from '../../ui/RunHud';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
@@ -130,7 +135,13 @@ type GameSceneData = {
   // With `tutorial`, `levelId` is where to go once it's done or skipped.
   levelId?: string;
   tutorial?: boolean;
+  // Set on the starter: where Next Level leads (Level of the Day after the
+  // tutorial, or back to the level the player was struggling on).
+  returnTo?: { levelId: string; title: string };
 };
+
+// Levels the starter has already been offered on this session.
+const starterOfferedOn = new Set<string>();
 
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
 // the server as data (LevelVersion) and built through the ObjectRegistry /
@@ -192,6 +203,7 @@ export class GameScene extends Scene {
   private previewReturn: PreviewReturn | undefined;
   private explicitLevelId: string | undefined;
   private tutorial = false;
+  private returnTo: { levelId: string; title: string } | undefined;
   private tutorialHint!: TutorialHint;
 
   // Realtime (spec section 29): subscribed only for a real (non-preview)
@@ -211,6 +223,7 @@ export class GameScene extends Scene {
 
   init(data: GameSceneData): void {
     this.tutorial = data.tutorial === true;
+    this.returnTo = data.returnTo;
     // The tutorial runs as a preview so nothing about it is reported or
     // saved (deaths, best distance, share); it only differs at load and at
     // the finish.
@@ -838,6 +851,14 @@ export class GameScene extends Scene {
   }
 
   private async findNextLevel(): Promise<void> {
+    if (this.returnTo) {
+      const { levelId, title } = this.returnTo;
+      const label = levelId === HUB_LEVEL_ID ? 'Next Level' : `Back to ${title}`;
+      this.resultOverlay.showNext(`Up next: ${title}`, label, () =>
+        this.scene.start('GameScene', { levelId })
+      );
+      return;
+    }
     if (this.findingNext) return;
     this.findingNext = true;
     const attempt = this.attempt;
@@ -924,6 +945,7 @@ export class GameScene extends Scene {
         : () => this.share(this.deathShareText(attributedKiller))
     );
     this.recordBestProgress(this.currentProgress());
+    this.maybeOfferStarter();
     this.markDeath();
     this.player.die(killer?.type);
     this.diedAt = this.time.now;
@@ -960,9 +982,41 @@ export class GameScene extends Scene {
 
   // Done or skipped: never shown again on this device; carry on to the
   // level the player asked for in the first place.
+  // A hub post (no level of its own) warms up on the starter before Level
+  // of the Day; a level post goes straight to its level.
   private leaveTutorial(): void {
     markTutorialDone();
+    const destination = this.explicitLevelId ?? getRequestedLevelId();
+    if (destination === HUB_LEVEL_ID) {
+      this.scene.start('GameScene', {
+        levelId: STARTER_LEVEL_ID,
+        returnTo: { levelId: HUB_LEVEL_ID, title: "Today's level" },
+      });
+      return;
+    }
     this.scene.start('GameScene', { levelId: this.explicitLevelId });
+  }
+
+  // Repeated early deaths on a community level: offer the starter once,
+  // coming back here afterwards.
+  private maybeOfferStarter(): void {
+    const level = this.levelVersion;
+    if (
+      !level || this.previewLevel || this.returnTo ||
+      CURSE_LOCKED_LEVEL_IDS.has(level.levelId) || starterOfferedOn.has(level.levelId) ||
+      this.deathsThisLevel < STRUGGLE_DEATHS ||
+      (this.bestProgress ?? 0) >= STRUGGLE_MAX_PROGRESS
+    ) {
+      return;
+    }
+    starterOfferedOn.add(level.levelId);
+    const title = this.levelStats?.title ?? level.levelId;
+    StarterOffer.instance().show(() =>
+      this.scene.start('GameScene', {
+        levelId: STARTER_LEVEL_ID,
+        returnTo: { levelId: level.levelId, title },
+      })
+    );
   }
 
   // How far along the level the player is, 0 at the spawn and 1 at the
@@ -1234,6 +1288,7 @@ export class GameScene extends Scene {
     this.deathToast.hide();
     this.runHud.hide();
     this.tutorialHint.hide();
+    StarterOffer.instance().hide();
     this.markersRequest?.abort();
     this.markersRequest = undefined;
     this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);

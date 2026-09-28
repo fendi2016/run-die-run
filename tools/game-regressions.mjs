@@ -210,6 +210,64 @@ try {
   assert.deepEqual(starterRun, { ended: true, cleared: true }, 'First Blood is beatable with quick taps');
   await starterPage.close();
 
+  // Hub post: tutorial -> First Blood -> Level of the Day. Level post:
+  // straight to its level, with a warm-up offer after 8 early deaths
+  // that comes back afterwards.
+  const funnelLevel = (levelId) => ({ levelId, version: 1, parentVersion: null, contributorUsername: 'test',
+    verificationTimeMs: 1, createdAt: 0, objects: levelId === 'first-blood' ? fbObjects : [
+      fb('spawn', 'spawn', 90), fb('finish', 'finish', 900),
+      ...Array.from({ length: 16 }, (_, i) => fb(`g${i}`, 'ground', 30 + i * 60)),
+    ] });
+  const funnelPage = async (query, tutorialDone) => {
+    const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.route('**/api/**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/levels/%40today' || path === '/api/levels/@today') return route.fulfill({ json: funnelLevel('today-level') });
+      const match = /^\/api\/levels\/([a-z-]+)$/.exec(path);
+      if (match) return route.fulfill({ json: funnelLevel(match[1]) });
+      return route.fulfill({ status: 404, body: '' });
+    });
+    await page.goto(`http://127.0.0.1:${server.address().port}/game.html${query}`);
+    await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
+    if (tutorialDone) await page.evaluate(() => localStorage.setItem('cursed:tutorial-done', '1'));
+    await page.click('#game-menu-play');
+    return page;
+  };
+  const levelIdOf = (page) => page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId);
+  const hub = await funnelPage('', false);
+  await hub.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.levelVersion?.levelId === 'tutorial');
+  await hub.click('#editor-preview-back-btn');
+  await hub.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'first-blood');
+  await hub.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').onFinishReached());
+  await hub.waitForSelector('#run-result-next', { state: 'visible' });
+  assert.equal(await hub.textContent('#run-result-next'), 'Next Level');
+  assert.match(await hub.textContent('#run-result-next-status'), /Today/);
+  assert.equal(await hub.isVisible('#run-result-curse-btn'), false, 'no curse on the starter');
+  await hub.click('#run-result-next');
+  await hub.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'today-level');
+  await hub.close();
+
+  const post = await funnelPage('?level=real', true);
+  await post.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.levelVersion?.levelId === 'real');
+  const dieTimes = (n) => post.evaluate((n) => {
+    const scene = window.__PHASER_GAME__.scene.getScene('GameScene');
+    for (let i = 0; i < n; i++) { scene.restartRun(); scene.onPlayerDied(); }
+  }, n);
+  await dieTimes(7);
+  assert.equal(await post.isVisible('#starter-offer'), false, 'no offer before 8 deaths');
+  await dieTimes(1);
+  await post.waitForSelector('#starter-offer', { state: 'visible' });
+  await post.click('#starter-offer-btn');
+  await post.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'first-blood');
+  assert.equal(await levelIdOf(post), 'first-blood');
+  await post.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').onFinishReached());
+  await post.waitForSelector('#run-result-next', { state: 'visible' });
+  assert.equal(await post.textContent('#run-result-next'), 'Back to real');
+  await post.click('#run-result-next');
+  await post.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'real');
+  await post.close();
+
   // First Play on a device runs the tutorial; Skip remembers that and
   // carries on to the requested level, and later Plays go straight there.
   const fresh = await browser.newPage({ viewport: { width: 844, height: 390 } });

@@ -327,6 +327,34 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   top: calc(max(12px, env(safe-area-inset-top)) + 116px);
 }
 
+/* Struggle offer (StarterOffer): bottom center, clear of the top HUD.
+   Only the button takes taps — everywhere else is still a jump. */
+#starter-offer {
+  position: absolute;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+#starter-offer.hidden {
+  display: none;
+}
+
+#starter-offer-btn {
+  pointer-events: auto;
+  padding: 10px 16px;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  background: #ffd166;
+  color: #0d0d16;
+  font-family: 'Arial Black', sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 0 #000000;
+  cursor: pointer;
+}
+
 /* Death toast: dying respawns on its own (GameScene), so this only
    reports who killed you. Pinned under the run HUD's progress bar, never interactive —
    taps pass through to the canvas as jumps. `max-width` + `box-sizing`
