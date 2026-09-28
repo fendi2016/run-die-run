@@ -299,12 +299,12 @@ body {
 }
 
 /* Death toast: dying respawns on its own (GameScene), so this only
-   reports who killed you. Pinned under the top HUD, never interactive —
+   reports who killed you. Pinned under the run HUD's progress bar, never interactive —
    taps pass through to the canvas as jumps. `max-width` + `box-sizing`
    keep it clear of the screen edges on narrow viewports. */
 #death-toast {
   position: absolute;
-  top: calc(max(12px, env(safe-area-inset-top)) + 56px);
+  top: calc(max(12px, env(safe-area-inset-top)) + 80px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -358,6 +358,68 @@ body {
 #death-toast-attribution.hidden,
 #death-toast-tip.hidden {
   display: none;
+}
+
+/* Below the 44px button row (`max(12px, safe-area) + 44px` tall) plus a
+   gap, regardless of how large the safe-area inset is — never overlapping
+   #sound-toggle/#gameplay-menu rather than trying to dodge them sideways. */
+#run-hud-progress-row {
+  position: absolute;
+  top: calc(max(12px, env(safe-area-inset-top)) + 44px + 8px);
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#run-hud-progress-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #000000;
+  overflow: visible;
+}
+
+#run-hud-progress-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #39ff88;
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+/* A tick marking the best-so-far point, positioned by `left: <pct>%` off
+   the track. Allowed to poke slightly above/below the thin track (that's
+   what #run-hud-progress-track's `overflow: visible` is for) so it stays
+   readable at 6px bar height. */
+#run-hud-progress-best {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  border-radius: 2px;
+  background: #ffd166;
+  box-shadow: 0 0 0 1px #000000;
+  transform: translateX(-50%);
+}
+
+#run-hud-progress-best.hidden {
+  display: none;
+}
+
+#run-hud-progress-pct {
+  flex: 0 0 auto;
+  min-width: 32px;
+  text-align: right;
+  font-family: 'Arial Black', sans-serif;
+  font-size: 12px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 /* Editor UI (spec section 12): DOM overlay over the Phaser canvas, same
