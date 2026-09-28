@@ -205,6 +205,7 @@ const { isCursersLeaderboardResponse } = await import(
 );
 const { withTransaction } = await import('../core/transactions');
 const { clearDiscoveryCache } = await import('../routes/discovery');
+const { STARTER_LEVEL_ID } = await import('../../shared/constants');
 
 beforeEach(() => {
   clearDiscoveryCache();
@@ -580,7 +581,8 @@ await test('difficulty uses spec boundaries and leaves unplayed levels unrated',
 });
 
 await test('discovery includes seeds and atomically indexed new publishes', async () => {
-  assert.equal((await browse()).length, 1);
+  // Both built-ins: Meat Grinder and the First Blood starter.
+  assert.equal((await browse()).length, 2);
   const result = await publishAs('bob', await ready('bob'), 'A new level');
   assert.equal(result.body.status, 'ok');
   const first = (await browse('new'))[0];
@@ -940,6 +942,14 @@ await test('a curse can be placed anywhere on the map', async () => {
   }
   assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: -600, y: 480 })
     .includes('Your object is outside the level boundaries.'));
+});
+
+await test('the starter level cannot be cursed', async () => {
+  const { response, body } = await proposeCurse('alice', STARTER_LEVEL_ID, {
+    id: 'c', type: 'candle', x: 700, y: 480,
+  });
+  assert.equal(response.status, 403);
+  assert.equal(body.status, 'error');
 });
 
 await test('curse preview contains the latest parent and exactly the objects that publish', async () => {

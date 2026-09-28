@@ -8,6 +8,7 @@ import {
   dailyLastPostedDayKey,
 } from '../core/redisKeys';
 import { discoverLevels } from './DiscoveryService';
+import { pickLevelOfTheDay } from '../core/dailyPick';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,11 +30,7 @@ export async function postLevelOfTheDay(force: boolean): Promise<DailyPostResult
     discoverLevels('trending'),
     redis.hGetAll(dailyFeaturedKey()),
   ]);
-  const pick =
-    levels.find((level) => featured[level.levelId] === undefined) ??
-    [...levels].sort(
-      (a, b) => Number(featured[a.levelId]) - Number(featured[b.levelId])
-    )[0];
+  const pick = pickLevelOfTheDay(levels, featured);
   if (!pick) return { status: 'skipped', reason: 'No levels to feature' };
 
   const number = Number(await redis.get(dailyCountKey())) + 1;

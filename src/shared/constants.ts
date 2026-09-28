@@ -24,6 +24,12 @@ export const DEFAULT_LEVEL_ID = 'meat-grinder';
 // ever colliding with a published level's slug, which is [a-z0-9-] only.
 export const HUB_LEVEL_ID = '@today';
 
+// The built-in easy course new players get after the tutorial (hub post)
+// or when they're struggling on a community level. Locked against curses
+// so it stays forgiving forever, and never featured as Level of the Day.
+export const STARTER_LEVEL_ID = 'first-blood';
+export const CURSE_LOCKED_LEVEL_IDS: ReadonlySet<string> = new Set([STARTER_LEVEL_ID]);
+
 // Editor grid bounds (spec section 12). A soft cap, not a hard "this is too
 // long" validator — spec section 38's phase notes call for enforcing
 // "levels should be short" (rule 15) softly via the editor's own grid size

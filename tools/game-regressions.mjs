@@ -164,6 +164,52 @@ try {
   await phone.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
   assert.equal(await phone.evaluate(() => window.__PHASER_GAME__.textures.exists('player-idle')), true);
   await phone.close();
+  // First Blood (the starter) must stay beatable with quick taps. Fixed
+  // 60fps steps keep this deterministic; the shield absorbs the saw.
+  // Mirrors SEED_LEVELS['first-blood'] in src/server/core/seedLevels.ts.
+  const starterPage = await browser.newPage({ viewport: { width: 844, height: 390 } });
+  starterPage.on('pageerror', (error) => errors.push(error.message));
+  const fb = (id, type, x) => ({ id, type, x, y: 480, properties: {}, addedBy: 'cursed-seed', addedInVersion: 1 });
+  const fbObjects = [
+    ...Array.from({ length: 25 }, (_, i) => fb(`g${i}`, 'ground', 30 + i * 60)),
+    ...Array.from({ length: 28 }, (_, i) => fb(`h${i}`, 'ground', 1650 + i * 60)),
+    fb('fb-spawn', 'spawn', 80), fb('fb-candle-1', 'candle', 600), fb('fb-candle-2', 'candle', 1080),
+    fb('fb-shield', 'shield', 1860), fb('fb-saw-1', 'saw', 2160), fb('fb-candle-3', 'candle', 2640),
+    fb('fb-finish', 'finish', 3180),
+  ];
+  await starterPage.route('**/api/**', (route) =>
+    new URL(route.request().url()).pathname === '/api/levels/first-blood'
+      ? route.fulfill({ json: { levelId: 'first-blood', version: 1, parentVersion: null, objects: fbObjects,
+        contributorUsername: 'cursed-seed', verificationTimeMs: 1, createdAt: 0 } })
+      : route.fulfill({ status: 404, body: '' }));
+  await starterPage.goto(`http://127.0.0.1:${server.address().port}/game.html?level=first-blood`);
+  await starterPage.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
+  await starterPage.evaluate(() => localStorage.setItem('cursed:tutorial-done', '1'));
+  await starterPage.click('#game-menu-play');
+  await starterPage.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.player);
+  const starterRun = await starterPage.evaluate((plan) => {
+    const game = window.__PHASER_GAME__;
+    const scene = game.scene.getScene('GameScene');
+    game.loop.sleep();
+    scene.restartRun();
+    let time = performance.now(), next = 0, release = -1;
+    for (let frame = 0; frame < 60 * 20; frame++) {
+      if (next < plan.length && scene.player.sprite.x >= plan[next]) {
+        scene.events.emit('jumpdown');
+        release = frame + 4; // a ~67ms tap
+        next++;
+      }
+      if (frame === release) scene.events.emit('jumpup');
+      time += 1000 / 60;
+      game.step(time, 1000 / 60);
+      if (scene.runEnded) break;
+    }
+    game.loop.wake();
+    return { ended: scene.runEnded, cleared: !document.querySelector('#run-result').classList.contains('hidden') };
+  }, [500, 980, 1470, 2540]);
+  assert.deepEqual(starterRun, { ended: true, cleared: true }, 'First Blood is beatable with quick taps');
+  await starterPage.close();
+
   // First Play on a device runs the tutorial; Skip remembers that and
   // carries on to the requested level, and later Plays go straight there.
   const fresh = await browser.newPage({ viewport: { width: 844, height: 390 } });
@@ -199,7 +245,7 @@ try {
 
   await testStageOne(page);
   assert.deepEqual(errors, []);
-  console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, touch retry after an asset failure, and first-play tutorial routing.');
+  console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, touch retry after an asset failure, a tap-only First Blood clear, and first-play tutorial routing.');
 } finally {
   await browser?.close();
   server.closeAllConnections();

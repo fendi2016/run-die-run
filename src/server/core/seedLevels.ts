@@ -2,6 +2,7 @@ import {
   GRID_CELL_SIZE,
   GROUND_TOP_Y,
   SEED_AUTHOR,
+  STARTER_LEVEL_ID,
 } from '../../shared/constants';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 
@@ -96,8 +97,28 @@ const meatGrinder = level(
   9831
 );
 
+// The starter (STARTER_LEVEL_ID): jump-only, a long run-up before each
+// obstacle, and a 120px gap a quick tap clears. Can't be cursed, so it
+// stays this easy.
+const firstBlood = level(
+  STARTER_LEVEL_ID,
+  [
+    ...groundStrip(0, 1500),
+    ...groundStrip(1620, 1680),
+    placed('fb-spawn', 'spawn', 80, GROUND_TOP_Y),
+    placed('fb-candle-1', 'candle', 600, GROUND_TOP_Y),
+    placed('fb-candle-2', 'candle', 1080, GROUND_TOP_Y),
+    placed('fb-shield', 'shield', 1860, GROUND_TOP_Y),
+    placed('fb-saw-1', 'saw', 2160, GROUND_TOP_Y),
+    placed('fb-candle-3', 'candle', 2640, GROUND_TOP_Y),
+    placed('fb-finish', 'finish', 3180, GROUND_TOP_Y),
+  ],
+  6000
+);
+
 export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
+  [firstBlood.levelId]: firstBlood,
 };
 
 // Built-in levels have no published metadata (that's written by the
@@ -105,6 +126,7 @@ export const SEED_LEVELS: Record<string, LevelVersion> = {
 // cards, Browse and post titles fell back to the raw id ("meat grinder").
 export const SEED_TITLES: Record<string, string> = {
   [meatGrinder.levelId]: 'Meat Grinder',
+  [firstBlood.levelId]: 'First Blood',
 };
 
 export function levelDisplayTitle(levelId: string, publishedTitle: string | undefined): string {

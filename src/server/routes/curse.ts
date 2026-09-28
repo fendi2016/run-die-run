@@ -16,7 +16,7 @@ import {
   levelCurrentVersionKey,
   levelVersionKey,
 } from '../core/redisKeys';
-import { CURSES_PER_DAY } from '../../shared/constants';
+import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY } from '../../shared/constants';
 import { announceCurse } from '../core/announcements';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { withTransaction } from '../core/transactions';
@@ -126,6 +126,12 @@ curse.post('/propose', async (c) => {
     return c.json<ErrorResponse>(
       { status: 'error', message: 'Invalid curse request' },
       400
+    );
+  }
+  if (CURSE_LOCKED_LEVEL_IDS.has(body.levelId)) {
+    return c.json<ProposeCurseResponse>(
+      { status: 'error', errors: ["This level can't be cursed."] },
+      403
     );
   }
   if (!(await hasDailyQuota('curse', username, CURSES_PER_DAY))) {
@@ -300,6 +306,12 @@ curse.post('/publish', async (c) => {
     verifiedTimeMs,
   } = candidate;
   const newVersionNumber = parentVersion + 1;
+  if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
+    return c.json<PublishCurseResponse>(
+      { status: 'error', message: "This level can't be cursed." },
+      403
+    );
+  }
 
   // Simultaneous edits (spec section 18): the parent version this candidate
   // was verified against must still be current. `levelCurrentVersionKey` is

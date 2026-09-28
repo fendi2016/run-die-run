@@ -7,6 +7,7 @@ import {
 } from '@devvit/web/client';
 import type { T3 } from '@devvit/web/shared';
 import {
+  CURSE_LOCKED_LEVEL_IDS,
   DEV_SUBREDDIT,
   FALL_DEATH_Y,
   LOGICAL_HEIGHT,
@@ -819,9 +820,12 @@ export class GameScene extends Scene {
       if (attempt.signal.aborted) return;
       this.resultOverlay.showResult(body);
       this.resultOverlay.showSaveStatus('');
-      this.resultOverlay.setCurseHandler(() =>
-        this.scene.start('CurseScene', { levelId: request.levelId })
-      );
+      // The starter stays easy forever — no curse offered on it.
+      if (!CURSE_LOCKED_LEVEL_IDS.has(request.levelId)) {
+        this.resultOverlay.setCurseHandler(() =>
+          this.scene.start('CurseScene', { levelId: request.levelId })
+        );
+      }
     } catch {
       if (attempt.signal.aborted) return;
       this.resultOverlay.showSaveStatus(
