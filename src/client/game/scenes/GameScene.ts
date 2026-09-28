@@ -50,6 +50,7 @@ import { LeaderboardOverlay } from '../../ui/LeaderboardOverlay';
 import { labelFor } from '../../../shared/objectLabels';
 import { PreviewBackButton } from '../../ui/PreviewBackButton';
 import { RealtimeToast } from '../../ui/RealtimeToast';
+import { RunHud, loadBestProgress, saveBestProgress } from '../../ui/RunHud';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { clearRateText } from '../../ui/levelStatsText';
@@ -137,6 +138,10 @@ export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
   private deathToast!: DeathToast;
+  private runHud!: RunHud;
+  // Best distance this viewer has reached on this level version, 0..1
+  // (null on a preview run, which never records one).
+  private bestProgress: number | null = null;
   // Pending auto-respawn after a death, and when that death happened (in
   // scene time, so pausing mid-death doesn't count toward the skip floor).
   private respawnTimer: Phaser.Time.TimerEvent | undefined;
@@ -222,6 +227,7 @@ export class GameScene extends Scene {
 
     this.resultOverlay = new RunResultOverlay();
     this.deathToast = new DeathToast();
+    this.runHud = new RunHud();
     this.events.on(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.tapToStartPrompt = new TapToStartPrompt();
     this.controls = new GameplayControls({
@@ -290,6 +296,10 @@ export class GameScene extends Scene {
           triggerBatFlight(bat.sprite, this.player.sprite.x, this.player.sprite.y);
         }
       }
+    }
+
+    if (this.runStarted && !this.runEnded) {
+      this.runHud.setProgress(this.currentProgress());
     }
 
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
@@ -503,6 +513,13 @@ export class GameScene extends Scene {
     this.powerUpImages = loaded.powerUpImages;
     this.bats = loaded.bats;
     this.finishSprite = loaded.finishSprite;
+    this.bestProgress = this.previewLevel
+      ? null
+      : loadBestProgress(levelVersion.levelId, levelVersion.version);
+    this.runHud.setAttempt(this.deathsThisLevel + 1);
+    this.runHud.setProgress(0);
+    this.runHud.setBest(this.bestProgress);
+    this.runHud.show();
     this.cameras.main.setBounds(0, 0, this.levelWidth, LOGICAL_HEIGHT);
 
     // Tiled rather than stretched, so the art keeps its native proportions
@@ -559,6 +576,8 @@ export class GameScene extends Scene {
     }
     this.runEnded = true;
     this.player.freeze();
+    this.recordBestProgress(1);
+    this.runHud.hide();
 
     // Purely cosmetic — doesn't touch `timeMs` below in any way.
     burstParticles(
@@ -825,10 +844,29 @@ export class GameScene extends Scene {
         ? undefined
         : () => this.share(this.deathShareText(attributedKiller))
     );
+    this.recordBestProgress(this.currentProgress());
     this.player.die(killer?.type);
     this.diedAt = this.time.now;
     this.respawnTimer?.remove();
     this.respawnTimer = this.time.delayedCall(RESPAWN_DELAY_MS, () => this.restartRun());
+  }
+
+  // How far along the level the player is, 0 at the spawn and 1 at the
+  // finish gate.
+  private currentProgress(): number {
+    if (!this.player || !this.finishSprite) return 0;
+    const span = this.finishSprite.x - this.spawn.x;
+    if (span <= 0) return 0;
+    return Phaser.Math.Clamp((this.player.sprite.x - this.spawn.x) / span, 0, 1);
+  }
+
+  private recordBestProgress(progress: number): void {
+    const level = this.levelVersion;
+    if (this.previewLevel || !level) return;
+    if (this.bestProgress !== null && progress <= this.bestProgress) return;
+    this.bestProgress = progress;
+    saveBestProgress(level.levelId, level.version, progress);
+    this.runHud.setBest(progress);
   }
 
   // Any jump input shortly after dying skips the rest of the respawn wait.
@@ -1011,6 +1049,9 @@ export class GameScene extends Scene {
     this.resultOverlay.hide();
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
+    this.runHud.setAttempt(this.deathsThisLevel + 1);
+    this.runHud.setProgress(0);
+    this.runHud.show();
     this.playSpawnWarp(false);
     this.cameras.main.scrollX = 0;
     this.runElapsedMs = 0;
@@ -1069,6 +1110,7 @@ export class GameScene extends Scene {
     // never anything here that needed resuming.
     this.resultOverlay.hide();
     this.deathToast.hide();
+    this.runHud.hide();
     this.events.off(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.respawnTimer = undefined;
     this.tapToStartPrompt.hide();
