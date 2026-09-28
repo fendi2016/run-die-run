@@ -156,6 +156,12 @@ function isPostId(id: string): id is T3 {
 // How far above the canvas's bottom edge a fall-death skull sits.
 const FALL_SKULL_INSET_PX = 4;
 
+// The tap-to-start prompt shows exactly one instruction at a time (never
+// alongside a second "how to play" line, and never alongside TutorialHint —
+// see startRun() and update()). A tutorial run uses its own first hint
+// instead of this generic line.
+const TAP_TO_START_MESSAGE = 'Tap to start · hold to jump higher';
+
 export class GameScene extends Scene {
   private player: Player | undefined;
   private resultOverlay!: RunResultOverlay;
@@ -333,8 +339,12 @@ export class GameScene extends Scene {
     if (this.runStarted && !this.runEnded) {
       this.runHud.setProgress(this.currentProgress());
     }
+    // Only takes over once the tap-to-start gate has lifted — while
+    // waiting, the tutorial's first hint is already showing as the
+    // tap-to-start prompt's own single line (see startRun()), so this
+    // stays hidden rather than doubling it up on screen.
     if (this.tutorial) {
-      this.tutorialHint.set(this.runEnded ? '' : hintAt(this.player.sprite.x));
+      this.tutorialHint.set(this.runStarted && !this.runEnded ? hintAt(this.player.sprite.x) : '');
     }
 
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
@@ -662,7 +672,10 @@ export class GameScene extends Scene {
     for (const tween of this.movingObjectTweens) {
       tween.pause();
     }
-    this.tapToStartPrompt.show();
+    // The tutorial's own first hint doubles as the tap-to-start line, so
+    // there's only ever one instruction on screen — never this prompt's
+    // generic line *and* TutorialHint at the same time (see update()).
+    this.tapToStartPrompt.show(this.tutorial ? hintAt(player.sprite.x) : TAP_TO_START_MESSAGE);
     this.interpolation?.destroy();
     this.interpolation = new PhysicsInterpolation(this, [
       player.sprite,

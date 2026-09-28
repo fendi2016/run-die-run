@@ -311,7 +311,15 @@ body {
 
 /* Tap-to-start prompt: shown at spawn until the player's first jump input
    (spec: the level shouldn't just start moving under them) — GameScene
-   holds the player still and the run timer unstarted until then.
+   holds the player still and the run timer unstarted until then. Exactly
+   one instruction line ever shows here (GameScene picks its text — see
+   TapToStartPrompt) so it never competes with a second "how to play" line,
+   and TutorialHint stays hidden the entire time this is up (see
+   GameScene.update()) so the two never overlap on screen. Logo + label are
+   one composed flex stack with a gap, so the label can never cover the
+   logo above it — sized to clear both a 390x844 phone portrait and a
+   1280x720 desktop landscape, and centered well above the ground line
+   (~y=750 of 844 on phone) so it never covers the player at spawn.
    pointer-events: none, same as #run-result/#death-toast, so the tap that
    dismisses it also reaches the canvas and registers as InputSystem's
    jumpdown signal, not a separate/extra tap. */
@@ -322,7 +330,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 16px;
   pointer-events: none;
   opacity: 1;
   transition: opacity 120ms ease-out;
@@ -333,33 +341,30 @@ body {
 }
 
 #tap-to-start-logo {
-  width: min(62vw, 260px);
+  width: min(58vw, 240px);
   height: auto;
-  filter: drop-shadow(0 4px 8px rgba(43, 43, 43, 0.25));
+  filter: drop-shadow(0 4px 8px var(--ink-faint));
 }
 
+/* One card (the design system's ink-outline, hard-shadow base), not a thin
+   pill — matches every other button/dialog surface in the notebook system. */
 #tap-to-start-label {
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: clamp(20px, 6vw, 32px);
-  color: #2b2b2b;
-  text-shadow: none;
-  padding: 10px 22px;
-  border-radius: 10px;
-  background: rgba(251, 248, 239, 0.94);
-  border: 2px solid #2b2b2b;
+  font-family: var(--font-hand);
+  font-size: clamp(18px, 5vw, 28px);
+  color: var(--ink);
+  text-align: center;
+  max-width: min(88vw, 420px);
+  box-sizing: border-box;
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  border: var(--line-strong) solid var(--ink);
+  box-shadow: var(--shadow-hard);
   animation: tap-to-start-pulse 1100ms ease-in-out infinite;
 }
 
-#tap-to-start-hint {
-  margin-top: 8px;
-  padding: 5px 12px;
-  border-radius: 8px;
-  background: rgba(251, 248, 239, 0.94);
-  border: 2px solid #2b2b2b;
-  color: #2b2b2b;
-  font-size: 13px;
-  font-weight: 700;
-  text-shadow: none;
+#tap-to-start-label:empty {
+  display: none;
 }
 
 @keyframes tap-to-start-pulse {
@@ -372,23 +377,26 @@ body {
   }
 }
 
-/* Tutorial prompt: big and centered in the open sky above the run, never
-   interactive (taps are jumps). */
+/* The in-run tutorial hint: same card language as the tap-to-start prompt
+   it hands off from, centered in the open sky above the run, never
+   interactive (taps are jumps). GameScene only sets its text once the run
+   has started (see update()), so it's never on screen at the same time as
+   #tap-to-start. */
 #tutorial-hint {
   position: absolute;
-  top: 38%;
+  top: 30%;
   left: 50%;
   transform: translate(-50%, -50%);
-  max-width: min(90vw, 520px);
+  max-width: min(90vw, 480px);
   box-sizing: border-box;
-  padding: 10px 18px;
-  border: 2px solid #2b2b2b;
-  border-radius: 14px;
-  background: rgba(251, 248, 239, 0.96);
-  box-shadow: 0 3px 0 #2b2b2b;
-  color: #3d6ea5;
-  font-family: 'Doodlefont', 'Arial Black', sans-serif;
-  font-size: clamp(16px, 4.5vw, 24px);
+  padding: 8px 18px;
+  border: var(--line-strong) solid var(--ink);
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  box-shadow: var(--shadow-hard);
+  color: var(--rule-blue);
+  font-family: var(--font-hand);
+  font-size: clamp(16px, 4.5vw, 22px);
   text-align: center;
   pointer-events: none;
 }
