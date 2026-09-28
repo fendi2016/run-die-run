@@ -2,3 +2,6 @@ node_modules
 .DS_Store
 dist
 .env
+# Claude Code runtime state
+.claude/scheduled_tasks.lock
+.claude/worktrees/
