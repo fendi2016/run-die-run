@@ -2,38 +2,35 @@ import * as Phaser from 'phaser';
 import { GRID_CELL_SIZE, GROUND_TOP_Y, LOGICAL_HEIGHT } from '../../../shared/constants';
 import type { LevelObject } from '../../../shared/types';
 
-// Set dressing for a run, so gameplay sits on the same drawn-in notebook
-// page as the title screen instead of a bare ruled sheet: paper grain, a
-// margin rule at the start, faint graphite doodles and half-erased
-// sketches in the sky, and pencil hatching + edge detail on the ground.
-// Everything here is cosmetic — no bodies, no input — and deliberately
-// faint and grey so hazards, which are the only saturated ink on the
-// page, stay visually dominant.
+// Set dressing for a run, so gameplay sits in the same drawn world as the
+// title screen instead of on a bare ruled sheet: paper grain, a margin
+// rule at the start, Kenney Scribble Platformer scenery (CC0 — clouds, a
+// far skyline, trees and bushes, the same style as the menu art) in three
+// parallax layers, and pencil hatching + edge detail on the ground.
+// Everything here is cosmetic — no bodies, no input — and kept light and
+// behind the action so hazards stay visually dominant.
 
 const GRAIN_KEY = 'paper-grain';
 const GRAPHITE = 0x5d6474;
 const INK = 0x2b2b2b;
 const MARGIN_RED = 0xe06666;
 
-// Layering: level-background (-1) < grain < doodles < death markers (-0.5)
-// < spawn tombstone (-0.25) < finish gate (-0.1) < ground tiles < ground
-// detail < player and hazards (0).
+// Layering: level-background (-1) < grain < clouds < skyline < margin <
+// near scenery < death markers (-0.5) < spawn tombstone (-0.25) < finish
+// gate (-0.1) < ground tiles < ground detail < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
-const DOODLE_DEPTH = -0.9;
+const CLOUD_DEPTH = -0.93;
+const SKYLINE_DEPTH = -0.91;
+const MARGIN_DEPTH = -0.9;
+const NEAR_SCENERY_DEPTH = -0.85;
+const SKYLINE_SIZE = 0.62;
 export const GROUND_TILE_DEPTH = -0.08;
 const GROUND_DETAIL_DEPTH = -0.05;
-
-// Doodles stay out of the band a run actually happens in: a jump peaks
-// ~107px over the ground and floaters drift ~130px up, so the sky band ends
-// well above that. Platforms can sit higher, which is why doodles are thin
-// graphite at low alpha rather than anything that could read as terrain.
-const DOODLE_TOP_Y = 30;
-const DOODLE_BOTTOM_Y = GROUND_TOP_Y - 190;
 
 type Rng = () => number;
 
 // Deterministic per level, so a restart (or another player) sees the same
-// page rather than doodles reshuffling on every attempt.
+// page rather than scenery reshuffling on every attempt.
 function seededRng(seedText: string): Rng {
   let seed = 2166136261;
   for (let i = 0; i < seedText.length; i++) {
@@ -72,164 +69,6 @@ function sketch(g: Phaser.GameObjects.Graphics, points: Point[], rng: Rng, wobbl
   }
 }
 
-function circlePoints(cx: number, cy: number, rx: number, ry: number, from = 0, to = Math.PI * 2, steps = 18): Point[] {
-  const points: Point[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const a = from + ((to - from) * i) / steps;
-    points.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
-  }
-  return points;
-}
-
-type Doodle = (g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, rng: Rng) => void;
-
-const cloud: Doodle = (g, x, y, s, rng) => {
-  const points: Point[] = [];
-  const bumps = [
-    { cx: -34, cy: 4, r: 16 },
-    { cx: -14, cy: -10, r: 20 },
-    { cx: 12, cy: -14, r: 22 },
-    { cx: 34, cy: 0, r: 16 },
-  ];
-  for (const b of bumps) points.push(...circlePoints(x + b.cx * s, y + b.cy * s, b.r * s, b.r * s, Math.PI, Math.PI * 2, 8));
-  const start = points[0];
-  points.push({ x: x + 50 * s, y: y + 16 * s }, { x: x - 50 * s, y: y + 16 * s });
-  if (start) points.push(start);
-  sketch(g, points, rng, 1);
-};
-
-const star: Doodle = (g, x, y, s, rng) => {
-  const points: Point[] = [];
-  for (let i = 0; i <= 5; i++) {
-    const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5;
-    points.push({ x: x + Math.cos(a) * 18 * s, y: y + Math.sin(a) * 18 * s });
-  }
-  sketch(g, points, rng, 1);
-};
-
-const spiral: Doodle = (g, x, y, s, rng) => {
-  const points: Point[] = [];
-  for (let i = 0; i < 44; i++) {
-    const a = i * 0.42;
-    const r = (2 + i * 0.55) * s;
-    points.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
-  }
-  sketch(g, points, rng, 0.6);
-};
-
-const sun: Doodle = (g, x, y, s, rng) => {
-  sketch(g, circlePoints(x, y, 14 * s, 14 * s), rng, 0.8, true);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2 + range(rng, -0.1, 0.1);
-    sketch(g, [
-      { x: x + Math.cos(a) * 20 * s, y: y + Math.sin(a) * 20 * s },
-      { x: x + Math.cos(a) * 30 * s, y: y + Math.sin(a) * 30 * s },
-    ], rng, 0.6);
-  }
-};
-
-const heart: Doodle = (g, x, y, s, rng) => {
-  const points: Point[] = [];
-  for (let i = 0; i <= 24; i++) {
-    const t = (i / 24) * Math.PI * 2;
-    points.push({
-      x: x + 16 * Math.sin(t) ** 3 * s,
-      y: y - (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * s,
-    });
-  }
-  sketch(g, points, rng, 0.8);
-};
-
-const bolt: Doodle = (g, x, y, s, rng) => {
-  sketch(g, [
-    { x: x + 6 * s, y: y - 26 * s },
-    { x: x - 10 * s, y: y + 2 * s },
-    { x: x + 2 * s, y: y + 2 * s },
-    { x: x - 6 * s, y: y + 28 * s },
-    { x: x + 14 * s, y: y - 4 * s },
-    { x: x + 1 * s, y: y - 4 * s },
-    { x: x + 6 * s, y: y - 26 * s },
-  ], rng, 0.8);
-};
-
-const smiley: Doodle = (g, x, y, s, rng) => {
-  sketch(g, circlePoints(x, y, 20 * s, 19 * s), rng, 0.9, true);
-  sketch(g, [{ x: x - 7 * s, y: y - 7 * s }, { x: x - 7 * s, y: y - 2 * s }], rng, 0.4);
-  sketch(g, [{ x: x + 7 * s, y: y - 7 * s }, { x: x + 7 * s, y: y - 2 * s }], rng, 0.4);
-  sketch(g, circlePoints(x, y + 2 * s, 11 * s, 8 * s, 0.3, Math.PI - 0.3, 10), rng, 0.5);
-};
-
-const house: Doodle = (g, x, y, s, rng) => {
-  sketch(g, [
-    { x: x - 22 * s, y: y + 22 * s },
-    { x: x - 22 * s, y: y - 4 * s },
-    { x: x, y: y - 24 * s },
-    { x: x + 22 * s, y: y - 4 * s },
-    { x: x + 22 * s, y: y + 22 * s },
-    { x: x - 22 * s, y: y + 22 * s },
-  ], rng, 1);
-  sketch(g, [
-    { x: x - 5 * s, y: y + 22 * s },
-    { x: x - 5 * s, y: y + 8 * s },
-    { x: x + 5 * s, y: y + 8 * s },
-    { x: x + 5 * s, y: y + 22 * s },
-  ], rng, 0.6);
-};
-
-const arrow: Doodle = (g, x, y, s, rng) => {
-  const shaft = circlePoints(x, y + 30 * s, 40 * s, 26 * s, Math.PI * 1.15, Math.PI * 1.85, 12);
-  sketch(g, shaft, rng, 0.8);
-  const tip = shaft[shaft.length - 1];
-  if (!tip) return;
-  sketch(g, [{ x: tip.x - 12 * s, y: tip.y - 3 * s }, tip, { x: tip.x - 4 * s, y: tip.y + 11 * s }], rng, 0.6);
-};
-
-const stickFigure: Doodle = (g, x, y, s, rng) => {
-  sketch(g, circlePoints(x, y - 18 * s, 7 * s, 7 * s), rng, 0.5, true);
-  sketch(g, [{ x, y: y - 11 * s }, { x, y: y + 8 * s }], rng, 0.5);
-  sketch(g, [{ x: x - 11 * s, y: y - 6 * s }, { x, y: y - 2 * s }, { x: x + 12 * s, y: y - 10 * s }], rng, 0.5);
-  sketch(g, [{ x: x - 8 * s, y: y + 22 * s }, { x, y: y + 8 * s }, { x: x + 8 * s, y: y + 22 * s }], rng, 0.5);
-};
-
-// Tic-tac-toe mid-game: the kind of thing that ends up in every margin.
-const ticTacToe: Doodle = (g, x, y, s, rng) => {
-  for (const d of [-8, 8]) {
-    sketch(g, [{ x: x + d * s, y: y - 24 * s }, { x: x + d * s, y: y + 24 * s }], rng, 0.8);
-    sketch(g, [{ x: x - 24 * s, y: y + d * s }, { x: x + 24 * s, y: y + d * s }], rng, 0.8);
-  }
-  sketch(g, [{ x: x - 20 * s, y: y - 20 * s }, { x: x - 12 * s, y: y - 12 * s }], rng, 0.3);
-  sketch(g, [{ x: x - 12 * s, y: y - 20 * s }, { x: x - 20 * s, y: y - 12 * s }], rng, 0.3);
-  sketch(g, circlePoints(x, y, 5 * s, 5 * s), rng, 0.3, true);
-  sketch(g, [{ x: x + 12 * s, y: y + 12 * s }, { x: x + 20 * s, y: y + 20 * s }], rng, 0.3);
-  sketch(g, [{ x: x + 20 * s, y: y + 12 * s }, { x: x + 12 * s, y: y + 20 * s }], rng, 0.3);
-};
-
-const DOODLES: Doodle[] = [cloud, star, spiral, sun, heart, bolt, smiley, house, arrow, stickFigure, ticTacToe, cloud];
-
-function pickDoodle(rng: Rng): Doodle {
-  return DOODLES[Math.floor(rng() * DOODLES.length)] ?? cloud;
-}
-
-// An erased sketch: a wide, very faint smudge with the ghost of the
-// drawing still in it — rubbed out, but never quite gone.
-function erasedSketch(scene: Phaser.Scene, x: number, y: number, rng: Rng): void {
-  const smudge = scene.add.graphics().setDepth(DOODLE_DEPTH);
-  smudge.fillStyle(GRAPHITE, 0.045);
-  for (let i = 0; i < 5; i++) {
-    smudge.fillEllipse(x + range(rng, -26, 26), y + range(rng, -10, 10), range(rng, 50, 90), range(rng, 16, 28));
-  }
-  const ghost = scene.add.graphics().setDepth(DOODLE_DEPTH);
-  ghost.lineStyle(2.4, GRAPHITE, 0.09);
-  pickDoodle(rng)(ghost, x, y, range(rng, 1.1, 1.5), rng);
-  // A few eraser streaks through it.
-  smudge.lineStyle(3, 0xffffff, 0.35);
-  for (let i = 0; i < 3; i++) {
-    const sx = x + range(rng, -40, 10);
-    const sy = y + range(rng, -14, 14);
-    smudge.lineBetween(sx, sy, sx + range(rng, 40, 70), sy + range(rng, -8, 8));
-  }
-}
-
 function ensureGrainTexture(scene: Phaser.Scene): void {
   if (scene.textures.exists(GRAIN_KEY)) return;
   const size = 256;
@@ -257,7 +96,7 @@ function ensureGrainTexture(scene: Phaser.Scene): void {
   texture.refresh();
 }
 
-export function drawPaperBackdrop(scene: Phaser.Scene, levelWidth: number, seedText: string): void {
+export function drawPaperBackdrop(scene: Phaser.Scene, levelWidth: number): void {
   ensureGrainTexture(scene);
   scene.add
     .tileSprite(0, 0, levelWidth, LOGICAL_HEIGHT, GRAIN_KEY)
@@ -265,26 +104,147 @@ export function drawPaperBackdrop(scene: Phaser.Scene, levelWidth: number, seedT
     .setDepth(GRAIN_DEPTH);
 
   // The notebook's margin rule, where the page — and the run — begins.
-  const margin = scene.add.graphics().setDepth(DOODLE_DEPTH);
+  const margin = scene.add.graphics().setDepth(MARGIN_DEPTH);
   margin.lineStyle(2, MARGIN_RED, 0.45);
   margin.lineBetween(26, 0, 26, LOGICAL_HEIGHT);
   margin.lineStyle(1, MARGIN_RED, 0.3);
   margin.lineBetween(31, 0, 31, LOGICAL_HEIGHT);
+}
 
-  const rng = seededRng(seedText);
-  const doodles = scene.add.graphics().setDepth(DOODLE_DEPTH);
-  // Starts past the spawn so the tap-to-start view stays calm; spacing is
-  // loose enough that most screens hold one or two, never a crowd.
-  let x = range(rng, 420, 560);
-  while (x < levelWidth - 60) {
-    const y = range(rng, DOODLE_TOP_Y + 30, DOODLE_BOTTOM_Y);
-    if (rng() < 0.28) {
-      erasedSketch(scene, x, y, rng);
-    } else {
-      doodles.lineStyle(range(rng, 1.6, 2.2), GRAPHITE, range(rng, 0.2, 0.3));
-      pickDoodle(rng)(doodles, x, y, range(rng, 0.9, 1.4), rng);
+// Kenney Scribble Platformer scenery (public/assets/kenney/scenery, CC0).
+// `padBottom` is each image's transparent rows below the drawing, so
+// things stand exactly on the ground line.
+type SceneryArt = { key: string; file: string; padBottom: number };
+
+const art = (name: string, padBottom: number): SceneryArt => ({
+  key: `kenney-${name}`,
+  file: `kenney/scenery/${name}.webp`,
+  padBottom,
+});
+
+const CLOUDS = [art('cloud-a', 0), art('cloud-b', 1)];
+const SKYLINE = {
+  castle: art('castle', 1),
+  tower: art('tower', 1),
+  towerTop: art('tower-top', 1),
+  roof: art('roof-round', 1),
+  obelisk: art('obelisk', 1),
+  archway: art('archway', 1),
+  column: art('column', 0),
+};
+// [art, display height] — trees tower over the pencil, bushes and fences
+// sit below his knees.
+const NEAR: [SceneryArt, number][] = [
+  [art('tree', 2), 190],
+  [art('tree-large', 2), 220],
+  [art('pine', 3), 96],
+  [art('bush', 4), 56],
+  [art('bush-half', 1), 58],
+  [art('fence', 1), 62],
+];
+
+export const KENNEY_SCENERY: SceneryArt[] = [
+  ...CLOUDS,
+  ...Object.values(SKYLINE),
+  ...NEAR.map(([a]) => a),
+];
+
+function standOnGround(
+  scene: Phaser.Scene,
+  a: SceneryArt,
+  x: number,
+  groundY: number,
+  height: number
+): Phaser.GameObjects.Image {
+  const image = scene.add.image(x, groundY, a.key).setOrigin(0.5, 1);
+  image.setScale(height / image.height);
+  image.y += a.padBottom * image.scaleY;
+  return image;
+}
+
+// One far-off building: a castle, a tower with a roof, an obelisk...
+function skylinePiece(scene: Phaser.Scene, x: number, rng: Rng, factor: number): void {
+  // Far away: everything at about two-thirds size, and pale.
+  const place = (a: SceneryArt, px: number, bottom: number, height: number): Phaser.GameObjects.Image =>
+    standOnGround(scene, a, x + (px - x) * SKYLINE_SIZE, bottom, height * SKYLINE_SIZE)
+      .setScrollFactor(factor, 1)
+      .setDepth(SKYLINE_DEPTH)
+      .setAlpha(0.22);
+  const base = GROUND_TOP_Y + 8;
+  const kind = Math.floor(rng() * 5);
+  if (kind === 0) {
+    place(SKYLINE.castle, x, base, 110);
+    place(SKYLINE.castle, x + 100, base, 110);
+    const tower = place(SKYLINE.tower, x + 50, base - 100 * SKYLINE_SIZE, 90);
+    place(SKYLINE.towerTop, x + 50, tower.y - tower.displayHeight + 4, 70);
+  } else if (kind === 1) {
+    const tower = place(SKYLINE.tower, x, base, 150);
+    place(SKYLINE.roof, x, tower.y - tower.displayHeight + 4, 80);
+  } else if (kind === 2) {
+    place(SKYLINE.obelisk, x, base, 150);
+    place(SKYLINE.column, x + 70, base, 100);
+    place(SKYLINE.column, x - 70, base, 80);
+  } else if (kind === 3) {
+    place(SKYLINE.archway, x, base, 120);
+    place(SKYLINE.archway, x + 118, base, 120);
+  } else {
+    const tower = place(SKYLINE.tower, x, base, 180);
+    place(SKYLINE.towerTop, x, tower.y - tower.displayHeight + 4, 80);
+    place(SKYLINE.castle, x + 95, base, 90);
+  }
+}
+
+// Clouds (far), a faint skyline (middle distance) and trees/bushes/fences
+// standing on the level's own ground (near). Near pieces only go where
+// there's ground under them and keep clear of every hazard, platform,
+// power-up and marker, so nothing ever reads as part of the course.
+export function drawKenneyScenery(
+  scene: Phaser.Scene,
+  levelWidth: number,
+  objects: LevelObject[],
+  seedText: string
+): void {
+  const rng = seededRng(`${seedText}:scenery`);
+  // A parallax layer at scroll factor f only moves f as far as the camera,
+  // so it needs levelWidth * f of content plus one screen.
+  const span = (factor: number): number => levelWidth * factor + 1400;
+
+  const cloudFactor = 0.25;
+  for (let x = range(rng, 60, 260); x < span(cloudFactor); x += range(rng, 280, 520)) {
+    const cloud = CLOUDS[Math.floor(rng() * CLOUDS.length)] ?? CLOUDS[0];
+    if (!cloud) break;
+    const image = scene.add
+      .image(x, range(rng, 50, 190), cloud.key)
+      .setScrollFactor(cloudFactor, 1)
+      .setDepth(CLOUD_DEPTH)
+      .setAlpha(0.85);
+    image.setScale(range(rng, 130, 220) / image.width);
+  }
+
+  const skylineFactor = 0.55;
+  for (let x = range(rng, 380, 700); x < span(skylineFactor); x += range(rng, 520, 900)) {
+    skylinePiece(scene, x, rng, skylineFactor);
+  }
+
+  const half = GRID_CELL_SIZE / 2;
+  const groundCells = new Set(
+    objects.filter((o) => o.type === 'ground').map((o) => Math.round((o.x - half) / GRID_CELL_SIZE))
+  );
+  const hasGround = (from: number, to: number): boolean => {
+    for (let c = Math.floor(from / GRID_CELL_SIZE); c <= Math.floor(to / GRID_CELL_SIZE); c++) {
+      if (!groundCells.has(c)) return false;
     }
-    x += range(rng, 240, 440);
+    return true;
+  };
+  const busyX = objects.filter((o) => o.type !== 'ground').map((o) => o.x);
+  for (let x = range(rng, 300, 460); x < levelWidth - 60; x += range(rng, 300, 560)) {
+    const pick = NEAR[Math.floor(rng() * NEAR.length)] ?? NEAR[0];
+    if (!pick) break;
+    const [a, height] = pick;
+    const halfWidth = height * 0.5;
+    if (!hasGround(x - halfWidth, x + halfWidth)) continue;
+    if (busyX.some((bx) => Math.abs(bx - x) < halfWidth + 70)) continue;
+    standOnGround(scene, a, x, GROUND_TOP_Y + 3, height).setDepth(NEAR_SCENERY_DEPTH);
   }
 }
 
