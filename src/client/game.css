@@ -98,9 +98,9 @@ body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
-/* Rank/streak/shards as a single row of pills — a clear only needs these
-   as a quick glance, not a stat sheet (time/PB/WR were dropped entirely:
-   this game is about cursing levels, not chasing a clock). */
+/* Rank/streak as a single row of pills — a clear only needs these as a
+   quick glance, not a stat sheet (time/PB/WR were dropped entirely: this
+   game is about cursing levels, not chasing a clock). */
 #run-result-stats {
   display: flex;
   flex-wrap: wrap;
@@ -130,12 +130,6 @@ body {
   background: rgba(57, 255, 136, 0.16);
   border-color: rgba(57, 255, 136, 0.5);
   color: #39ff88;
-}
-
-#run-result-currency {
-  background: rgba(255, 209, 102, 0.14);
-  border-color: rgba(255, 209, 102, 0.4);
-  color: #ffd166;
 }
 
 #run-result-status {
@@ -1028,7 +1022,7 @@ body {
 }
 
 #game-menu-chip,
-#game-menu-currency-chip {
+#game-menu-stats-chip {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1041,7 +1035,7 @@ body {
 /* Reset the default button chrome so this reads identically to the plain
    #game-menu-chip span beside it — the only difference is it's tappable
    (opens #stats-overlay, see GameMenu.ts). */
-#game-menu-currency-chip {
+#game-menu-stats-chip {
   background: none;
   border: none;
   padding: 0;
@@ -1053,10 +1047,6 @@ body {
 
 #game-menu-stat-value {
   color: #39ff88;
-}
-
-#game-menu-currency-value {
-  color: #ffd166;
 }
 
 #game-menu-scene {

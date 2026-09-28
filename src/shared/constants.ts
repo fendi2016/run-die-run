@@ -63,14 +63,6 @@ export const DEV_SUBREDDIT = 'cursed_game_dev';
 export const LEVEL_PUBLISHES_PER_DAY = 10;
 export const CURSES_PER_DAY = 30;
 
-// Earn-only reward currency (no shop yet — the balance/plumbing exists so a
-// future shop has something to spend). Flat amount per non-duplicate clear,
-// regardless of level difficulty or whether it's a first-time or repeat
-// clear of that version — there's no shop to balance a curve against yet,
-// so a guessable placeholder beats a fabricated one.
-export const CURRENCY_NAME = 'Shards';
-export const CURRENCY_PER_CLEAR = 10;
-
 // How many entries a leaderboard listing (per-level times, or the global
 // Clear Streaks board) returns.
 export const LEADERBOARD_TOP_N = 10;

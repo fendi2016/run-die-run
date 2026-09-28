@@ -1,4 +1,3 @@
-import { CURRENCY_NAME } from '../../shared/constants';
 import type { SubmitRunResponse } from '../../shared/runsApi';
 import { requireButton, requireElement } from './domUtils';
 
@@ -13,7 +12,6 @@ import { requireButton, requireElement } from './domUtils';
 export class RunResultOverlay {
   private readonly root = requireElement('run-result');
   private readonly streakEl = requireElement('run-result-streak');
-  private readonly currencyEl = requireElement('run-result-currency');
   private readonly curseBtn = requireButton('run-result-curse-btn');
   private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
   private readonly shareBtn = requireButton('run-result-share');
@@ -41,7 +39,6 @@ export class RunResultOverlay {
     this.showSaveStatus('');
     this.showNext('');
     this.streakEl.textContent = '';
-    this.currencyEl.textContent = '';
     this.curseBtn.classList.add('hidden');
     this.leaderboardBtn.classList.add('hidden');
     this.curseBtn.onclick = null;
@@ -54,10 +51,6 @@ export class RunResultOverlay {
   showResult(result: SubmitRunResponse): void {
     this.streakEl.textContent = `Streak: ${result.streak}`;
     this.streakEl.classList.toggle('run-result-streak-increased', result.isNewStreakIncrease);
-    this.currencyEl.textContent =
-      result.currencyAwarded > 0
-        ? `+${result.currencyAwarded} ${CURRENCY_NAME} (${result.currencyBalance} total)`
-        : '';
   }
 
   setCurseHandler(handler: () => void): void {

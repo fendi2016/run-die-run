@@ -3,7 +3,6 @@ import { context, redis } from '@devvit/web/server';
 import type { UserStatsResponse } from '../../shared/userStatsApi';
 import {
   clearedVersionsKey,
-  currencyKey,
   userContributionsKey,
   userCreatedLevelsKey,
   userStatsKey,
@@ -17,11 +16,11 @@ type ErrorResponse = {
 export const userStats = new Hono();
 
 // Pulls together data that was already being written elsewhere
-// (currencyKey by runs.ts, clearedVersionsKey by runs.ts, userCreatedLevelsKey
-// by publish.ts, userContributionsKey by runs.ts's trap-kill route) plus
-// totalClears — the one field userStatsKey actually needed a writer for
-// (see runs.ts) — into a single personal-stats snapshot. Read-only; every
-// individual counter is written from wherever the underlying event happens.
+// (clearedVersionsKey by runs.ts, userCreatedLevelsKey by publish.ts,
+// userContributionsKey by runs.ts's trap-kill route) plus totalClears — the
+// one field userStatsKey actually needed a writer for (see runs.ts) — into a
+// single personal-stats snapshot. Read-only; every individual counter is
+// written from wherever the underlying event happens.
 userStats.get('/me', async (c) => {
   const { username } = context;
   if (!username) {
@@ -31,9 +30,8 @@ userStats.get('/me', async (c) => {
     );
   }
 
-  const [currencyBalance, clearStreak, levelsCreated, contributionKills, totalClears] =
+  const [clearStreak, levelsCreated, contributionKills, totalClears] =
     await Promise.all([
-      redis.get(currencyKey(username)),
       redis.hLen(clearedVersionsKey(username)),
       redis.zCard(userCreatedLevelsKey(username)),
       redis.get(userContributionsKey(username)),
@@ -42,7 +40,6 @@ userStats.get('/me', async (c) => {
 
   return c.json<UserStatsResponse>({
     username,
-    currencyBalance: Number(currencyBalance ?? 0),
     clearStreak,
     // totalClears only started counting recently, while clearStreak is backed
     // by older data — every streak clear is also a clear, so floor it there.
