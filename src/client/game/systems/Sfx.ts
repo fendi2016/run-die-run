@@ -7,10 +7,10 @@ import type { ObjectType } from '../../../shared/types';
 // WAV rather than AAC for anything tied to an input: AAC's encoder priming
 // adds ~45ms of silence at the start. Only the level-clear jingle (long,
 // and not timing-critical) ships as .m4a.
-//   jump   Retro/jump_short
-//   death  Materials/paper_scrunch (falls, chargers, floaters)
-//   deathFire  Other/elastic_twang (spikes — the `candle` type)
-//   deathSaw   Environment/zipper_down (gears)
+//   jump   Other/whoosh_1
+//   death  Combat and Gore/crunch_splat
+//   deathFire  Combat Sounds/fire_punch_02 (candle deaths)
+//   deathSaw   Combat Sounds/guts_and_gore_59 (saw deaths)
 //   clear  Musical Effects/music_box_level_complete
 //   pickup Items/gem_collect
 export const SFX_KEYS = ['jump', 'death', 'deathFire', 'deathSaw', 'clear', 'pickup'] as const;
