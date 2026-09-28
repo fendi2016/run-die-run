@@ -10,6 +10,10 @@ export const RUN_SPEED = 320;
 export const GRAVITY_Y = 1800; // px/s^2
 export const JUMP_VELOCITY = 620; // px/s, initial upward velocity on jump
 export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released early
+// A release can't cut the jump until this long after take-off, so even the
+// quickest tap is a real jump — without it a phone tap (~60-100ms) hopped
+// too low to clear a candle, the smallest hazard. Holding still goes higher.
+export const MIN_JUMP_HOLD_MS = 180;
 export const COYOTE_TIME_MS = 100;
 export const JUMP_BUFFER_MS = 130;
 

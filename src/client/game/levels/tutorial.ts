@@ -11,8 +11,8 @@ export const TUTORIAL_LEVEL_ID = 'tutorial';
 
 const TUTORIAL_DONE_KEY = 'cursed:tutorial-done';
 
-// 240px: a quick tap always falls short, a held jump makes it with room to
-// spare (checked in a headless timing sweep). 180px could be tapped across.
+// 240px: a quick tap only makes it from the very edge, a held jump has
+// about three times the room (checked in a headless timing sweep).
 const GAP_START_X = 1260;
 const GAP_END_X = 1500;
 const LEVEL_END_X = 3060;
@@ -51,8 +51,8 @@ export const TUTORIAL_LEVEL: LevelVersion = {
 
 // Prompts shown while the player's x is inside [fromX, toX).
 export const TUTORIAL_HINTS: { fromX: number; toX: number; text: string }[] = [
-  { fromX: 0, toX: 680, text: 'Press and hold to jump the candle' },
-  { fromX: 860, toX: GAP_END_X, text: 'Hold longer to jump farther' },
+  { fromX: 0, toX: 680, text: 'Tap to jump the candle' },
+  { fromX: 860, toX: GAP_END_X, text: 'Hold to jump farther' },
   { fromX: 1560, toX: 1980, text: "Don't jump! Let the ghost pass overhead" },
   { fromX: 2100, toX: 2600, text: 'Two in a row' },
   { fromX: 2680, toX: LEVEL_END_X, text: 'Reach the gate!' },

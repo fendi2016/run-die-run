@@ -21,6 +21,7 @@ import {
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
+  MIN_JUMP_HOLD_MS,
   PLAYER_SIZE,
   RUN_SPEED,
   SPEED_BOOST_DURATION_MS,
@@ -309,6 +310,8 @@ export class Player {
   private bufferedHeldMs: number | null = null;
   // Whether the current jump has already been cut short (see cutJump).
   private jumpCut = false;
+  // Time since the current jump took off, for MIN_JUMP_HOLD_MS.
+  private msSinceJump = Number.POSITIVE_INFINITY;
   // True from jump() until the next physics step. Arcade steps at a fixed
   // 60Hz and only refreshes body.blocked on frames that step, so on a
   // 120Hz display (or any frame the accumulator skips) blocked.down still
@@ -461,6 +464,7 @@ export class Player {
 
     this.sprite.setVelocityX(RUN_SPEED * this.speedMultiplier);
     this.updateAnimation();
+    this.msSinceJump += deltaMs;
 
     if (this.releaseCutInMs !== null) {
       this.releaseCutInMs -= deltaMs;
@@ -474,7 +478,8 @@ export class Player {
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
     if (hasBufferedJump && canGroundJump) {
       this.jump();
-      this.releaseCutInMs = this.bufferedHeldMs;
+      this.releaseCutInMs =
+        this.bufferedHeldMs === null ? null : Math.max(this.bufferedHeldMs, MIN_JUMP_HOLD_MS);
     }
   }
 
@@ -485,6 +490,7 @@ export class Player {
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.awaitingTakeoffStep = true;
     this.jumpCut = false;
+    this.msSinceJump = 0;
     this.playGroundDust(JUMP_DUST_SCALE);
     playSfx(this.scene, 'jump');
   }
@@ -713,6 +719,7 @@ export class Player {
     this.msSinceGrounded = Number.POSITIVE_INFINITY;
     this.msSinceJumpPressed = Number.POSITIVE_INFINITY;
     this.releaseCutInMs = null;
+    this.msSinceJump = Number.POSITIVE_INFINITY;
     this.bufferedHeldMs = null;
     this.awaitingTakeoffStep = false;
     this.peakFallSpeed = 0;
@@ -790,6 +797,12 @@ export class Player {
     if (!this.scene.sys.isActive() || !this.alive) return;
     if (this.msSinceJumpPressed !== Number.POSITIVE_INFINITY) {
       this.bufferedHeldMs = this.msSinceJumpPressed;
+    }
+    // Too soon after take-off: cut once the minimum jump is up instead.
+    const minimumLeftMs = MIN_JUMP_HOLD_MS - this.msSinceJump;
+    if (minimumLeftMs > 0) {
+      this.releaseCutInMs = minimumLeftMs;
+      return;
     }
     this.cutJump();
   }
