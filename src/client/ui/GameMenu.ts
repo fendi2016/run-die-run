@@ -43,12 +43,18 @@ export class GameMenu {
       this.handlers?.onBrowse()
     );
     requireButton('game-menu-leaderboard').addEventListener('click', () =>
-      LeaderboardOverlay.instance().show()
+      this.openLeaderboard()
     );
-    requireButton('game-menu-stats-chip').addEventListener('click', () =>
-      StatsOverlay.instance().show(() => this.statsBadgeEl.classList.add('hidden'))
-    );
+    requireButton('game-menu-stats-chip').addEventListener('click', () => this.openStats());
     initFollowButton(requireButton('game-menu-follow-btn'));
+  }
+
+  openLeaderboard(): void {
+    LeaderboardOverlay.instance().show();
+  }
+
+  openStats(): void {
+    StatsOverlay.instance().show(() => this.statsBadgeEl.classList.add('hidden'));
   }
 
   setHandlers(handlers: GameMenuHandlers): void {

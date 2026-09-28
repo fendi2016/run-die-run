@@ -10,48 +10,50 @@
     <title>SKETCHY</title>
   </head>
   <body>
-    <div class="card">
-      <div class="header">
-        <div class="level-card hidden" id="level-card">
-          <div class="level-title" id="level-title"></div>
-          <div class="level-meta">
-            <span class="level-daily hidden" id="level-daily"></span>
-            <span class="level-difficulty" id="level-difficulty"></span>
-            <span id="level-version"></span>
-            <span id="level-clear-rate"></span>
-          </div>
+    <!-- The same menu as game.html's #game-menu (shared menu.css); every
+         button here expands into the game, landing where it points. -->
+    <div id="game-menu">
+      <div id="game-menu-header">
+        <button type="button" id="game-menu-follow-btn" class="game-menu-follow-btn">
+          Follow
+        </button>
+        <div id="splash-level" class="hidden">
+          <span id="splash-level-title"></span>
+          <span id="splash-level-meta"></span>
         </div>
-        <nav class="header-nav">
-          <button type="button" class="secondary-button" id="browse-button">
-            Browse
+        <div id="game-menu-chips">
+          <button type="button" id="game-menu-stats-chip" aria-label="Your stats">
+            <span id="game-menu-stats-label">STATS</span>
+            <span id="game-menu-stats-badge" class="hidden"></span>
           </button>
-          <button type="button" class="play-button" id="play-button">
-            Play
-          </button>
-          <button type="button" class="secondary-button" id="build-button">
-            Build
-          </button>
-        </nav>
-        <div class="header-right">
-          <button type="button" class="follow-button" id="follow-button">
-            Follow
-          </button>
-          <span class="chip stat">
-            <span id="stat-value">···</span>
-            <span class="stat-label">RUNS</span>
+          <span id="game-menu-chip">
+            <span id="game-menu-stat-value">···</span>
+            <span id="game-menu-stat-label">RUNS</span>
           </span>
         </div>
       </div>
-
-      <div class="scene">
-        <div class="attribution">
-          <span class="attribution-label">Made by</span>
-          <span class="attribution-name" id="creator-name">SKETCHY</span>
+      <div id="game-menu-scene">
+        <div id="game-menu-cta">
+          <img id="game-menu-title" src="/assets/ui/title-logo.webp" alt="SKETCHY" />
+          <button type="button" id="game-menu-play" class="game-menu-play">
+            Play
+          </button>
+          <div id="game-menu-secondary-row">
+            <button type="button" id="game-menu-browse" class="game-menu-secondary">
+              Browse
+            </button>
+            <button type="button" id="game-menu-build" class="game-menu-secondary">
+              Build
+            </button>
+            <button type="button" id="game-menu-leaderboard" class="game-menu-secondary">
+              Leaderboard
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div class="course-strip">
-        <div class="course-tagline">Beat the level. Add your curse. Let Reddit deal with it.</div>
+        <div id="game-menu-attribution">
+          <span id="game-menu-attribution-label">Made by</span>
+          <span id="game-menu-creator-name">SKETCHY</span>
+        </div>
       </div>
     </div>
     <script type="module" src="splash.ts" defer></script>

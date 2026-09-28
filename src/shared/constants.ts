@@ -52,7 +52,7 @@ export const EDITOR_SPAWN_BUFFER_CELLS = 2;
 // always landing on the menu, so "Play" on the splash means "play", not
 // "open a menu that also has a Play button".
 export const SPLASH_AUTOSTART_KEY = 'cursed:splash-autostart';
-export type SplashAutostart = 'game' | 'editor' | 'browse';
+export type SplashAutostart = 'game' | 'editor' | 'browse' | 'leaderboard' | 'stats';
 
 // The placeholder "creator" of the hand-authored seed levels (spec section
 // 38, Phase 3) — not a real Reddit account. Shared so the client's death

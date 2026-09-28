@@ -6,23 +6,17 @@ import {
   type SplashAutostart,
 } from '../shared/constants';
 import { isLevelStats } from '../shared/discoveryApi';
+import { isMyCursesResponse } from '../shared/myCursesApi';
 import { isCursedPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { clearRateText, versionText } from './ui/levelStatsText';
 
-const playButton = document.getElementById('play-button') as HTMLButtonElement;
-const buildButton = document.getElementById(
-  'build-button'
-) as HTMLButtonElement;
-const browseButton = document.getElementById(
-  'browse-button'
-) as HTMLButtonElement;
-const statValue = document.getElementById('stat-value') as HTMLSpanElement;
-const creatorName = document.getElementById('creator-name') as HTMLSpanElement;
+// The feed card is the game's main menu (same markup ids and menu.css as
+// game.html's #game-menu); every button expands into the game.
 
-initFollowButton(requireButton('follow-button'));
+initFollowButton(requireButton('game-menu-follow-btn'));
 
 // `requestExpandedMode` only takes a devvit.json entrypoint name, not a
 // route — there's no way to tell it "land on GameScene" directly. Instead,
@@ -34,51 +28,75 @@ function expandInto(event: MouseEvent, target: SplashAutostart): void {
     localStorage.setItem(SPLASH_AUTOSTART_KEY, target);
   } catch {
     // Storage can be unavailable in an embedded/private browser. The
-    // expanded menu still provides all three destinations.
+    // expanded menu still provides every destination.
   }
   requestExpandedMode(event, 'game');
 }
 
-playButton.addEventListener('click', (e) => expandInto(e, 'game'));
-buildButton.addEventListener('click', (e) => expandInto(e, 'editor'));
-browseButton.addEventListener('click', (e) => expandInto(e, 'browse'));
+const targets: [string, SplashAutostart][] = [
+  ['game-menu-play', 'game'],
+  ['game-menu-build', 'editor'],
+  ['game-menu-browse', 'browse'],
+  ['game-menu-leaderboard', 'leaderboard'],
+  ['game-menu-stats-chip', 'stats'],
+];
+for (const [id, target] of targets) {
+  requireButton(id).addEventListener('click', (e) => expandInto(e, target));
+}
 
 // The level this post plays (its postData; a hub post has none and plays
-// today's Level of the Day). Fetched after the interactive content is already up,
-// so a slow/failed request never blocks PLAY.
+// today's Level of the Day). Fetched after the interactive content is
+// already up, so a slow/failed request never blocks PLAY.
 const rawPostData = currentPostData();
 const postData = isCursedPostData(rawPostData) ? rawPostData : undefined;
 const levelId = postData?.levelId ?? HUB_LEVEL_ID;
 
-if (postData?.daily !== undefined) {
-  const daily = requireElement('level-daily');
-  daily.textContent = `Day #${postData.daily}`;
-  daily.classList.remove('hidden');
-}
-
 async function loadStats(): Promise<void> {
   try {
-    const response = await fetch(
-      `/api/discovery/stats/${encodeURIComponent(levelId)}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
+    const response = await fetch(`/api/discovery/stats/${encodeURIComponent(levelId)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
     const body: unknown = await response.json();
     if (!response.ok || !isLevelStats(body)) {
       return;
     }
 
-    statValue.textContent = body.attempts.toLocaleString();
-    creatorName.textContent =
+    requireElement('game-menu-stat-value').textContent = body.attempts.toLocaleString();
+    requireElement('game-menu-creator-name').textContent =
       body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
-    requireElement('level-title').textContent = body.title;
-    requireElement('level-difficulty').textContent = body.difficulty;
-    requireElement('level-version').textContent = versionText(body);
-    requireElement('level-clear-rate').textContent = clearRateText(body);
-    // Only a level post names its level; the hub post keeps a clean card.
-    if (postData) requireElement('level-card').classList.remove('hidden');
+    // Only a level post names its level; the hub post keeps a clean header.
+    if (postData) {
+      const daily = postData.daily !== undefined ? `Day #${postData.daily}` : '';
+      requireElement('splash-level-title').textContent = body.title;
+      requireElement('splash-level-meta').textContent = [
+        daily,
+        body.difficulty,
+        versionText(body),
+        clearRateText(body),
+      ]
+        .filter((part) => part !== '')
+        .join(' · ');
+      requireElement('splash-level').classList.remove('hidden');
+    }
   } catch {
     // Leave the placeholder dashes — PLAY already works either way.
   }
 }
 
+// "N new" on STATS, same as the in-game menu.
+async function loadCurseBadge(): Promise<void> {
+  try {
+    const response = await fetch('/api/me/curses', { signal: AbortSignal.timeout(8000) });
+    const body: unknown = await response.json();
+    if (!response.ok || !isMyCursesResponse(body)) return;
+    const fresh = body.curses.reduce((sum, c) => sum + c.newCaught + c.newPassed, 0);
+    const badge = requireElement('game-menu-stats-badge');
+    badge.textContent = `${fresh} new`;
+    badge.classList.toggle('hidden', fresh === 0);
+  } catch {
+    // No badge; the card works either way.
+  }
+}
+
 void loadStats();
+void loadCurseBadge();

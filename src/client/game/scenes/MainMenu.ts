@@ -59,6 +59,10 @@ export class MainMenu extends Scene {
       discovery.hide();
     });
     if (browseRequested) this.openDiscovery();
+    // The feed card's Leaderboard and STATS land on the menu with that
+    // overlay already open, the same as tapping it here.
+    if (autostart === 'leaderboard') menu.openLeaderboard();
+    if (autostart === 'stats') menu.openStats();
   }
 
   // A first Play on this device runs the tutorial, which then continues to

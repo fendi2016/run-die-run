@@ -1,302 +1,69 @@
-/* Doodlefont by Boogie ("Doodle RPG" asset pack; free for commercial use).
-   Only Regular and Bold ship: every heavier weight in this file maps to Bold. */
-@font-face {
-  font-family: 'Doodlefont';
-  src: url('/assets/fonts/doodlefont-regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Doodlefont';
-  src: url('/assets/fonts/doodlefont-bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
+@import './theme.css';
+@import './menu.css';
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* The feed card is game.html's main menu (menu.css), full-bleed — only the
+   page basics and the level-post header line live here. */
 
 html,
 body {
   height: 100%;
-  background: #fbf8ef;
+  margin: 0;
+  overflow: hidden;
 }
 
 body {
-  display: flex;
-  font-family: 'Doodlefont', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
-  /* Doodlefont's letters run small for their point size; scale by x-height
-     so every existing font-size reads about as big as it did in Arial Black. */
+  font-family: var(--font-hand);
+  /* Same x-height scaling game.css applies to Doodlefont. */
   font-size-adjust: 0.55;
-  overflow: hidden;
+  color: var(--ink);
+  background: var(--paper);
 }
 
-/* The whole rounded card is the app's content — Reddit draws its own post
-   chrome (avatar, title, flair) above this; everything below that is us. */
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 100vh;
-  background: #fbf8ef;
-  border: 3px solid #2b2b2b;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 8px 0 rgba(43, 43, 43, 0.35);
-}
-
-/* Browse/Play/Build live in the header, above its black border, so the
-   art below stays clear (same layout as game.css's #game-menu-header).
-   Narrow cards give them a second row; wide ones fit one 44px row. */
-.header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: 44px auto;
-  grid-template-areas:
-    'info right'
-    'nav nav';
-  align-items: center;
-  column-gap: 8px;
-  padding: 0 14px 10px;
-  background: #f1ecdf;
-  border-bottom: 2px solid #2b2b2b;
-  flex-shrink: 0;
-}
-
-.header-right {
-  grid-area: right;
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-nav {
-  grid-area: nav;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-@media (min-width: 640px) {
-  .header {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    grid-template-rows: 44px;
-    grid-template-areas: 'info nav right';
-    padding-bottom: 0;
-  }
-}
-
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #2b2b2b;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-shadow: none;
-}
-
-.chip.stat #stat-value {
-  color: #3d6ea5;
-}
-
-.scene {
-  position: relative;
-  flex: 1;
-  background-image: linear-gradient(
-      rgba(43, 43, 43, 0) 0%,
-      rgba(43, 43, 43, 0.04) 55%,
-      rgba(43, 43, 43, 0.14) 100%
-    ),
-    url('/assets/ui/menu-background.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  overflow: hidden;
-}
-
-.play-button {
-  padding: 5px 24px;
-  background: #e53935;
-  color: #fdf6f0;
+button {
   font-family: inherit;
-  font-size: 18px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border: 3px solid #2b2b2b;
-  border-radius: 8px;
-  box-shadow: 0 4px 0 #2b2b2b;
-  cursor: pointer;
-  transition:
-    transform 0.08s ease,
-    box-shadow 0.08s ease;
+  touch-action: manipulation;
 }
 
-.play-button:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 #2b2b2b;
+button:focus-visible {
+  outline: var(--line) dashed var(--rule-blue);
+  outline-offset: 3px;
 }
 
-.attribution {
-  position: absolute;
-  left: 10px;
-  bottom: 8px;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-  padding: 4px 9px;
-  background: rgba(251, 248, 239, 0.85);
-  border: 1px solid rgba(43, 43, 43, 0.3);
-  border-radius: 6px;
+.hidden {
+  display: none !important;
 }
 
-.attribution-label {
-  color: rgba(43, 43, 43, 0.6);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.attribution-name {
-  color: #2b2b2b;
-  font-size: 13px;
-  text-shadow: none;
-}
-
-.secondary-button {
-  padding: 7px 16px;
-  background: #ffffff;
-  color: #2b2b2b;
-  font-family: inherit;
-  font-size: 13px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 3px solid #2b2b2b;
-  border-radius: 8px;
-  box-shadow: 0 4px 0 #2b2b2b;
-  cursor: pointer;
-  transition:
-    transform 0.08s ease,
-    box-shadow 0.08s ease;
-}
-
-.secondary-button:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 #2b2b2b;
-}
-
-/* Reddit-orange accent — distinct from the ink-and-paper secondary buttons,
-   since this is specifically a "follow us on Reddit" CTA. Sized down to
-   fit the 44px header instead of the full-scene button dimensions. */
-.follow-button {
-  padding: 6px 14px;
-  background: #ff4500;
-  color: #ffffff;
-  font-family: inherit;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 2px solid #2b2b2b;
-  border-radius: 6px;
-  box-shadow: 0 3px 0 #2b2b2b;
-  cursor: pointer;
-  transition:
-    transform 0.08s ease,
-    box-shadow 0.08s ease;
-}
-
-.follow-button:active {
-  transform: translateY(3px);
-  box-shadow: 0 0 0 #2b2b2b;
-}
-
-.follow-button:disabled {
-  background: rgba(43, 43, 43, 0.12);
-  color: rgba(43, 43, 43, 0.5);
-  cursor: default;
-  transform: none;
-  box-shadow: 0 3px 0 #2b2b2b;
-}
-
-/* The level a level post plays, in the header bar's otherwise empty left
-   side, so it never sits on top of the scene artwork. Hidden on the hub
-   post, which isn't tied to one level. */
-.level-card {
-  grid-area: info;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+/* A level post names its level in the header's free middle; the hub post
+   keeps it empty. Truncates rather than pushing the chips off the card. */
+#splash-level {
+  flex: 1 1 auto;
   min-width: 0;
-  color: #2b2b2b;
-  text-shadow: none;
-}
-
-.level-card.hidden,
-.level-daily.hidden {
-  display: none;
-}
-
-.level-title {
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 1.15;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.level-meta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  line-height: 1.3;
-  white-space: nowrap;
-  text-transform: uppercase;
-  color: rgba(43, 43, 43, 0.65);
-}
-
-.level-meta > span {
-  margin-right: 6px;
-}
-
-.level-difficulty {
-  color: #e53935;
-}
-
-.level-daily {
-  color: #b8860b;
-}
-
-/* Tagline + course silhouette, below the art — never over it. The card is
-   a flex column, so this strip takes its height from the scene. */
-.course-strip {
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 12px 8px;
-  background: #f1ecdf;
-  border-top: 2px solid #2b2b2b;
-}
-.course-tagline {
-  color: #2b2b2b;
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  align-items: center;
+  padding: 0 10px;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  line-height: 1.2;
   text-align: center;
-  text-shadow: none;
-  white-space: nowrap;
+}
+
+#splash-level-title,
+#splash-level-meta {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-@media (max-width: 380px) {
-  .course-tagline {
-    font-size: 9.5px;
-  }
+
+#splash-level-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+#splash-level-meta {
+  font-size: var(--text-min);
+  font-weight: 600;
+  color: var(--ink-soft);
 }
