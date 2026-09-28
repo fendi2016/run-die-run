@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { DEFAULT_LEVEL_ID } from '../../shared/constants';
+import { buildCoursePreview, type CoursePreview } from '../../shared/coursePreview';
 import { resolveLevelId } from '../services/DailyService';
 import { getCurrentLevelVersion } from '../services/LevelService';
 import type { LevelVersion } from '../../shared/types';
@@ -10,6 +11,24 @@ type ErrorResponse = {
 };
 
 export const levels = new Hono();
+
+// Registered before `/:levelId` so Hono matches this route first for
+// `/api/levels/<id>/preview` instead of treating `preview` as part of the
+// level id pattern.
+levels.get('/:levelId/preview', async (c) => {
+  const requestedId = c.req.param('levelId');
+  const levelId = await resolveLevelId(requestedId);
+  const level =
+    (await getCurrentLevelVersion(levelId)) ??
+    (levelId !== requestedId ? await getCurrentLevelVersion(DEFAULT_LEVEL_ID) : undefined);
+  if (!level) {
+    return c.json<ErrorResponse>(
+      { status: 'error', message: `Unknown level "${levelId}"` },
+      404
+    );
+  }
+  return c.json<CoursePreview>(buildCoursePreview(level));
+});
 
 levels.get('/:levelId', async (c) => {
   const requestedId = c.req.param('levelId');
