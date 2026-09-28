@@ -338,7 +338,7 @@ export class GameScene extends Scene {
   private onPostUpdate(): void {
     if (!this.player) return;
     this.interpolation?.apply();
-    this.player.syncEffectSprites();
+    this.player.syncVisuals();
     this.cameras.main.scrollX = this.cameraScrollXFor(this.player.sprite.x);
   }
 

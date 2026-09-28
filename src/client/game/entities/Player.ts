@@ -246,6 +246,37 @@ const ANIM_SCALE_TABLES: Record<string, AnimScaleTable> = {
 // non-physics display sprite mirroring this one's position).
 const PLAYER_BASE_SCALE = PLAYER_SIZE / PLAYER_FRAME_SIZE;
 
+// Everything below only shapes how the character is *drawn* — it's applied
+// to `display`, a plain sprite that mirrors the physics sprite every frame,
+// never to the physics sprite itself (whose scale sizes the Arcade body).
+// So none of it moves the hitbox, the jump, or anything a level was
+// verified against.
+//
+// Squash and stretch (+ = taller and thinner, - = shorter and wider, area
+// kept) rides a spring back to rest, so a landing or take-off pops and then
+// settles with one small overshoot instead of snapping between poses.
+// Stiffness 900 (~30 rad/s) settles in about a tenth of a second; damping
+// 27 (ratio ~0.45) gives the single rebound.
+const SQUASH_STIFFNESS = 900;
+const SQUASH_DAMPING = 27;
+const TAKEOFF_STRETCH = 0.2;
+// Landing squash grows with how fast the player came down. A hop onto
+// level ground (~620px/s) lands at about 0.18.
+const LANDING_SQUASH_PER_SPEED = 1 / 3500;
+const LANDING_SQUASH_MIN = 0.08;
+const LANDING_SQUASH_MAX = 0.25;
+// Below this, "landing" is just ground-contact noise, not a real fall.
+const LANDING_SQUASH_MIN_SPEED = 200;
+// In the air the body stretches a little along its speed and eases round
+// at the apex, so the held tuck/fall poses don't hang there frozen.
+const AIR_STRETCH_MAX = 0.06;
+// No airborne tilt: Phaser 4.2.1 drew rotated player poses with
+// rectangular chunks missing (reproduced with plain rotated sprites in the
+// headless harness), so the display sprite is never rotated.
+
+// Spring integration step, so a long frame can't make it overshoot wildly.
+const VISUAL_SUBSTEP_S = 1 / 240;
+
 function ensurePlayerAnims(scene: Phaser.Scene): void {
   if (!scene.anims.exists(RUN_ANIM_KEY)) {
     scene.anims.create({
@@ -322,6 +353,14 @@ export class Player {
   // Read on the landing frame because body.velocity.y is already 0 there.
   private peakFallSpeed = 0;
 
+  // What's actually drawn (see the squash/stretch notes above
+  // SQUASH_STIFFNESS). The physics sprite keeps animating, flashing, and
+  // hiding exactly as before but at alpha 0; syncVisuals copies its pose
+  // onto this every frame.
+  private readonly display: Phaser.GameObjects.Sprite;
+  private squash = 0;
+  private squashVelocity = 0;
+
   // Power-up state (spec section 21) — all re-collectible, so everything
   // here resets in `reset()` rather than persisting across attempts.
   private hasShield = false;
@@ -356,6 +395,10 @@ export class Player {
     // player free-fell through the floor every run instead of landing.
     this.sprite.setOrigin(0.5, 1);
     this.sprite.setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+    this.sprite.setAlpha(0);
+    // Feet-anchored like the physics sprite, so squash and stretch grow
+    // and shrink the body from the ground up.
+    this.display = scene.add.sprite(x, y, PLAYER_IDLE_KEY).setOrigin(0.5, 1);
     ensurePlayerAnims(scene);
 
     const body = this.sprite.body;
@@ -400,16 +443,46 @@ export class Player {
     );
   }
 
-  // Neither effect sprite has any position logic of its own (Juice's
-  // attachElectricShield/playHyperspeedTrail just place-and-return) — this
-  // is what actually makes them "escort" the player. GameScene calls it
-  // every frame after PhysicsInterpolation has placed the sprite where it
-  // will be drawn — syncing in update() pinned the escorts to the stepped
-  // position instead, visibly trailing or leading the drawn player.
-  syncEffectSprites(): void {
+  // Called by GameScene every frame after PhysicsInterpolation has placed
+  // the physics sprite where it will be drawn. Poses the display sprite on
+  // it, then the escorts: neither effect sprite has any position logic of
+  // its own (Juice's attachElectricShield/playHyperspeedTrail just
+  // place-and-return) — this is what makes them follow the player.
+  syncVisuals(): void {
+    this.updateDisplay(Math.min(this.scene.game.loop.delta, 100) / 1000);
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
     this.fitHyperspeedSprite();
+  }
+
+  private updateDisplay(dtS: number): void {
+    const sprite = this.sprite;
+    const airborne = this.alive && !this.waitingToStart && !this.isGrounded;
+    const vy = this.body.velocity.y;
+
+    const restSquash = airborne
+      ? AIR_STRETCH_MAX * Math.min(1, Math.abs(vy) / JUMP_VELOCITY)
+      : 0;
+    for (let left = dtS; left > 0; left -= VISUAL_SUBSTEP_S) {
+      const h = Math.min(VISUAL_SUBSTEP_S, left);
+      this.squashVelocity +=
+        (-SQUASH_STIFFNESS * (this.squash - restSquash) - SQUASH_DAMPING * this.squashVelocity) * h;
+      this.squash += this.squashVelocity * h;
+    }
+
+    const display = this.display;
+    if (display.texture !== sprite.texture || display.frame !== sprite.frame) {
+      display.setTexture(sprite.texture.key, sprite.frame.name);
+    }
+    display.setVisible(sprite.visible);
+    const stretch = 1 + this.squash;
+    display.setScale(sprite.scaleX / stretch, sprite.scaleY * stretch);
+    display.setPosition(sprite.x, sprite.y);
+  }
+
+  private resetDisplayMotion(): void {
+    this.squash = 0;
+    this.squashVelocity = 0;
   }
 
   // Streams the Speed Boost trail straight off the character's back, head
@@ -421,9 +494,8 @@ export class Player {
   // extent — a fixed box put streaks above the head (user report).
   private fitHyperspeedSprite(): void {
     if (!this.hyperspeedSprite) return;
-    const sprite = this.sprite;
+    const sprite = this.display;
     const bounds = opaqueFrameBounds(sprite.frame);
-    // Origin is (0.5, 1): x is the frame's horizontal center, y its bottom.
     const frameLeft = sprite.x - sprite.width * sprite.originX * sprite.scaleX;
     const frameTop = sprite.y - sprite.height * sprite.originY * sprite.scaleY;
     fitHyperspeedTrail(
@@ -491,6 +563,8 @@ export class Player {
     this.msSinceJump = 0;
     this.playGroundDust(JUMP_DUST_SCALE);
     playSfx(this.scene, 'jump');
+    this.squash = TAKEOFF_STRETCH;
+    this.squashVelocity = 0;
   }
 
   private playGroundDust(scale: number): void {
@@ -505,8 +579,18 @@ export class Player {
       this.peakFallSpeed = Math.max(this.peakFallSpeed, this.body.velocity.y);
       return;
     }
-    if (this.peakFallSpeed >= HARD_LANDING_SPEED && this.alive && !this.waitingToStart) {
-      this.playGroundDust(LANDING_DUST_SCALE);
+    if (this.alive && !this.waitingToStart) {
+      if (this.peakFallSpeed >= HARD_LANDING_SPEED) {
+        this.playGroundDust(LANDING_DUST_SCALE);
+      }
+      if (this.peakFallSpeed >= LANDING_SQUASH_MIN_SPEED) {
+        this.squash = -Phaser.Math.Clamp(
+          this.peakFallSpeed * LANDING_SQUASH_PER_SPEED,
+          LANDING_SQUASH_MIN,
+          LANDING_SQUASH_MAX
+        );
+        this.squashVelocity = 0;
+      }
     }
     this.peakFallSpeed = 0;
   }
@@ -721,6 +805,7 @@ export class Player {
     this.bufferedHeldMs = null;
     this.awaitingTakeoffStep = false;
     this.peakFallSpeed = 0;
+    this.resetDisplayMotion();
     this.alive = true;
     this.waitingToStart = waiting;
     if (waiting) {
@@ -744,6 +829,7 @@ export class Player {
     this.clearEffectSprites();
     this.speedBoostTimer?.remove();
     this.inputSystem.destroy();
+    this.display.destroy();
     this.scene.physics.world?.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.onWorldStep, this);
     this.scene.events.off(JUMP_DOWN_EVENT, this.onJumpPressed, this);
     this.scene.events.off(JUMP_UP_EVENT, this.onJumpReleased, this);
