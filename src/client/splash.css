@@ -273,9 +273,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.course-preview {
-  height: 30px;
-}
 @media (max-width: 380px) {
   .course-tagline {
     font-size: 9.5px;
