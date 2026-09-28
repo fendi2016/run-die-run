@@ -33,10 +33,9 @@ import {
 // — easier to tell which pose is which at a glance, and to swap one out
 // without recomputing a grid offset. See player/*.webp in public/assets.
 //
-// player-run-1..6 is a genuine six-pose run cycle (drawn with alternating
-// leg/arm contact poses, not near-duplicates — unlike the original 4x2
-// sheet, which only had one distinct leg pose and no way to fake a second
-// one that didn't look like the character spinning to face backwards).
+// player-run-1..8 is one pencil stride (contact → passing → contact),
+// picked evenly from the 25-frame autosprite run sheet after sorting its
+// cells by pose — the sheet's grid order isn't playback order.
 export const PLAYER_TEXTURE_KEYS = [
   'player-idle',
   'player-run-1',
@@ -45,6 +44,8 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-run-4',
   'player-run-5',
   'player-run-6',
+  'player-run-7',
+  'player-run-8',
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
@@ -71,6 +72,8 @@ const RUN_KEYS = [
   'player-run-4',
   'player-run-5',
   'player-run-6',
+  'player-run-7',
+  'player-run-8',
 ];
 const RISE_KEY = 'player-jump-rise';
 const TUCK_KEY = 'player-jump-tuck';
@@ -181,21 +184,19 @@ function opaqueFrameBounds(frame: Phaser.Textures.Frame): OpaqueBounds {
   opaqueBoundsCache.set(cacheKey, bounds);
   return bounds;
 }
-// Per-frame hold times (ms) for the run cycle, in place of a flat frameRate.
-// run-1/4 are the contact poses (foot planted) and read best with a beat of
-// hang time; run-2/5 are the fast mid-stride recoil; run-3/6 are the
-// high-point passing poses. Holding contact longer than passing is the same
-// asymmetric timing classic hand-drawn walk/run cycles use to sell weight
-// and stride rather than a mechanical, evenly-spaced frame flip.
-const RUN_FRAME_DURATIONS_MS: readonly number[] = [70, 38, 52, 70, 38, 52];
-// Squash on contact, stretch through the passing/high point — synced to the
-// same six frames via ANIMATION_UPDATE (see onAnimFrameUpdate). Multiplied
-// against the base PLAYER_SIZE scale, not set absolutely.
+// Per-frame hold times (ms) for the run cycle. The eight poses are one step,
+// so the loop is ~160ms — about how long a step of this leg span takes at
+// RUN_SPEED, keeping the feet from skating.
+const RUN_FRAME_DURATIONS_MS: readonly number[] = [20, 20, 20, 20, 20, 20, 20, 20];
+// Squash on contact (run-1, legs fully extended), stretch through the
+// passing pose (run-5) — synced to the same eight frames via
+// ANIMATION_UPDATE (see onAnimFrameUpdate). Multiplied against the base
+// PLAYER_SIZE scale, not set absolutely.
 const RUN_SCALE_X_FACTORS: readonly number[] = [
-  1.05, 0.99, 0.96, 1.05, 0.99, 0.96,
+  1.05, 1.03, 0.99, 0.97, 0.96, 0.97, 0.99, 1.03,
 ];
 const RUN_SCALE_Y_FACTORS: readonly number[] = [
-  0.94, 1.02, 1.06, 0.94, 1.02, 1.06,
+  0.94, 0.97, 1.02, 1.05, 1.06, 1.05, 1.02, 0.97,
 ];
 // Same trick as the run cycle's squash/stretch above, applied to the dance
 // loop — without it the dance is just a slideshow of static poses cut on
