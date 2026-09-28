@@ -373,6 +373,52 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   cursor: pointer;
 }
 
+/* "Your curses" (StatsOverlay) and the STATS chip's "N new" badge. */
+#game-menu-stats-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #ff3b5c;
+  color: #ffffff;
+  font-size: 10px;
+}
+
+#game-menu-stats-badge.hidden {
+  display: none;
+}
+
+#stats-curses-title {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #39ff88;
+}
+
+#stats-curses {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+#stats-curses li {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+
+.stats-curse-level {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+}
+
+.stats-curse-new {
+  margin-left: 6px;
+  color: #ffd166;
+  font-size: 11px;
+}
+
 /* Death toast: dying respawns on its own (GameScene), so this only
    reports who killed you. Pinned under the run HUD's progress bar, never interactive —
    taps pass through to the canvas as jumps. `max-width` + `box-sizing`

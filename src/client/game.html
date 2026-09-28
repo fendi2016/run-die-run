@@ -134,6 +134,8 @@
               <span class="stats-label">Curse Kills</span>
               <span id="stats-contribution-kills">···</span>
             </div>
+            <div id="stats-curses-title">Your curses</div>
+            <ol id="stats-curses"></ol>
           </div>
           <div class="editor-dialog-actions">
             <button type="button" id="stats-close" class="editor-btn">
@@ -175,6 +177,7 @@
           <div id="game-menu-chips">
             <button type="button" id="game-menu-stats-chip" aria-label="Your stats">
               <span id="game-menu-stats-label">STATS</span>
+              <span id="game-menu-stats-badge" class="hidden"></span>
             </button>
             <span id="game-menu-chip">
               <span id="game-menu-stat-value">···</span>
@@ -447,6 +450,10 @@
             >
               <span class="editor-btn-icon">&#9889;</span>
               <span class="editor-btn-label">Power-Up</span>
+            </button>
+            <button type="button" id="curse-more-options" class="editor-btn hidden">
+              <span class="editor-btn-icon">&#8943;</span>
+              <span class="editor-btn-label">More options</span>
             </button>
             <span class="editor-divider"></span>
             <button

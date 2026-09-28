@@ -1,3 +1,4 @@
+import { isMyCursesResponse } from '../../shared/myCursesApi';
 import { SEED_AUTHOR } from '../../shared/constants';
 import { getRequestedLevelId } from '../game/levelSelection';
 import { isLevelStats } from '../../shared/discoveryApi';
@@ -29,6 +30,7 @@ export class GameMenu {
   private readonly root = requireElement('game-menu');
   private readonly statValueEl = requireElement('game-menu-stat-value');
   private readonly creatorNameEl = requireElement('game-menu-creator-name');
+  private readonly statsBadgeEl = requireElement('game-menu-stats-badge');
 
   private constructor() {
     requireButton('game-menu-play').addEventListener('click', () =>
@@ -44,7 +46,7 @@ export class GameMenu {
       LeaderboardOverlay.instance().show()
     );
     requireButton('game-menu-stats-chip').addEventListener('click', () =>
-      StatsOverlay.instance().show()
+      StatsOverlay.instance().show(() => this.statsBadgeEl.classList.add('hidden'))
     );
     initFollowButton(requireButton('game-menu-follow-btn'));
   }
@@ -56,6 +58,22 @@ export class GameMenu {
   show(): void {
     this.root.classList.remove('hidden');
     void this.refreshStats();
+    void this.refreshCurseBadge();
+  }
+
+  // "N new" on the STATS chip when other players have hit (or got past)
+  // this player's curses since they last opened their stats.
+  private async refreshCurseBadge(): Promise<void> {
+    try {
+      const response = await fetch('/api/me/curses', { signal: AbortSignal.timeout(8000) });
+      const body: unknown = await response.json();
+      if (!response.ok || !isMyCursesResponse(body)) return;
+      const fresh = body.curses.reduce((sum, c) => sum + c.newCaught + c.newPassed, 0);
+      this.statsBadgeEl.textContent = `${fresh} new`;
+      this.statsBadgeEl.classList.toggle('hidden', fresh === 0);
+    } catch {
+      // No badge; the menu works either way.
+    }
   }
 
   hide(): void {

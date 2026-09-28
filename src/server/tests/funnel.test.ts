@@ -4,6 +4,8 @@ import { GRID_CELL_SIZE, GROUND_TOP_Y, SEED_AUTHOR } from '../../shared/constant
 import type { LevelObject, LevelVersion, ObjectType } from '../../shared/types';
 import { buildCoursePreview, isCoursePreview } from '../../shared/coursePreview';
 import { renderCoursePreviewSvg } from '../../shared/coursePreviewSvg';
+import { passedHazardIds } from '../../shared/trapStats';
+import { suggestCurseCells } from '../../shared/curseSuggestions';
 
 export function obj(id: string, type: ObjectType, x: number, y = GROUND_TOP_Y, addedBy = SEED_AUTHOR): LevelObject {
   return { id, type, x, y, properties: {}, addedBy, addedInVersion: 1 };
@@ -55,7 +57,6 @@ await test('preview svg contains only numeric geometry (no injected text)', () =
   assert.equal(svg.includes('<text'), false);
 });
 
-import { passedHazardIds } from '../../shared/trapStats';
 
 await test("passes count only other players' traps fully behind the player", () => {
   const objects = [
@@ -68,4 +69,29 @@ await test("passes count only other players' traps fully behind the player", () 
   assert.deepEqual(passedHazardIds(objects, 400, 'alice'), ['a']);
   assert.deepEqual(passedHazardIds(objects, 620, 'alice'), ['a'], 'still inside the saw cell');
   assert.deepEqual(passedHazardIds(objects, 'clear', 'alice').sort(), ['a', 'b']);
+});
+
+
+await test('suggestions sit on open ground, away from spawn, finish, gaps and other traps', () => {
+  const objects = [...groundTiles(0, 1800), ...groundTiles(1920, 3000),
+    obj('s', 'spawn', 90), obj('f', 'finish', 2910), obj('c', 'candle', 1230)];
+  const cells = suggestCurseCells(objects, 3);
+  assert.equal(cells.length, 3);
+  for (const { x, y } of cells) {
+    assert.equal(y, GROUND_TOP_Y);
+    assert.ok(x >= 90 + 4 * GRID_CELL_SIZE, 'clear of spawn');
+    assert.ok(x <= 2910 - 3 * GRID_CELL_SIZE, 'clear of finish');
+    assert.ok(Math.abs(x - 1230) > 2 * GRID_CELL_SIZE, 'clear of the existing candle');
+    assert.ok(x < 1800 - GRID_CELL_SIZE || x > 1920 + GRID_CELL_SIZE, 'not on a gap edge');
+  }
+  const [first, second] = cells;
+  assert.ok(first && second && second.x - first.x >= 4 * GRID_CELL_SIZE, 'spread out');
+});
+
+await test('suggestions degrade to fewer (or none) on a cramped level', () => {
+  assert.deepEqual(suggestCurseCells([...groundTiles(0, 480), obj('s', 'spawn', 90), obj('f', 'finish', 420)], 3), []);
+  assert.deepEqual(suggestCurseCells([], 3), []);
+  const packed = [...groundTiles(0, 1200), obj('s', 'spawn', 90), obj('f', 'finish', 1110),
+    ...[390, 510, 630, 750, 870].map((x) => obj(`h${x}`, 'saw', x))];
+  assert.deepEqual(suggestCurseCells(packed, 3), []);
 });

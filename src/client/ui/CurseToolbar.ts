@@ -2,6 +2,7 @@ import {
   CURSE_CATEGORY_TYPES,
   type CurseCategory,
 } from '../../shared/editorApi';
+import { GUIDED_CURSE_TYPES } from '../../shared/curseSuggestions';
 import type { ObjectType } from '../../shared/types';
 import { requireButton, requireElement } from './domUtils';
 
@@ -63,6 +64,10 @@ export class CurseToolbar {
   // implicitly (see CurseScene.growExtensionToReach's comment).
   private readonly extendBtn = requireButton('curse-extend');
   private readonly removeBtn = requireButton('curse-remove');
+  // Guided mode (a player's first curse): three picks instead of the
+  // category tiles, plus this way out to the full palette.
+  private readonly moreOptionsBtn = requireButton('curse-more-options');
+  private onMoreOptions: (() => void) | undefined;
   private readonly categoryButtons = new Map<
     CurseCategory,
     HTMLButtonElement
@@ -100,6 +105,11 @@ export class CurseToolbar {
     this.removeBtn.addEventListener('click', () => this.handlers?.onRemove());
     this.clearBtn.addEventListener('click', () => this.handlers?.onClear());
     this.proveBtn.addEventListener('click', () => this.handlers?.onProve());
+    this.moreOptionsBtn.addEventListener('click', () => {
+      const onMoreOptions = this.onMoreOptions;
+      this.setGuided(false);
+      onMoreOptions?.();
+    });
     requireButton('curse-cancel').addEventListener('click', () =>
       this.handlers?.onCancel()
     );
@@ -143,6 +153,24 @@ export class CurseToolbar {
     for (const [t, button] of this.typeButtons) {
       button.classList.toggle('active', t === type);
     }
+  }
+
+  // On: only GUIDED_CURSE_TYPES and "More options" show. Off: the normal
+  // category tiles come back; `onMoreOptions` restores the active category.
+  setGuided(enabled: boolean, onMoreOptions?: () => void): void {
+    this.onMoreOptions = enabled ? onMoreOptions : undefined;
+    this.moreOptionsBtn.classList.toggle('hidden', !enabled);
+    for (const button of this.categoryButtons.values()) {
+      button.classList.toggle('hidden', enabled);
+    }
+    if (!enabled) return;
+    const picks = new Set(GUIDED_CURSE_TYPES);
+    for (const [type, button] of this.typeButtons) {
+      button.classList.toggle('hidden', !picks.has(type));
+    }
+    this.extendBtn.classList.add('hidden');
+    this.removeBtn.classList.add('hidden');
+    this.showMessage('Pick a trap, then tap a glowing spot — or anywhere you like.');
   }
 
   setEditingEnabled(enabled: boolean): void {

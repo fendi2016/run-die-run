@@ -268,6 +268,55 @@ try {
   await post.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'real');
   await post.close();
 
+  // A player's first curse is guided: three picks, glowing suggestions,
+  // and placement still allowed anywhere. Anyone with a curse gets the
+  // normal palette.
+  const guidedLevel = funnelLevel('cursable');
+  guidedLevel.objects = [fb('spawn', 'spawn', 90), fb('finish', 'finish', 2310),
+    ...Array.from({ length: 40 }, (_, i) => fb(`g${i}`, 'ground', 30 + i * 60))];
+  const cursePage = async (curses) => {
+    const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.route('**/api/**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/levels/cursable') return route.fulfill({ json: guidedLevel });
+      if (path === '/api/me/curses') return route.fulfill({ json: { curses } });
+      return route.fulfill({ status: 404, body: '' });
+    });
+    await page.goto(`http://127.0.0.1:${server.address().port}/game.html`);
+    await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
+    // From MainMenu itself, so its shutdown hides the menu overlay.
+    await page.evaluate(() => window.__PHASER_GAME__.scene.getScene('MainMenu').scene.start('CurseScene', { levelId: 'cursable' }));
+    await page.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('CurseScene')?.baseLevel);
+    return page;
+  };
+  const guidedPage = await cursePage([]);
+  await guidedPage.waitForSelector('#curse-more-options', { state: 'visible' });
+  const visibleTypes = await guidedPage.evaluate(() =>
+    [...document.querySelectorAll('[id^="curse-type-"]')].filter((b) => !b.classList.contains('hidden')).map((b) => b.id).sort());
+  assert.deepEqual(visibleTypes, ['curse-type-candle', 'curse-type-ghost', 'curse-type-saw']);
+  assert.equal(await guidedPage.isVisible('#curse-category-hazard'), false);
+  const suggestionCount = await guidedPage.evaluate(() => window.__PHASER_GAME__.scene.getScene('CurseScene').suggestions.length);
+  assert.ok(suggestionCount >= 1 && suggestionCount <= 3, `suggestions: ${suggestionCount}`);
+  await guidedPage.click('#curse-type-candle');
+  const placed = await guidedPage.evaluate(() => {
+    const scene = window.__PHASER_GAME__.scene.getScene('CurseScene');
+    const taken = new Set(scene.suggestions.map((s) => s.x));
+    const tileX = [...Array(38).keys()].find((i) => !taken.has(30 + i * 60) && i > 6);
+    scene.onBoardTileTap({}, { x: tileX, y: 5 });
+    return scene.pending;
+  });
+  assert.ok(placed, 'a non-suggested cell still takes the curse');
+  await guidedPage.click('#curse-more-options');
+  assert.equal(await guidedPage.isVisible('#curse-category-hazard'), true);
+  await guidedPage.close();
+  const veteranPage = await cursePage([{ objectId: 'o', levelId: 'x', levelTitle: 'X', type: 'saw', placedAt: 1,
+    caught: 0, passed: 0, newCaught: 0, newPassed: 0 }]);
+  await veteranPage.waitForTimeout(300);
+  assert.equal(await veteranPage.isVisible('#curse-more-options'), false);
+  assert.equal(await veteranPage.isVisible('#curse-category-hazard'), true);
+  await veteranPage.close();
+
   // First Play on a device runs the tutorial; Skip remembers that and
   // carries on to the requested level, and later Plays go straight there.
   const fresh = await browser.newPage({ viewport: { width: 844, height: 390 } });
