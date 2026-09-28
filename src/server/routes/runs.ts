@@ -1,13 +1,11 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { context, realtime, redis } from '@devvit/web/server';
-import { CURRENCY_PER_CLEAR } from '../../shared/constants';
 import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
 import { queueDiscoveryActivity } from '../services/DiscoveryService';
 import { withTransaction } from '../core/transactions';
 import {
   clearedVersionsKey,
-  currencyKey,
   levelAttemptsKey,
   levelContributorKillsKey,
   levelVersionKey,
@@ -145,17 +143,10 @@ runs.post('/', async (c) => {
   const fingerprint = JSON.stringify({ levelId, version, timeMs });
   const clearedKey = clearedVersionsKey(username);
   const clearField = `${levelId}:${version}`;
-  const currencyBalanceKey = currencyKey(username);
   const streaksKey = streaksLeaderboardKey();
 
-  const {
-    isNewWorldRecord,
-    streak,
-    isNewStreakIncrease,
-    currencyAwarded,
-    currencyBalance,
-  } = await withTransaction(
-    [leaderboardKey, dedupeKey, clearedKey, currencyBalanceKey, streaksKey],
+  const { isNewWorldRecord, streak, isNewStreakIncrease } = await withTransaction(
+    [leaderboardKey, dedupeKey, clearedKey, streaksKey],
     async (tx) => {
       // Independent reads against unrelated keys — read them all up front
       // instead of one after the other, saving Redis round-trips on every
@@ -166,14 +157,12 @@ runs.post('/', async (c) => {
         previousWorldRecordTop,
         alreadyCleared,
         currentStreak,
-        currentCurrency,
       ] = await Promise.all([
         redis.get(dedupeKey),
         redis.zScore(leaderboardKey, username),
         redis.zRange(leaderboardKey, 0, 0, { by: 'rank' }),
         redis.hGet(clearedKey, clearField).then((value) => value !== undefined),
         redis.hLen(clearedKey),
-        redis.get(currencyBalanceKey),
       ]);
       const isDuplicate = previousSubmission !== undefined;
       if (body.submissionId && isDuplicate && previousSubmission !== fingerprint) {
@@ -193,15 +182,6 @@ runs.post('/', async (c) => {
         }
       }
 
-      // Flat currency per non-duplicate clear (no shop to balance a curve
-      // against yet — see shared/constants.ts), regardless of whether this
-      // version was already cleared before or beats a personal best.
-      const currencyAwarded = isDuplicate ? 0 : CURRENCY_PER_CLEAR;
-      if (currencyAwarded > 0) {
-        await tx.incrBy(currencyBalanceKey, currencyAwarded);
-      }
-      const currencyBalance = Number(currentCurrency ?? 0) + currencyAwarded;
-
       // Clear Streaks (spec section 28): a lifetime count of unique
       // (levelId, version) pairs cleared, never reset — only grows the
       // first time a given version is cleared, a replay is a no-op.
@@ -219,8 +199,6 @@ runs.post('/', async (c) => {
             isNewWorldRecord: false,
             streak,
             isNewStreakIncrease,
-            currencyAwarded,
-            currencyBalance,
           },
         };
       }
@@ -233,8 +211,6 @@ runs.post('/', async (c) => {
             (previousWorldRecordMs === undefined || timeMs < previousWorldRecordMs),
           streak,
           isNewStreakIncrease,
-          currencyAwarded,
-          currencyBalance,
         },
       };
     }
@@ -256,8 +232,6 @@ runs.post('/', async (c) => {
     timeMs,
     streak,
     isNewStreakIncrease,
-    currencyAwarded,
-    currencyBalance,
   });
 });
 

@@ -1,6 +1,5 @@
 import { SEED_AUTHOR } from '../../shared/constants';
 import { getRequestedLevelId } from '../game/levelSelection';
-import { isCurrencyBalanceResponse } from '../../shared/currencyApi';
 import { isLevelStats } from '../../shared/discoveryApi';
 import { requireButton, requireElement } from './domUtils';
 import { initFollowButton } from './followButton';
@@ -30,7 +29,6 @@ export class GameMenu {
   private readonly root = requireElement('game-menu');
   private readonly statValueEl = requireElement('game-menu-stat-value');
   private readonly creatorNameEl = requireElement('game-menu-creator-name');
-  private readonly currencyValueEl = requireElement('game-menu-currency-value');
 
   private constructor() {
     requireButton('game-menu-play').addEventListener('click', () =>
@@ -45,7 +43,7 @@ export class GameMenu {
     requireButton('game-menu-leaderboard').addEventListener('click', () =>
       LeaderboardOverlay.instance().show()
     );
-    requireButton('game-menu-currency-chip').addEventListener('click', () =>
+    requireButton('game-menu-stats-chip').addEventListener('click', () =>
       StatsOverlay.instance().show()
     );
     initFollowButton(requireButton('game-menu-follow-btn'));
@@ -58,7 +56,6 @@ export class GameMenu {
   show(): void {
     this.root.classList.remove('hidden');
     void this.refreshStats();
-    void this.refreshCurrency();
   }
 
   hide(): void {
@@ -81,19 +78,6 @@ export class GameMenu {
         body.creatorUsername === SEED_AUTHOR ? 'CURSED' : `u/${body.creatorUsername}`;
     } catch {
       // Leave the placeholder dashes — the menu already works either way.
-    }
-  }
-
-  private async refreshCurrency(): Promise<void> {
-    try {
-      const response = await fetch('/api/currency');
-      const body: unknown = await response.json();
-      if (!response.ok || !isCurrencyBalanceResponse(body)) {
-        return;
-      }
-      this.currencyValueEl.textContent = body.balance.toLocaleString();
-    } catch {
-      // Leave the placeholder dash — the menu already works either way.
     }
   }
 }

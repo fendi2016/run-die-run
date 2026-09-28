@@ -1,11 +1,11 @@
 import { isUserStatsResponse, type UserStatsResponse } from '../../shared/userStatsApi';
 import { requireButton, requireElement } from './domUtils';
 
-// DOM overlay for a personal "your stats" snapshot — currency, clear
-// streak, total clears, levels created, and curse kills, each already
-// tracked server-side (see userStats.ts) but never surfaced in one place
-// before. Opened by tapping the SHARDS chip in GameMenu. Singleton, same
-// pattern as LeaderboardOverlay/DiscoveryOverlay.
+// DOM overlay for a personal "your stats" snapshot — clear streak, total
+// clears, levels created, and curse kills, each already tracked
+// server-side (see userStats.ts) but never surfaced in one place before.
+// Opened by tapping the stats chip in GameMenu. Singleton, same pattern as
+// LeaderboardOverlay/DiscoveryOverlay.
 export class StatsOverlay {
   private static singleton: StatsOverlay | undefined;
 
@@ -17,7 +17,6 @@ export class StatsOverlay {
   private readonly messageEl = requireElement('stats-message');
   private readonly listEl = requireElement('stats-list');
   private readonly closeBtn = requireButton('stats-close');
-  private readonly currencyEl = requireElement('stats-currency');
   private readonly streakEl = requireElement('stats-streak');
   private readonly totalClearsEl = requireElement('stats-total-clears');
   private readonly levelsCreatedEl = requireElement('stats-levels-created');
@@ -71,7 +70,6 @@ export class StatsOverlay {
   private render(stats: UserStatsResponse): void {
     this.messageEl.classList.add('hidden');
     this.listEl.classList.remove('hidden');
-    this.currencyEl.textContent = stats.currencyBalance.toLocaleString();
     this.streakEl.textContent = stats.clearStreak.toLocaleString();
     this.totalClearsEl.textContent = stats.totalClears.toLocaleString();
     this.levelsCreatedEl.textContent = stats.levelsCreated.toLocaleString();

@@ -181,7 +181,6 @@ const { publish } = await import('../routes/publish');
 const { curse } = await import('../routes/curse');
 const { runs } = await import('../routes/runs');
 const { leaderboard } = await import('../routes/leaderboard');
-const { currency } = await import('../routes/currency');
 const { createCandidate, markCandidateVerified, getCandidate, validatePlacement, validateCurseObject } =
   await import('../services/VerificationService');
 const { getCurrentLevelVersion } = await import('../services/LevelService');
@@ -191,7 +190,6 @@ const {
   trapKillsKey,
   userContributionsKey,
   clearedVersionsKey,
-  currencyKey,
   streaksLeaderboardKey,
 } = await import('../core/redisKeys');
 const {
@@ -205,7 +203,6 @@ const { isSubmitRunResponse, isTrapKillResponse } = await import(
 const { isCursersLeaderboardResponse } = await import(
   '../../shared/leaderboardApi'
 );
-const { isCurrencyBalanceResponse } = await import('../../shared/currencyApi');
 const { withTransaction } = await import('../core/transactions');
 const { clearDiscoveryCache } = await import('../routes/discovery');
 
@@ -1110,13 +1107,12 @@ await test('publishing the same imported draft assigns independent trap identiti
 });
 
 
-// Phase 11 (Clear Streaks + currency, spec sections 28/29 plus a new
-// earn-only reward currency): a streak never resets (spec section 28
-// explicitly forbids resetting on death, and there's no other reset
-// trigger), so it's just a lifetime count of unique (level, version) pairs
-// cleared — a replay of an already-cleared version must not grow it again,
-// but currency (flat per non-duplicate clear) is awarded either way.
-await test('clearing a version for the first time grows the streak and currency; a replay only grows currency', async () => {
+// Phase 11 (Clear Streaks, spec sections 28/29): a streak never resets
+// (spec section 28 explicitly forbids resetting on death, and there's no
+// other reset trigger), so it's just a lifetime count of unique (level,
+// version) pairs cleared — a replay of an already-cleared version must not
+// grow it again.
+await test('clearing a version for the first time grows the streak; a replay does not', async () => {
   await getCurrentLevelVersion('meat-grinder');
   const first = await runs.request(
     '/',
@@ -1127,8 +1123,6 @@ await test('clearing a version for the first time grows the streak and currency;
   if (!isSubmitRunResponse(firstBody)) return;
   assert.equal(firstBody.streak, 1);
   assert.equal(firstBody.isNewStreakIncrease, true);
-  assert.equal(firstBody.currencyAwarded, 10);
-  assert.equal(firstBody.currencyBalance, 10);
   assert.equal(await redis.hLen(clearedVersionsKey('alice')), 1);
   assert.equal(await redis.zScore(streaksLeaderboardKey(), 'alice'), 1);
 
@@ -1141,9 +1135,6 @@ await test('clearing a version for the first time grows the streak and currency;
   if (!isSubmitRunResponse(replayBody)) return;
   assert.equal(replayBody.streak, 1, 'a replay must not grow the streak');
   assert.equal(replayBody.isNewStreakIncrease, false);
-  assert.equal(replayBody.currencyAwarded, 10, 'currency is flat per clear');
-  assert.equal(replayBody.currencyBalance, 20);
-  assert.equal(await redis.get(currencyKey('alice')), '20');
 });
 
 await test('a new world record fires a Realtime event, a slower clear does not', async () => {
@@ -1205,7 +1196,7 @@ await test('curse publish fires a versionPublished Realtime event on the level c
   });
 });
 
-await test('the global TOP CURSERS leaderboard ranks by trap kills, and currency reads back what runs.ts wrote', async () => {
+await test('the global TOP CURSERS leaderboard ranks by trap kills', async () => {
   await getCurrentLevelVersion('meat-grinder');
   await runs.request(
     '/',
@@ -1251,12 +1242,6 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills, and currency
   assert.equal(leaderboardBody.topTen[0]?.kills, 2);
   assert.equal(leaderboardBody.topTen[1]?.username, 'bob');
   assert.equal(leaderboardBody.topTen[1]?.kills, 1);
-
-  const currencyResponse = await currency.request('/');
-  const currencyBody: unknown = await currencyResponse.json();
-  assert.ok(isCurrencyBalanceResponse(currencyBody));
-  if (!isCurrencyBalanceResponse(currencyBody)) return;
-  assert.equal(currencyBody.balance, 10);
 });
 
 // Root cause of "blank screen on Play": `@devvit/realtime`'s connectRealtime

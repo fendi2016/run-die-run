@@ -1,10 +1,9 @@
 // Wire contract for GET /api/stats/me — a personal stats snapshot pulled
-// together from data that was already being tracked (currency, clear
-// streak, levels created, contribution kills) but never surfaced anywhere
-// as a single "your stats" view.
+// together from data that was already being tracked (clear streak, levels
+// created, contribution kills) but never surfaced anywhere as a single
+// "your stats" view.
 export type UserStatsResponse = {
   username: string;
-  currencyBalance: number;
   // Clear Streaks (spec section 28): lifetime count of unique level
   // versions cleared, never reset — same value shown on the result
   // overlay's "Streak: N" line (see runsApi.ts).
@@ -27,8 +26,6 @@ export function isUserStatsResponse(
     value !== null &&
     'username' in value &&
     typeof value.username === 'string' &&
-    'currencyBalance' in value &&
-    typeof value.currencyBalance === 'number' &&
     'clearStreak' in value &&
     typeof value.clearStreak === 'number' &&
     'totalClears' in value &&

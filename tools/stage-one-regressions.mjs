@@ -109,7 +109,7 @@ export async function testStageOne(page) {
     if (scoreMode === 'failure') await route.fulfill({ status: 503, json: {} });
     else await route.fulfill({ json: { timeMs: request.timeMs, rank: 1, personalBestMs: request.timeMs,
       isNewPersonalBest: true, worldRecordMs: request.timeMs, topTen: [], streak: 1,
-      isNewStreakIncrease: true, currencyAwarded: 10, currencyBalance: 10 } }).catch(() => {});
+      isNewStreakIncrease: true } }).catch(() => {});
   });
   await start();
   await ready();

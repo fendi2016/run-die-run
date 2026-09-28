@@ -22,11 +22,6 @@ export type SubmitRunResponse = {
   // actually grew.
   streak: number;
   isNewStreakIncrease: boolean;
-  // Earn-only currency balance (no shop yet) — awarded flat per
-  // non-duplicate clear, regardless of whether the version was cleared
-  // before.
-  currencyAwarded: number;
-  currencyBalance: number;
 };
 
 // Runtime guard for the fetch response on the client side. Avoids an `as`
@@ -43,11 +38,7 @@ export function isSubmitRunResponse(
     'streak' in value &&
     typeof value.streak === 'number' &&
     'isNewStreakIncrease' in value &&
-    typeof value.isNewStreakIncrease === 'boolean' &&
-    'currencyAwarded' in value &&
-    typeof value.currencyAwarded === 'number' &&
-    'currencyBalance' in value &&
-    typeof value.currencyBalance === 'number'
+    typeof value.isNewStreakIncrease === 'boolean'
   );
 }
 
