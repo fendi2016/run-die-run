@@ -5,6 +5,7 @@ import {
   BAT_DASH_SPEED_PX,
   BAT_DISPLAY_HEIGHT_PX,
   CANDLE_DISPLAY_HEIGHT_PX,
+  CANDLE_HITBOX_WIDTH_PX,
   GHOST_DISPLAY_HEIGHT_PX,
   FINISH_DISPLAY_HEIGHT_PX,
   HAZARD_TINT,
@@ -55,13 +56,13 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   speedBoost: 'speedBoost',
 };
 
-// The ghost/candle/bat 8-frame spritesheets (hazards/*-sheet.webp): frame
+// The ghost/candle(stapler)/bat 8-frame spritesheets (hazards/*-sheet.webp): frame
 // size of each, for the Preloader. The texture keys stay the plain type
 // names, so TEXTURE_BY_TYPE above didn't change.
 export const HAZARD_SPRITESHEETS = [
   // Scribble creatures (Kenney Scribble Platformer): one frame each for now.
   { key: 'ghost', file: 'hazards/ghost-sheet.webp', frameWidth: 83, frameHeight: 123 },
-  { key: 'candle', file: 'hazards/candle-sheet.webp', frameWidth: 84, frameHeight: 120 },
+  { key: 'candle', file: 'hazards/stapler-sheet.webp', frameWidth: 111, frameHeight: 120 },
   { key: 'bat', file: 'hazards/bat-sheet.webp', frameWidth: 84, frameHeight: 127 },
 ] as const;
 
@@ -72,14 +73,14 @@ const SPIN_ANIM_BY_TYPE: Partial<Record<ObjectType, string>> = {
   saw: 'saw-spin',
   movingSaw: 'saw-spin',
   ghost: 'ghost-float',
-  candle: 'candle-flicker',
+  candle: 'candle-chomp',
   bat: 'bat-flap',
 };
 
 const HAZARD_ANIMS: readonly { key: string; texture: string; frameRate: number }[] = [
   { key: 'saw-spin', texture: 'saw-spin', frameRate: 16 },
   { key: 'ghost-float', texture: 'ghost', frameRate: 8 },
-  { key: 'candle-flicker', texture: 'candle', frameRate: 10 },
+  { key: 'candle-chomp', texture: 'candle', frameRate: 10 },
   { key: 'bat-flap', texture: 'bat', frameRate: 12 },
 ];
 
@@ -270,9 +271,9 @@ export function pickPlatformTexture(
   return PLATFORM_CENTER_KEYS[index] as string;
 }
 
-// Hazards drawn with the scribble art (see HAZARD_TINT). The bat and ghost
-// keep their old painted art, which a multiply tint would only muddy.
-const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw', 'candle']);
+// Hazards drawn with the scribble art (see HAZARD_TINT). The bat, ghost and
+// stapler (candle) are painted art, which a multiply tint would only muddy.
+const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw']);
 
 // A solid's `y` is authored as its walkable top face (spawn position and
 // fall-death both assume that), so it must be top-anchored — the tile's
@@ -342,6 +343,9 @@ export function renderLevelObject(
     sprite.setTint(HAZARD_TINT);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
+  if (object.type === 'candle' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    sprite.body.setSize(CANDLE_HITBOX_WIDTH_PX, sprite.displayHeight);
+  }
 
   // A dynamic body inherits the game's world gravity the instant it's
   // created, so a movingPlatform rendered anywhere that isn't a live run

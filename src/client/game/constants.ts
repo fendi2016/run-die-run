@@ -95,6 +95,9 @@ export const PLATFORM_DISPLAY_HEIGHT_PX = 52;
 // its visible body stays the size of the old static art.
 export const BAT_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_DISPLAY_HEIGHT_PX = 40;
+// The stapler art (candle type) is wider than the spikes it replaced; its
+// hitbox stays the old spikes' 28px width so the hazard plays the same.
+export const CANDLE_HITBOX_WIDTH_PX = 28;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
 // Pencil test: multiply tint for the scribble hazards (white fill, black
