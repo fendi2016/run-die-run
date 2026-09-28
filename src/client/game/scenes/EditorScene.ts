@@ -19,8 +19,11 @@ import { EditorController } from '../editor/EditorController';
 import {
   boardGridConfig,
   drawGrid,
+  drawSketchRect,
   normalizeBoardRow,
   EDITOR_BOARD_ROWS,
+  INK_COLOR,
+  PAPER_COLOR,
   type EditorTool,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
@@ -100,7 +103,7 @@ export class EditorScene extends Scene {
 
   create(): void {
     ensurePlaceholderTextures(this);
-    this.cameras.main.setBackgroundColor(0x14141f);
+    this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
     this.gridGraphics = this.add.graphics();
     this.selectionGraphics = this.add.graphics();
@@ -284,8 +287,16 @@ export class EditorScene extends Scene {
     if (!selected) {
       return;
     }
-    this.selectionGraphics.lineStyle(3, 0x39ff88, 1);
-    this.selectionGraphics.strokeRect(selected.x - 30, selected.y - 60, 60, 60);
+    drawSketchRect(
+      this.selectionGraphics,
+      selected.x - 32,
+      selected.y - 62,
+      64,
+      64,
+      INK_COLOR,
+      1,
+      3
+    );
   }
 
   private redrawGrid(): void {
