@@ -1276,6 +1276,28 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   overflow: hidden;
 }
 
+/* The SKETCHY title, in the open paper above the PLAY button. */
+#game-menu-title {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  z-index: 1;
+  width: min(78%, 360px);
+  transform: translateX(-50%) rotate(-3deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Landscape: the pencil stands left of centre, so the title sits right of
+   him, above PLAY. */
+@media (orientation: landscape) {
+  #game-menu-title {
+    left: 62%;
+    top: 22%;
+    width: min(40%, 320px);
+  }
+}
+
 #game-menu-stack {
   position: absolute;
   left: 50%;
