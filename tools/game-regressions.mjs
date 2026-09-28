@@ -301,6 +301,80 @@ try {
   assert.equal(await fresh.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').tutorial), false);
   await fresh.close();
 
+
+  // A real (non-preview) clear presents "Leave Your Curse" beside "Next
+  // Level" once both async results land: the curse button only appears
+  // after the run submission succeeds, Next only after the discovery
+  // lookup resolves.
+  {
+    const resultLevel = {
+      levelId: 'result-actions', version: 1, parentVersion: null,
+      objects: [
+        { id: 'spawn', type: 'spawn', x: 90, y: 480 },
+        { id: 'finish', type: 'finish', x: 500, y: 480 },
+        ...Array.from({ length: 10 }, (_, i) => ({ id: `ground-${i}`, type: 'ground', x: 30 + i * 60, y: 480 })),
+      ].map((object) => ({ ...object, properties: {}, addedBy: 'test', addedInVersion: 1 })),
+      contributorUsername: 'test', verificationTimeMs: 10000, createdAt: 0,
+    };
+    const summary = (id) => ({ levelId: id, title: id, creatorUsername: 'test', version: 1,
+      difficulty: 'UNRATED', attempts: 0, clears: 0, completionRate: 0,
+      worldRecordMs: null, createdAt: 0, trendingScore: 0 });
+    await page.route('**/api/levels/*', (route) =>
+      route.fulfill({ json: { ...resultLevel, levelId: new URL(route.request().url()).pathname.split('/').at(-1) } }).catch(() => {})
+    );
+    await page.route('**/api/discovery/levels?*', (route) =>
+      route.fulfill({ json: { levels: ['result-actions', 'second'].map(summary) } })
+    );
+    await page.route('**/api/runs', (route) => {
+      const request = route.request().postDataJSON();
+      return route.fulfill({ json: { timeMs: request.timeMs, rank: 1, personalBestMs: request.timeMs,
+        isNewPersonalBest: true, worldRecordMs: request.timeMs, topTen: [], streak: 1,
+        isNewStreakIncrease: true, currencyAwarded: 10, currencyBalance: 10 } }).catch(() => {});
+    });
+    const start = (id = 'result-actions') => page.evaluate((levelId) => {
+      const game = window.__PHASER_GAME__;
+      for (const scene of game.scene.getScenes(false)) {
+        if (scene.sys.isActive() || scene.sys.isPaused()) game.scene.stop(scene.sys.settings.key);
+      }
+      game.scene.start('GameScene', { levelId });
+    }, id);
+    const ready = () => page.waitForFunction(() => !!window.__PHASER_GAME__.scene.getScene('GameScene').player);
+    const finish = () => page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene').onFinishReached());
+
+    await start();
+    await ready();
+    await finish();
+    await page.waitForSelector('#run-result-curse-btn', { state: 'visible' });
+    await page.waitForSelector('#run-result-next', { state: 'visible' });
+    assert.equal((await page.textContent('#run-result-curse-btn')).trim(), 'Leave Your Curse');
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('#run-result-next').scrollIntoViewIfNeeded();
+    const [wideCurse, wideNext] = await Promise.all([
+      page.locator('#run-result-curse-btn').boundingBox(),
+      page.locator('#run-result-next').boundingBox(),
+    ]);
+    assert.ok(wideCurse && wideNext, 'both buttons have layout boxes at 844x390');
+    assert.ok(Math.abs(wideCurse.y - wideNext.y) < 4, 'Leave Your Curse and Next Level share a row at 844x390');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#run-result-next').scrollIntoViewIfNeeded();
+    const [tallCurse, tallNext] = await Promise.all([
+      page.locator('#run-result-curse-btn').boundingBox(),
+      page.locator('#run-result-next').boundingBox(),
+    ]);
+    assert.ok(tallCurse.x >= 0 && tallCurse.x + tallCurse.width <= 390, 'curse button stays on-screen at 390x844');
+    assert.ok(tallNext.x >= 0 && tallNext.x + tallNext.width <= 390, 'next button stays on-screen at 390x844');
+
+    await page.locator('#run-result-menu').scrollIntoViewIfNeeded();
+    await page.click('#run-result-menu');
+    await page.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('MainMenu'));
+    await page.setViewportSize({ width: 960, height: 540 });
+    await page.unroute('**/api/levels/*');
+    await page.unroute('**/api/discovery/levels?*');
+    await page.unroute('**/api/runs');
+  }
+
   await testStageOne(page);
   assert.deepEqual(errors, []);
   console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, touch retry after an asset failure, a tap-only First Blood clear, and first-play tutorial routing.');

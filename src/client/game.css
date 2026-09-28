@@ -157,12 +157,11 @@ body {
   margin-top: 2px;
 }
 
-/* Post-clear prompt (spec section 14): cursing the level you just beat is
-   the actual point of the game, so it gets the loudest, largest button on
-   this screen — full-width, its own accent color, more padding than
-   anything else here. Next Level (progression) sits underneath it at
-   normal size; Retry (just "try again") is demoted to a plain link below,
-   since it's the least interesting choice after a clear. */
+/* Post-clear prompt (spec section 14): "Leave Your Curse" — contributing —
+   sits right next to "Next Level" — moving on — as the two equally-weighted
+   choices after a clear. Share drops to a full-width button below both;
+   Retry (just "try again") is demoted to a plain link further down, since
+   it's the least interesting choice after a clear. */
 #run-result-actions {
   display: flex;
   flex-direction: column;
@@ -173,10 +172,29 @@ body {
 
 #run-result-actions .editor-btn {
   flex-direction: row;
-  width: 100%;
   padding: 12px 18px;
   font-size: 15px;
   font-weight: 700;
+}
+
+#run-result-share {
+  width: 100%;
+}
+
+/* Curse and Next read as a matched pair, side by side when there's room.
+   Each keeps a legible minimum width rather than squeezing thin; on a
+   narrow/short viewport they wrap to stacked full-width buttons instead. */
+#run-result-primary {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+#run-result-primary .editor-btn {
+  flex: 1 1 150px;
+  min-width: 150px;
 }
 
 .editor-btn-curse {
