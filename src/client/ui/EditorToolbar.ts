@@ -52,6 +52,7 @@ export class EditorToolbar {
   private readonly publishBtn = requireButton('editor-publish');
   private readonly publishDialog = requireElement('editor-publish-dialog');
   private readonly titleInput = requireInput('editor-title-input');
+  private readonly moreDialog = requireElement('editor-more-dialog');
   private readonly jsonDialog = requireElement('editor-json-dialog');
   private readonly jsonTextArea = requireTextArea('editor-json-textarea');
   private readonly jsonErrorEl = requireElement('editor-json-error');
@@ -92,9 +93,16 @@ export class EditorToolbar {
     requireButton('editor-publish-cancel').addEventListener('click', () => {
       this.handlers?.onPublishCancel();
     });
-    requireButton('editor-json').addEventListener('click', () =>
-      this.handlers?.onJsonRequested()
+    requireButton('editor-more').addEventListener('click', () =>
+      this.showMoreMenu()
     );
+    requireButton('editor-more-close').addEventListener('click', () =>
+      this.hideMoreMenu()
+    );
+    requireButton('editor-json-open').addEventListener('click', () => {
+      this.hideMoreMenu();
+      this.handlers?.onJsonRequested();
+    });
     requireButton('editor-json-cancel').addEventListener('click', () =>
       this.hideJsonDialog()
     );
@@ -138,6 +146,7 @@ export class EditorToolbar {
   hide(): void {
     this.root.classList.add('hidden');
     this.hidePublishDialog();
+    this.hideMoreMenu();
     this.hideJsonDialog();
     this.hideMessage();
   }
@@ -186,6 +195,14 @@ export class EditorToolbar {
 
   hidePublishDialog(): void {
     this.publishDialog.classList.add('hidden');
+  }
+
+  showMoreMenu(): void {
+    this.moreDialog.classList.remove('hidden');
+  }
+
+  hideMoreMenu(): void {
+    this.moreDialog.classList.add('hidden');
   }
 
   // `objects` is always the editor's live state at the moment JSON is

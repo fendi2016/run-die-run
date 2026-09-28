@@ -327,11 +327,11 @@
             <span class="editor-divider"></span>
             <button
               type="button"
-              id="editor-json"
+              id="editor-more"
               class="editor-btn editor-btn-compact"
             >
-              <span class="editor-btn-icon">{ }</span>
-              <span class="editor-btn-label">JSON</span>
+              <span class="editor-btn-icon">&#8943;</span>
+              <span class="editor-btn-label">More</span>
             </button>
             <span class="editor-divider"></span>
             <button
@@ -380,6 +380,20 @@
               class="editor-btn editor-btn-primary"
             >
               Publish
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="editor-more-dialog" class="editor-dialog hidden">
+        <div class="editor-dialog-panel">
+          <label>Advanced</label>
+          <button type="button" id="editor-json-open" class="editor-btn editor-more-item">
+            <span class="editor-btn-icon">{ }</span>
+            <span class="editor-btn-label">Import / export JSON</span>
+          </button>
+          <div class="editor-dialog-actions">
+            <button type="button" id="editor-more-close" class="editor-btn">
+              Close
             </button>
           </div>
         </div>

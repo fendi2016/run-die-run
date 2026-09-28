@@ -28,8 +28,12 @@ import {
   boardGridConfig,
   clampBoardColumn,
   drawGrid,
+  drawSketchRect,
   normalizeBoardRow,
+  ACCENT_COLOR,
   EDITOR_BOARD_ROWS,
+  PAPER_COLOR,
+  RULE_BLUE_COLOR,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
 import {
@@ -179,7 +183,7 @@ export class CurseScene extends Scene {
 
   create(): void {
     ensurePlaceholderTextures(this);
-    this.cameras.main.setBackgroundColor(0x14141f);
+    this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
     this.gridGraphics = this.add.graphics();
     this.pendingGraphics = this.add.graphics();
@@ -281,7 +285,9 @@ export class CurseScene extends Scene {
     this.suggestionTween = undefined;
     this.suggestionGraphics.clear().setAlpha(1);
     if (!this.guided || this.pending || this.suggestions.length === 0) return;
-    this.suggestionGraphics.lineStyle(3, 0x39ff88, 1);
+    // Rule-blue, the same "hint" color as the notebook grid itself — these
+    // are suggestions, not the red curse/pending-placement color.
+    this.suggestionGraphics.lineStyle(3, RULE_BLUE_COLOR, 1);
     for (const { x, y } of this.suggestions) {
       this.suggestionGraphics.strokeRoundedRect(x - 27, y - 57, 54, 54, 8);
     }
@@ -528,9 +534,9 @@ export class CurseScene extends Scene {
       if (image) {
         image.disableInteractive();
         if (object.id === this.pendingRemoveId) {
-          // Same red as the pending-object outline (drawPendingOutline) —
-          // one "this is about to change" color across the scene.
-          image.setTint(0xff3966);
+          // Same ink-red as the pending-object outline (drawPendingOutline)
+          // — one "this is about to change" color across the scene.
+          image.setTint(ACCENT_COLOR);
           image.setAlpha(0.45);
         }
         this.baseImages.push(image);
@@ -638,8 +644,10 @@ export class CurseScene extends Scene {
 
   private drawPendingOutline(x: number, y: number): void {
     this.pendingGraphics.clear();
-    this.pendingGraphics.lineStyle(3, 0xff3966, 1);
-    this.pendingGraphics.strokeRect(x - 30, y - 60, 60, 60);
+    // Ink-red, sketched twice — a curse is the one destructive action in
+    // this screen, so it keeps the accent red, just styled hand-drawn
+    // instead of a neon dev-tool highlight.
+    drawSketchRect(this.pendingGraphics, x - 32, y - 62, 64, 64, ACCENT_COLOR, 1, 3);
   }
 
   // Live-follows the pointer during the drag itself — snapping only
