@@ -412,7 +412,8 @@ export function attachElectricShield(
   ensureShieldAnim(scene);
   const shield = scene.add.sprite(x, y, 'shield-electric');
   shield.setScale(SHIELD_SCALE);
-  shield.setBlendMode(Phaser.BlendModes.ADD);
+  // Normal blend: additive (made for the old dark backdrop) all but
+  // vanishes on the white paper.
   shield.play(SHIELD_ANIM_KEY);
   return shield;
 }
@@ -476,7 +477,7 @@ export function playHyperspeedTrail(
   // this keeps the whole effect streaming away behind that point instead of
   // straddling it and bleeding back onto the player's body.
   trail.setOrigin(1, 0.5);
-  trail.setBlendMode(Phaser.BlendModes.ADD);
+  // Normal blend, as with the shield: additive vanishes on the paper.
   trail.setAlpha(0);
   trail.play(HYPERSPEED_ANIM_KEY);
   scene.tweens.add({
