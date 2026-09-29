@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import type { LevelObject, ObjectType } from '../../../shared/types';
+import { GROUND_LIKE_TYPES, type LevelObject, type ObjectType } from '../../../shared/types';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
   BAT_DASH_SPEED_PX,
@@ -16,7 +16,10 @@ import {
   MOVING_SAW_AMPLITUDE_PX,
   MOVING_SAW_PERIOD_MS,
   PLATFORM_DISPLAY_HEIGHT_PX,
+  SAW_ROTATION_PERIOD_MS,
   SPAWN_ICON_SIZE,
+  SPIKES_DISPLAY_HEIGHT_PX,
+  SPIKES_HITBOX_WIDTH_PX,
 } from '../constants';
 
 export type ObjectCategory =
@@ -38,11 +41,29 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   spawn: 'spawn',
   shield: 'powerup',
   speedBoost: 'powerup',
+  // Kenney full-cell terrain blocks (Phase: Kenney level objects) — same
+  // "solid" category as ground, just different art (see FULL_BLOCK_TYPES).
+  brickBlock: 'solid',
+  stoneBlock: 'solid',
+  crateBlock: 'solid',
+  grassBlock: 'solid',
+  sandBlock: 'solid',
+  metalBlock: 'solid',
+  // Behaves exactly like 'platform'.
+  bridge: 'solid',
+  spikes: 'hazard',
+  // The cannon body itself is solid (the player can stand on it) — only the
+  // bullets it fires are lethal, and those are runtime-only, never a
+  // LevelObject/category of their own.
+  cannon: 'solid',
 };
 
 // ground/platform/movingPlatform are deliberately absent here — their
 // texture isn't a single fixed key, it's picked per-instance by
 // pickPlatformTexture (edge vs. center variant) instead of a static lookup.
+// The new Kenney terrain blocks and bridge *do* belong here even though
+// they're ground/platform-like in every other way: each is one single
+// fixed texture with no separate edge/center variant art.
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   saw: 'saw-spin',
   // Art is shared with the regular saw — LevelLoader is what gives the
@@ -54,6 +75,15 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   finish: 'finish-gate',
   shield: 'shield',
   speedBoost: 'speedBoost',
+  brickBlock: 'block-brick',
+  stoneBlock: 'block-stone',
+  crateBlock: 'block-crate',
+  grassBlock: 'block-grass',
+  sandBlock: 'block-sand',
+  metalBlock: 'block-metal',
+  bridge: 'block-bridge',
+  spikes: 'spikes',
+  cannon: 'cannon',
 };
 
 // The ghost/candle(stapler)/bat 8-frame spritesheets (hazards/*-sheet.webp): frame
@@ -68,21 +98,25 @@ export const HAZARD_SPRITESHEETS = [
 
 // Hazards whose art is an animated spritesheet rather than a static image —
 // renderLevelObject plays this looping animation once per instance instead
-// of leaving it parked on the sheet's first frame.
+// of leaving it parked on the sheet's first frame. saw/movingSaw are
+// deliberately absent — the sawblade reskin (Phase: Kenney level objects) is
+// a single static image, spun by a continuous angle tween instead (see
+// SAW_TYPES/renderLevelObject) rather than a multi-frame sheet.
 const SPIN_ANIM_BY_TYPE: Partial<Record<ObjectType, string>> = {
-  saw: 'saw-spin',
-  movingSaw: 'saw-spin',
   ghost: 'ghost-float',
   candle: 'candle-chomp',
   bat: 'bat-flap',
 };
 
 const HAZARD_ANIMS: readonly { key: string; texture: string; frameRate: number }[] = [
-  { key: 'saw-spin', texture: 'saw-spin', frameRate: 16 },
   { key: 'ghost-float', texture: 'ghost', frameRate: 8 },
   { key: 'candle-chomp', texture: 'candle', frameRate: 10 },
   { key: 'bat-flap', texture: 'bat', frameRate: 12 },
 ];
+
+// Rotated via a continuous angle tween (renderLevelObject) instead of a
+// frame-based animation.
+const SAW_TYPES = new Set<ObjectType>(['saw', 'movingSaw']);
 
 // Exported so callers that render level objects ahead of renderLevelObject
 // (or without it) can register the same animation without duplicating its
@@ -232,6 +266,16 @@ export function triggerBatFlight(
 // movingPlatform use the thinner PLATFORM_DISPLAY_HEIGHT_PX.
 const TILESET_TYPES = new Set<ObjectType>(['ground', 'platform', 'movingPlatform']);
 
+// Every type forced to the same GRID_CELL_SIZE square footprint as 'ground'
+// (GROUND_LIKE_TYPES, shared/types.ts — the Kenney full-cell terrain
+// blocks), plus the cannon body, which isn't offered as terrain but needs
+// the identical one-cell solid footprint. Unlike TILESET_TYPES, each of
+// these is one fixed texture (TEXTURE_BY_TYPE), not a per-instance
+// edge/center pick.
+function isFullBlockType(type: ObjectType): boolean {
+  return GROUND_LIKE_TYPES.has(type) || type === 'cannon';
+}
+
 // 7 interchangeable center-tile textures (art directly off the sheet, not
 // a generated variation) — picking between them by position instead of
 // always the same one keeps a long run of tiles from reading as one
@@ -273,7 +317,9 @@ export function pickPlatformTexture(
 
 // Hazards drawn with the scribble art (see HAZARD_TINT). The bat, ghost and
 // stapler (candle) are painted art, which a multiply tint would only muddy.
-const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw']);
+// Spikes is the same Kenney Scribble Platformer line-art pack as saw, so it
+// gets the same red-danger tint treatment.
+const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw', 'spikes']);
 
 // A solid's `y` is authored as its walkable top face (spawn position and
 // fall-death both assume that), so it must be top-anchored — the tile's
@@ -320,12 +366,14 @@ export function renderLevelObject(
   const sprite = scene.add
     .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
-  if (object.type === 'ground') {
+  if (object.type === 'ground' || isFullBlockType(object.type)) {
     // Matches the old ground.webp's native 60x60 footprint exactly, so
-    // ground collision is unchanged — only its art is now edge-aware.
+    // ground collision is unchanged — only its art is now edge-aware. Every
+    // Kenney terrain block (and the cannon body) shares this exact
+    // footprint too, regardless of the source art's own aspect ratio.
     sprite.setDisplaySize(GRID_CELL_SIZE, GRID_CELL_SIZE);
-  } else if (TILESET_TYPES.has(object.type)) {
-    // Every platform/movingPlatform variant is forced to one shared
+  } else if (TILESET_TYPES.has(object.type) || object.type === 'bridge') {
+    // Every platform/movingPlatform/bridge variant is forced to one shared
     // footprint (see PLATFORM_DISPLAY_HEIGHT_PX) so collision stays
     // uniform regardless of which edge/center texture got picked.
     sprite.setDisplaySize(GRID_CELL_SIZE, PLATFORM_DISPLAY_HEIGHT_PX);
@@ -338,6 +386,9 @@ export function renderLevelObject(
   } else if (object.type === 'finish') {
     // Aspect preserved (unlike bat's forced squash).
     sprite.setScale(FINISH_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (object.type === 'spikes') {
+    // Aspect preserved — the source art is already low-and-wide.
+    sprite.setScale(SPIKES_DISPLAY_HEIGHT_PX / sprite.height);
   }
   if (HAZARD_TINT !== null && SCRIBBLE_HAZARD_TYPES.has(object.type)) {
     sprite.setTint(HAZARD_TINT);
@@ -345,6 +396,11 @@ export function renderLevelObject(
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
   if (object.type === 'candle' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
     sprite.body.setSize(CANDLE_HITBOX_WIDTH_PX, sprite.displayHeight);
+  }
+  if (object.type === 'spikes' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    // Slightly narrower than the art so a jump that clips the very edge of
+    // a spike tip still reads as a clean clear.
+    sprite.body.setSize(SPIKES_HITBOX_WIDTH_PX, sprite.displayHeight);
   }
 
   // A dynamic body inherits the game's world gravity the instant it's
@@ -366,6 +422,21 @@ export function renderLevelObject(
     // and spin in lockstep — visibly synchronized blades read as robotic
     // rather than as independent hazards.
     sprite.play({ key: spinAnim, randomFrame: true });
+  }
+  if (SAW_TYPES.has(object.type)) {
+    // A single sawblade image, spun by angle instead of a multi-frame
+    // sheet (Phase: Kenney level objects reskin) — purely cosmetic, no
+    // effect on the body's size/shape. A random starting angle is this
+    // rotation's equivalent of randomFrame above: every saw in a level
+    // would otherwise spin in lockstep.
+    sprite.setAngle(Math.random() * 360);
+    scene.tweens.add({
+      targets: sprite,
+      angle: `+=360`,
+      duration: SAW_ROTATION_PERIOD_MS,
+      repeat: -1,
+      ease: 'Linear',
+    });
   }
 
   return sprite;

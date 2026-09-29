@@ -67,6 +67,9 @@ export const SPEED_BOOST_DURATION_MS = 1400;
 // Amplitude/period of a Moving Saw's deterministic back-and-forth path.
 export const MOVING_SAW_AMPLITUDE_PX = 90;
 export const MOVING_SAW_PERIOD_MS = 900;
+// One full spin of the sawblade art, driven by a continuous angle tween
+// (ObjectRegistry) rather than the old 8-frame saw-spin sheet.
+export const SAW_ROTATION_PERIOD_MS = 700;
 // A Moving Platform travels farther and slower than a Moving Saw — it
 // needs to be rideable/predictable, not a fast-twitch hazard.
 export const MOVING_PLATFORM_AMPLITUDE_PX = 160;
@@ -102,6 +105,35 @@ export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 // hitbox stays the old spikes' 28px width so the hazard plays the same.
 export const CANDLE_HITBOX_WIDTH_PX = 28;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
+
+// Spikes (Kenney tile_spikes): low and wide, unlike every other hazard here.
+// Display height only — width follows the art's own ~1.9:1 aspect ratio via
+// setScale, landing just under one grid cell wide. The hitbox is narrower
+// than the display width so a jump that clips the very edge of the art
+// still reads as a clean clear.
+export const SPIKES_DISPLAY_HEIGHT_PX = 34;
+export const SPIKES_HITBOX_WIDTH_PX = 46;
+
+// Cannon (Kenney expansion cannon_base + cannon_small, composed into one
+// static solid): forced to the same GRID_CELL_SIZE square footprint as
+// ground (see ObjectRegistry's FULL_BLOCK_TYPES) so its hitbox never spills
+// into a neighboring cell, even though the source art is wider than tall.
+export const CANNON_FIRE_INTERVAL_MS = 2000;
+export const CANNON_BULLET_SPEED_PX = 500;
+export const CANNON_BULLET_DISPLAY_HEIGHT_PX = 22;
+// Slightly smaller than the display size so a close graze isn't an
+// unavoidable death, matching every other hazard's fair-hitbox convention.
+export const CANNON_BULLET_HITBOX_WIDTH_PX = 20;
+export const CANNON_BULLET_HITBOX_HEIGHT_PX = 14;
+// Where a bullet spawns relative to the cannon's (top-anchored) authored
+// position: at the cell's left edge, roughly muzzle height.
+export const CANNON_MUZZLE_OFFSET_X_PX = GRID_CELL_SIZE / 2;
+export const CANNON_MUZZLE_OFFSET_Y_PX = 24;
+// A bullet this far behind the player is guaranteed off the left edge of
+// even the widest camera viewport — cheaper and immune to the zoom-pivot
+// gotcha (see memory) than computing the camera's true world-space left
+// edge from scrollX.
+export const CANNON_BULLET_CULL_DISTANCE_PX = 400;
 
 // Pencil test: multiply tint for the scribble hazards (white fill, black
 // outline), so the fill turns red and the outline stays black. null leaves

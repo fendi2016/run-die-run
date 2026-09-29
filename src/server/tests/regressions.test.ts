@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
+import type { ObjectType } from '../../shared/types';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
 // write occurs. Commits are synchronous to model Redis's atomic EXEC.
@@ -473,6 +474,45 @@ await test('curse propose rejects a disallowed type', async () => {
   });
   assert.equal(badType.status, 'error');
   assert.equal(await getCandidate('alice'), undefined);
+});
+
+// Kenney level objects (Phase: Kenney level objects): the new full-cell
+// terrain blocks behave exactly like 'ground' for curse purposes too — never
+// curse-placeable, same as 'ground' never was — while the new hazards
+// (spikes, cannon) and the platform-like bridge are, mirroring what
+// 'candle'/'platform' already do.
+await test('curse propose accepts the new hazards and bridge, rejects the new terrain blocks', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  const curseable: ObjectType[] = ['spikes', 'cannon', 'bridge'];
+  for (const type of curseable) {
+    const { body } = await proposeCurse('alice', 'meat-grinder', {
+      id: `x-${type}`,
+      type,
+      x: 700,
+      y: 480,
+    });
+    assert.equal(body.status, 'ok', `${type} should be curse-placeable`);
+    if (body.status === 'ok') {
+      assert.equal(
+        await markCandidateVerified('alice', body.candidateToken, 2000),
+        true
+      );
+      await publishCurse('alice', body.candidateToken);
+      assert.equal(await getCandidate('alice'), undefined);
+    }
+  }
+  const notCurseable: ObjectType[] = [
+    'brickBlock', 'stoneBlock', 'crateBlock', 'grassBlock', 'sandBlock', 'metalBlock',
+  ];
+  for (const type of notCurseable) {
+    const { body } = await proposeCurse('alice', 'meat-grinder', {
+      id: `x-${type}`,
+      type,
+      x: 700,
+      y: 480,
+    });
+    assert.equal(body.status, 'error', `${type} should not be curse-placeable`);
+  }
 });
 
 // Phase 6 (spec section 18): two players who both beat the same version
@@ -954,6 +994,45 @@ await test('spawn can stand on a platform in the editor and pass validation', as
   // A hazard beside the spawn is still caught by the buffer.
   assert.ok(validatePlacement([...placed, { id: 'saw', type: 'saw', x: 150, y: 480 }])
     .some((e: string) => e.includes('too close to the spawn')));
+});
+
+// Kenney level objects: every new full-cell terrain block (and the cannon
+// body) is a surface exactly like ground/platform — a hazard can share its
+// cell (same reasoning as candle-on-ground), but two surfaces in the same
+// cell still conflict, and the cannon itself does too, even though it isn't
+// offered in the terrain palette.
+await test('new terrain blocks and the cannon body are surfaces, same as ground/platform', async () => {
+  const { isSurfaceType } = await import('../../shared/editorApi');
+  const surfaces: ObjectType[] = [
+    'ground', 'platform', 'bridge',
+    'brickBlock', 'stoneBlock', 'crateBlock', 'grassBlock', 'sandBlock', 'metalBlock',
+    'cannon',
+  ];
+  for (const type of surfaces) {
+    assert.ok(isSurfaceType(type), `${type} should be a surface type`);
+  }
+  const nonSurfaces: ObjectType[] = ['movingPlatform', 'saw', 'candle', 'spikes', 'spawn', 'finish', 'shield'];
+  for (const type of nonSurfaces) {
+    assert.ok(!isSurfaceType(type), `${type} should not be a surface type`);
+  }
+
+  const base: DraftObject[] = [
+    { id: 'spawn', type: 'spawn', x: 90, y: 420 },
+    { id: 'brick', type: 'brickBlock', x: 330, y: 480 },
+    { id: 'finish', type: 'finish', x: 570, y: 480 },
+  ];
+  // A spikes hazard resting on the brick block shares its exact (x, y) —
+  // same as any hazard resting on ground — and must not read as a
+  // duplicate-position conflict.
+  assert.deepEqual(
+    validatePlacement([...base, { id: 'spikes', type: 'spikes', x: 330, y: 480 }]),
+    []
+  );
+  // Two surfaces sharing a cell is still a real conflict.
+  assert.ok(
+    validatePlacement([...base, { id: 'brick-2', type: 'brickBlock', x: 330, y: 480 }])
+      .some((e: string) => e.includes('occupy the same location'))
+  );
 });
 
 await test('a curse can be placed anywhere on the map', async () => {

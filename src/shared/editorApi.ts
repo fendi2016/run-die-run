@@ -1,4 +1,10 @@
-import { isLevelVersion, type LevelVersion, type ObjectType } from './types';
+import {
+  GROUND_LIKE_TYPES,
+  PLATFORM_LIKE_TYPES,
+  isLevelVersion,
+  type LevelVersion,
+  type ObjectType,
+} from './types';
 
 // Curse categories (spec sections 14-15): the curse UI is deliberately
 // smaller than the base editor's full palette. Types are grouped here (not
@@ -9,8 +15,12 @@ import { isLevelVersion, type LevelVersion, type ObjectType } from './types';
 export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
-  hazard: ['candle', 'saw', 'movingSaw', 'bat', 'ghost'],
-  platform: ['platform', 'movingPlatform'],
+  hazard: ['candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes', 'cannon'],
+  // 'bridge' behaves exactly like 'platform' (see ObjectRegistry) and is
+  // curse-placeable/removable alongside it for the same reason — the new
+  // full-cell terrain blocks behave like 'ground', which was never
+  // curse-placeable, so they're deliberately left out of every category.
+  platform: ['platform', 'movingPlatform', 'bridge'],
   powerUp: ['shield', 'speedBoost'],
 };
 
@@ -29,7 +39,14 @@ export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
 // tile does not. A moving platform is left out on purpose — an object
 // authored on its start cell wouldn't ride along with it.
 export function isSurfaceType(type: ObjectType): boolean {
-  return type === 'ground' || type === 'platform';
+  return (
+    GROUND_LIKE_TYPES.has(type) ||
+    PLATFORM_LIKE_TYPES.has(type) ||
+    // The cannon body is solid/top-anchored like a surface (a hazard/spawn
+    // sharing its cell is a legitimate "resting on top of it", same as any
+    // other block), even though it isn't offered as terrain in the palette.
+    type === 'cannon'
+  );
 }
 
 export type DraftObject = {

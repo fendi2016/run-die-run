@@ -15,8 +15,51 @@ export const OBJECT_TYPES = [
   'speedBoost',
   'spawn',
   'finish',
+  // Kenney terrain blocks (Phase: Kenney level objects) — full-cell solids
+  // that behave exactly like 'ground' (see ObjectRegistry's FULL_BLOCK_TYPES),
+  // plus 'bridge', which behaves exactly like 'platform'. Separate types
+  // rather than a `properties.style` on ground/platform: every consumer here
+  // already keys behavior off ObjectType via one-entry-per-type maps/sets
+  // (ObjectRegistry, editorApi.isSurfaceType, coursePreview), so a new type
+  // is a drop-in fit and needs no new untyped `properties` parsing anywhere.
+  'brickBlock',
+  'stoneBlock',
+  'crateBlock',
+  'grassBlock',
+  'sandBlock',
+  'metalBlock',
+  'bridge',
+  // New hazards.
+  'spikes',
+  'cannon',
 ] as const;
 export type ObjectType = (typeof OBJECT_TYPES)[number];
+
+// The Kenney full-cell terrain blocks (Phase: Kenney level objects) — same
+// footprint/behavior as 'ground' (solid GRID_CELL_SIZE square, top-anchored),
+// just different art. Shared by ObjectRegistry (rendering/sizing),
+// editorApi.isSurfaceType (placement rules), coursePreview and
+// curseSuggestions (both currently key off 'ground' alone) so all four agree
+// on which types count as "ground" without four separate lists drifting.
+export const GROUND_LIKE_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
+  'ground',
+  'brickBlock',
+  'stoneBlock',
+  'crateBlock',
+  'grassBlock',
+  'sandBlock',
+  'metalBlock',
+]);
+
+// 'bridge' behaves exactly like 'platform' (thin rideable solid, no
+// auto-tiled edge/center art) — shared the same way as GROUND_LIKE_TYPES
+// above. Deliberately excludes 'movingPlatform': callers that also want
+// moving platforms included (coursePreview) check for it separately, same
+// as isSurfaceType deliberately leaves it out (see its own comment).
+export const PLATFORM_LIKE_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
+  'platform',
+  'bridge',
+]);
 
 const OBJECT_TYPE_SET: ReadonlySet<string> = new Set(OBJECT_TYPES);
 

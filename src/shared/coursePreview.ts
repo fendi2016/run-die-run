@@ -1,6 +1,6 @@
 import { GRID_CELL_SIZE } from './constants';
 import { HAZARD_TYPES } from './hazards';
-import type { LevelVersion, ObjectType } from './types';
+import { GROUND_LIKE_TYPES, PLATFORM_LIKE_TYPES, type LevelVersion, type ObjectType } from './types';
 
 // A level boiled down to what the feed card's course silhouette draws —
 // small enough for the splash to fetch on every impression.
@@ -16,7 +16,7 @@ export type CoursePreview = {
 export function buildCoursePreview(level: LevelVersion): CoursePreview {
   const half = GRID_CELL_SIZE / 2;
   const tiles = level.objects
-    .filter((o) => o.type === 'ground')
+    .filter((o) => GROUND_LIKE_TYPES.has(o.type))
     .map((o): [number, number] => [o.x - half, o.x + half])
     .sort((a, b) => a[0] - b[0]);
   const ground: [number, number][] = [];
@@ -32,7 +32,7 @@ export function buildCoursePreview(level: LevelVersion): CoursePreview {
     width: rightmost,
     ground,
     platforms: level.objects
-      .filter((o) => o.type === 'platform' || o.type === 'movingPlatform')
+      .filter((o) => PLATFORM_LIKE_TYPES.has(o.type) || o.type === 'movingPlatform')
       .map((o) => ({ x: o.x, y: o.y })),
     hazards: level.objects
       .filter((o) => HAZARD_TYPES.has(o.type))
