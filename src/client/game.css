@@ -94,6 +94,26 @@ body {
     visibility 0s linear 150ms;
 }
 
+/* Docked clear of the player and the finish sharpener (RunResultOverlay.
+   dock(), picked by GameScene.frameFinish()): left on a wide screen, below
+   the Back/Pause row so they don't cover the title; top or bottom in
+   portrait, opposite the finish. */
+#run-result.run-result-dock-left {
+  justify-content: flex-start;
+  padding-top: calc(max(12px, env(safe-area-inset-top)) + 56px);
+  padding-left: max(16px, env(safe-area-inset-left));
+}
+
+#run-result.run-result-dock-left #run-result-panel {
+  width: min(46vw, 360px);
+  margin: 0;
+}
+
+#run-result.run-result-dock-bottom {
+  align-items: safe flex-end;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
 /* Everything lives in one card so a clear reads as a single, calm result —
    not a dozen competing lines of text floating over busy level art. */
 #run-result-panel {

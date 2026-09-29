@@ -1,6 +1,9 @@
 import type { SubmitRunResponse } from '../../shared/runsApi';
 import { requireButton, requireElement } from './domUtils';
 
+export type RunResultDock = 'left' | 'top' | 'bottom';
+const RUN_RESULT_DOCKS: readonly RunResultDock[] = ['left', 'top', 'bottom'];
+
 // DOM-based (not Phaser) result screen shown after clearing a run (spec
 // section 8), including the "CURSE THIS LEVEL?" prompt (spec section 14).
 // Lives outside the canvas so it renders crisp text without fighting the
@@ -11,6 +14,7 @@ import { requireButton, requireElement } from './domUtils';
 // duplicate handlers on the same static button.
 export class RunResultOverlay {
   private readonly root = requireElement('run-result');
+  private readonly panel = requireElement('run-result-panel');
   private readonly streakEl = requireElement('run-result-streak');
   private readonly curseBtn = requireButton('run-result-curse-btn');
   private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
@@ -79,6 +83,20 @@ export class RunResultOverlay {
     );
     this.saveStatus.classList.add('run-result-info');
     this.showNext('', 'Play a real level →', onContinue);
+  }
+
+  // Where the card sits so it doesn't cover the player and the finish
+  // sharpener: the left side on a wide screen, or whichever of top/bottom
+  // the finish isn't on in portrait. GameScene pans the camera into the
+  // space that's left (see frameFinish()).
+  dock(side: RunResultDock): void {
+    for (const each of RUN_RESULT_DOCKS) {
+      this.root.classList.toggle(`run-result-dock-${each}`, each === side);
+    }
+  }
+
+  panelRect(): DOMRect {
+    return this.panel.getBoundingClientRect();
   }
 
   setShareHandler(handler: () => void): void {

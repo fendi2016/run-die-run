@@ -105,6 +105,8 @@ const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // The scribble-in (Juice.playScribbleIn): on level load the player is
 // hidden while the scrawl draws and appears as it finishes; a retry starts
 // running at once, so it gets a quicker flourish around the visible player.
+// Per-frame ease toward the clear-screen framing (see frameFinish()).
+const FINISH_CAMERA_LERP = 0.12;
 const SPAWN_SCRIBBLE_MS = 260;
 const SPAWN_SCRIBBLE_RETRY_MS = 150;
 const SPAWN_SCRIBBLE_WIDTH = PLAYER_SIZE * 0.6;
@@ -277,6 +279,7 @@ export class GameScene extends Scene {
     this.slowTimeTimer = undefined;
     this.interpolation = undefined;
     this.finishSprite = undefined;
+    this.finishCameraX = undefined;
     this.pendingVersionPublished = undefined;
     this.pendingWorldRecord = undefined;
     this.deathsThisLevel = 0;
@@ -288,6 +291,7 @@ export class GameScene extends Scene {
     this.cameras.main.setBackgroundColor(0xfbf8ef);
     this.applyResponsiveZoom();
     this.scale.on('resize', this.applyResponsiveZoom, this);
+    this.scale.on('resize', this.onResizeWhileFinished, this);
 
     this.resultOverlay = new RunResultOverlay();
     this.deathToast = new DeathToast();
@@ -392,15 +396,61 @@ export class GameScene extends Scene {
     this.player.syncVisuals();
     // centerOnX, not scrollX: with zoom != 1 scrollX isn't the left edge
     // (zoom-pivot gotcha), which pushed the player off-screen in portrait.
-    this.cameras.main.centerOnX(
-      this.cameraScrollXFor(this.player.sprite.x) + this.visibleWorldWidth() / 2
-    );
+    // After a clear, ease over to the framing picked by frameFinish().
+    const followX =
+      this.cameraScrollXFor(this.player.sprite.x) + this.visibleWorldWidth() / 2;
+    this.cameraCenterX =
+      this.finishCameraX === undefined
+        ? followX
+        : Phaser.Math.Linear(this.cameraCenterX, this.finishCameraX, FINISH_CAMERA_LERP);
+    this.cameras.main.centerOnX(this.cameraCenterX);
     this.followPlayerY(false);
+  }
+
+  // Clear screen: dock the result card clear of the finish, then aim the
+  // camera so the player and the sharpener sit in the open space beside it
+  // (landscape) or below/above it (portrait) — the card used to land right
+  // on top of them.
+  private frameFinish(): void {
+    if (!this.player || !this.finishSprite) return;
+    const subject = Phaser.Geom.Rectangle.Union(
+      this.player.sprite.getBounds(),
+      this.finishSprite.getBounds()
+    );
+    const landscape = this.scale.width >= this.scale.height;
+    if (landscape) {
+      this.resultOverlay.dock('left');
+    } else {
+      const visibleHeight = LOGICAL_HEIGHT / this.zoomBoost();
+      const viewTop = this.cameraCenterY - visibleHeight / 2;
+      const subjectLow = (subject.centerY - viewTop) / visibleHeight >= 0.5;
+      this.resultOverlay.dock(subjectLow ? 'top' : 'bottom');
+    }
+    const canvas = this.game.canvas.getBoundingClientRect();
+    const toGamePx = this.scale.width / canvas.width;
+    const freeLeft = landscape
+      ? (this.resultOverlay.panelRect().right - canvas.left) * toGamePx
+      : 0;
+    const freeCenterX = (freeLeft + this.scale.width) / 2;
+    const halfView = this.visibleWorldWidth() / 2;
+    this.finishCameraX = Phaser.Math.Clamp(
+      subject.centerX + (this.scale.width / 2 - freeCenterX) / this.cameras.main.zoom,
+      halfView,
+      Math.max(halfView, this.levelWidth - halfView)
+    );
+  }
+
+  private onResizeWhileFinished(): void {
+    if (this.finishCameraX !== undefined) this.frameFinish();
   }
 
   // Centre-based (centerOnY), not scrollY, per the zoom-pivot gotcha; the
   // camera bounds clamp it so the ground row never leaves the screen.
   private cameraCenterY = LOGICAL_HEIGHT / 2;
+  private cameraCenterX = 0;
+  // Set on a clear (see frameFinish()); the camera stops following the
+  // player and eases here instead.
+  private finishCameraX: number | undefined;
   private followPlayerY(snap: boolean): void {
     if (!this.player) return;
     const visibleHeight = LOGICAL_HEIGHT / this.zoomBoost();
@@ -771,6 +821,7 @@ export class GameScene extends Scene {
 
     const timeMs = Math.max(1, Math.round(this.runElapsedMs));
     this.resultOverlay.showTime();
+    this.frameFinish();
 
     if (this.tutorial) {
       PreviewBackButton.instance().hide();
@@ -1360,6 +1411,7 @@ export class GameScene extends Scene {
     this.resumeRun();
     this.controls.hideDialog();
     this.resultOverlay.hide();
+    this.finishCameraX = undefined;
     this.tapToStartPrompt.hide();
     this.player.reset(this.spawn.x, this.spawn.y);
     this.followPlayerY(true);
@@ -1440,6 +1492,7 @@ export class GameScene extends Scene {
     this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
+    this.scale.off('resize', this.onResizeWhileFinished, this);
     PreviewBackButton.instance().hide();
     if (this.levelVersion) {
       disconnectRealtime(levelRealtimeChannel(this.levelVersion.levelId));
