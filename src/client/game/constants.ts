@@ -177,14 +177,16 @@ export const CANNON_BULLET_CULL_DISTANCE_PX = 400;
 // them plain white-and-black, for comparing the two looks.
 export const HAZARD_TINT: number | null = 0xe53935;
 
-// The finish gate is scaled to this height (~3.3 grid tiles, tall enough
-// that the player fits under its banner); width follows the art's own
-// aspect ratio.
-export const FINISH_DISPLAY_HEIGHT_PX = 200;
+// The finish pencil sharpener is scaled to this height (2 grid tiles, so
+// its mouth sits at the pencil's tip height); width follows the art's own
+// aspect ratio (roughly square).
+export const FINISH_DISPLAY_HEIGHT_PX = 120;
 
-// The spawn tombstone's height during a run, drawn behind the player. The
-// editors draw it smaller (SPAWN_ICON_SIZE) so it fits one grid tile.
-export const SPAWN_TOMBSTONE_HEIGHT_PX = 90;
+// The spawn pencil case's height during a run, drawn behind the player —
+// the same height as the player, so the pencil reads as having just come
+// out of it. The editors draw it smaller (SPAWN_ICON_SIZE) so it fits one
+// grid tile.
+export const SPAWN_CASE_HEIGHT_PX = PLAYER_SIZE;
 
 // One beat of the finish-line victory dance (ms per pose). The finish
 // gate's pulse (Juice.playFinishGateAnimation) is timed on the same beat

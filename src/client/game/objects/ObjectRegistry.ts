@@ -666,6 +666,7 @@ export function renderSpawnMarker(
   y: number
 ): Phaser.GameObjects.Sprite {
   const marker = scene.add.sprite(x, y, 'spawn-marker').setOrigin(0.5, 1).setAlpha(0.85);
-  marker.setScale(SPAWN_ICON_SIZE / marker.height);
+  // The pencil case is wider than tall, so fit whichever side is longer.
+  marker.setScale(SPAWN_ICON_SIZE / Math.max(marker.width, marker.height));
   return marker;
 }

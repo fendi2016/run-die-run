@@ -364,8 +364,8 @@ export function loadLevel(
         // it, off the end of the level, and falls to their death instead of
         // finishing. A taller invisible sensor, anchored to the same ground
         // baseline, catches every pass regardless of jump height. It starts
-        // at the gate's center (not its outer pillar) and is one cell wide,
-        // so the player stops under the arch.
+        // at the sharpener's center and is one cell wide, so the player
+        // stops in front of it.
         const sensor = scene.add.zone(
           object.x + GRID_CELL_SIZE / 2,
           object.y - FINISH_TRIGGER_HEIGHT_PX / 2,
@@ -374,11 +374,11 @@ export function loadLevel(
         );
         scene.physics.add.existing(sensor, true);
         finishes.add(sensor);
-        // Behind the player (who runs through the arch), in front of the
-        // spawn tombstone and background.
-        // No applyOutlineGlow here: the art has its own purple glow, and an
-        // outline wrapping under the base made the gate look like it was
-        // floating above the ground.
+        // Behind the player (who runs up to it), in front of the spawn
+        // pencil case and background.
+        // No applyOutlineGlow here: the art has its own ink outline, and a
+        // glow wrapping under the base made it look like it was floating
+        // above the ground.
         rendered.setDepth(-0.1);
         finishSprite = rendered;
         break;

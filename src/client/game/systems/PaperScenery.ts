@@ -16,7 +16,7 @@ const INK = 0x2b2b2b;
 const MARGIN_RED = 0xe06666;
 
 // Layering: level-background (-1) < grain < clouds < skyline < margin <
-// near scenery < death markers (-0.5) < spawn tombstone (-0.25) < finish
+// near scenery < death markers (-0.5) < spawn pencil case (-0.25) < finish
 // gate (-0.1) < ground tiles < ground detail < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
 const CLOUD_DEPTH = -0.93;

@@ -517,7 +517,12 @@ export function fitHyperspeedTrail(
 // Squash pulses on the finish gate, one per victory-dance beat
 // (DANCE_FRAME_MS), each weaker than the last.
 const FINISH_PULSES = 3;
-const FINISH_BLAST_SCALE = 1.6;
+const FINISH_BLAST_SCALE = 1.1;
+// Where the mouth sits in markers/finish.webp: left of center by this
+// fraction of the display width, up from the base by this fraction of the
+// display height.
+const FINISH_MOUTH_OFFSET_X = 0.38;
+const FINISH_MOUTH_HEIGHT = 0.73;
 const FINISH_SPARK_COLOR = 0xffc233;
 
 // Puts the finish gate back at its resting size. Exported so GameScene can
@@ -534,8 +539,8 @@ export function stopFinishGateAnimation(
   resetFinishGate(sprite);
 }
 
-// Plays the finish gate's celebration: a violet blast fills the arch while
-// the gate pulses in time with the player's dance. Purely cosmetic, same as
+// Plays the finish sharpener's celebration: a violet blast bursts from its
+// mouth while it pulses in time with the player's dance. Purely cosmetic, same as
 // burstParticles above — GameScene fires this once from onFinishReached and
 // never awaits it. Only the scale moves; the sprite is bottom-anchored, so
 // the gate stays planted on the ground.
@@ -546,13 +551,14 @@ export function playFinishGateAnimation(
   stopFinishGateAnimation(scene, sprite);
   const restScale = sprite.scaleX;
 
-  // Middle of the arch's opening, under the banner.
-  const openingY = sprite.y - sprite.displayHeight * 0.4;
-  playPixelFx(scene, 'finish-blast', sprite.x, openingY, {
+  // The sharpener's mouth, up on its left (incoming) side.
+  const openingX = sprite.x - sprite.displayWidth * FINISH_MOUTH_OFFSET_X;
+  const openingY = sprite.y - sprite.displayHeight * FINISH_MOUTH_HEIGHT;
+  playPixelFx(scene, 'finish-blast', openingX, openingY, {
     scale: FINISH_BLAST_SCALE,
     depth: sprite.depth + 0.01,
   });
-  burstParticles(scene, sprite.x, openingY, FINISH_SPARK_COLOR, 18);
+  burstParticles(scene, openingX, openingY, FINISH_SPARK_COLOR, 18);
 
   scene.tweens.chain({
     targets: sprite,

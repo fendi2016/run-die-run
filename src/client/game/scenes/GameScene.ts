@@ -71,7 +71,7 @@ import {
   CAMERA_ZOOM_BOOST,
   CAMERA_FOLLOW_Y_LERP,
   CAMERA_PLAYER_Y_ANCHOR,
-  SPAWN_TOMBSTONE_HEIGHT_PX,
+  SPAWN_CASE_HEIGHT_PX,
   PLAYER_SIZE,
   CANNON_FIRE_INTERVAL_MS,
   SLOW_TIME_DURATION_MS,
@@ -739,12 +739,12 @@ export class GameScene extends Scene {
     drawKenneyScenery(this, this.levelWidth, levelVersion.objects, levelVersion.levelId);
     drawGroundDetail(this, levelVersion.objects, levelVersion.levelId);
 
-    // The spawn tombstone the player rises from — above the background, behind
-    // the player and every level object.
+    // The spawn pencil case the player comes out of — above the background,
+    // behind the player and every level object.
     this.add
       .image(this.spawn.x, this.spawn.y, 'spawn-marker')
       .setOrigin(0.5, 1)
-      .setScale(SPAWN_TOMBSTONE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
+      .setScale(SPAWN_CASE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
       .setDepth(-0.25);
 
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
@@ -1365,7 +1365,7 @@ export class GameScene extends Scene {
     );
   }
 
-  // Three staggered pixel fireworks above the finish flag.
+  // Three staggered pixel fireworks above the finish sharpener.
   private playFinishFireworks(gate: Phaser.GameObjects.Sprite): void {
     const bounds = gate.getBounds();
     FINISH_FIREWORKS.forEach(({ key, dx, dy, delayMs }) => {
