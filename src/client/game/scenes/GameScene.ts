@@ -74,6 +74,8 @@ import {
   SPAWN_TOMBSTONE_HEIGHT_PX,
   PLAYER_SIZE,
   CANNON_FIRE_INTERVAL_MS,
+  SLOW_TIME_DURATION_MS,
+  SLOW_TIME_SCALE,
 } from '../constants';
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
@@ -204,6 +206,8 @@ export class GameScene extends Scene {
   private runStarted = false;
 
   private movingObjectTweens: Phaser.Tweens.Tween[] = [];
+  // Stopwatch: puts every moving trap back to full speed when it fires.
+  private slowTimeTimer: Phaser.Time.TimerEvent | undefined;
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private bats: LoadedBat[] = [];
@@ -274,6 +278,7 @@ export class GameScene extends Scene {
     this.cullCannonBullets = undefined;
     for (const timer of this.cannonTimers) timer.remove();
     this.cannonTimers = [];
+    this.slowTimeTimer = undefined;
     this.interpolation = undefined;
     this.finishSprite = undefined;
     this.pendingVersionPublished = undefined;
@@ -521,6 +526,7 @@ export class GameScene extends Scene {
 
   private async loadAndStart(): Promise<void> {
     if (this.tutorial) {
+      markTutorialDone();
       this.levelVersion = TUTORIAL_LEVEL;
       this.startRun(TUTORIAL_LEVEL);
       PreviewBackButton.instance().setLabel('Skip Tutorial →');
@@ -778,11 +784,13 @@ export class GameScene extends Scene {
         if (!attempt.signal.aborted) this.leaveTutorial();
       });
     } else if (devWarp) {
+      this.offerCurse(this.levelVersion.levelId);
       this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
       const levelVersion = this.levelVersion;
+      this.offerCurse(levelVersion.levelId);
       this.resultOverlay.setShareHandler(() => this.share(this.clearShareText()));
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show({ levelId: levelVersion.levelId })
@@ -796,6 +804,16 @@ export class GameScene extends Scene {
       void this.submitRun(request);
       void this.findNextLevel();
     }
+  }
+
+  // Offered the moment the finish is reached, not after the score save
+  // comes back: the curse flow doesn't need the clear on record, and gating
+  // it on the save hid the button whenever that request failed or was slow
+  // (or the viewer was signed out). The starter stays easy forever — no
+  // curse offered on it. Never for a preview/tutorial run.
+  private offerCurse(levelId: string): void {
+    if (this.previewLevel || CURSE_LOCKED_LEVEL_IDS.has(levelId)) return;
+    this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
   }
 
   // Verification (spec section 16) is shared by both preview flows — only
@@ -924,12 +942,6 @@ export class GameScene extends Scene {
       if (attempt.signal.aborted) return;
       this.resultOverlay.showResult(body);
       this.resultOverlay.showSaveStatus('');
-      // The starter stays easy forever — no curse offered on it.
-      if (!CURSE_LOCKED_LEVEL_IDS.has(request.levelId)) {
-        this.resultOverlay.setCurseHandler(() =>
-          this.scene.start('CurseScene', { levelId: request.levelId })
-        );
-      }
     } catch {
       if (attempt.signal.aborted) return;
       this.resultOverlay.showSaveStatus(
@@ -1005,10 +1017,35 @@ export class GameScene extends Scene {
         this.player.applySpeedBoost();
         playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75 });
         break;
+      case 'wings':
+        this.player.grantWings();
+        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 1.5 });
+        break;
+      case 'stopwatch':
+        this.slowTime();
+        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75 });
+        break;
+      case 'star':
+        this.player.grantStar();
+        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2 });
+        break;
       default:
         break;
     }
     playSfx(this, 'pickup');
+  }
+
+  // Stopwatch: every moving trap (and moving platform, so it stays
+  // rideable) runs slower for a while. The run timer and the player are
+  // untouched. Bats and cannon shots keep their speed.
+  private slowTime(): void {
+    for (const tween of this.movingObjectTweens) tween.timeScale = SLOW_TIME_SCALE;
+    this.cameras.main.flash(160, 120, 190, 255, false);
+    this.slowTimeTimer?.remove();
+    this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
+      this.slowTimeTimer = undefined;
+      for (const tween of this.movingObjectTweens) tween.timeScale = 1;
+    });
   }
 
   // `objectId` is absent for a fall-death (running off the level, not a
@@ -1325,6 +1362,8 @@ export class GameScene extends Scene {
       setPowerUpAvailable(image, true);
     }
     this.resetMovingObjects?.();
+    this.slowTimeTimer?.remove();
+    this.slowTimeTimer = undefined;
     // Cannon triggered-flags and live bullets are reset by
     // resetMovingObjects above (LevelLoader owns that state) — the
     // per-cannon firing timers are GameScene's own, though, so they need

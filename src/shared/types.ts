@@ -32,6 +32,15 @@ export const OBJECT_TYPES = [
   // New hazards.
   'spikes',
   'cannon',
+  // Traps and power-ups from the scribble "traps and powerups" sheet.
+  'ceilingSpikes',
+  'spikeMine',
+  'electricMine',
+  'mace',
+  'crusher',
+  'wings',
+  'stopwatch',
+  'star',
 ] as const;
 export type ObjectType = (typeof OBJECT_TYPES)[number];
 

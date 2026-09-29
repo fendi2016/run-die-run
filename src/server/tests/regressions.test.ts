@@ -1405,6 +1405,24 @@ await test('editor move eligibility uses separate ground and surface slots', asy
   assert.equal(editor.getObjects().find((o: DraftObject) => o.id === 'hazard')?.x, 330);
 });
 
+await test('erase removes the top object in a cell, never the spawn, and undoes', async () => {
+  const { EditorController } = await import(
+    new URL('../../client/game/editor/EditorController.ts', import.meta.url).href
+  );
+  const editor = new EditorController([
+    { id: 'spawn', type: 'spawn', x: 90, y: 480 },
+    { id: 'hazard', type: 'candle', x: 330, y: 480 },
+    { id: 'floor', type: 'ground', x: 330, y: 480 },
+  ]);
+  assert.equal(editor.eraseAt(330, 480)?.id, 'hazard');
+  assert.equal(editor.eraseAt(330, 480)?.id, 'floor');
+  assert.equal(editor.eraseAt(330, 480), undefined);
+  assert.equal(editor.eraseAt(90, 480), 'spawn');
+  assert.deepEqual(editor.getObjects().map((o: DraftObject) => o.id), ['spawn']);
+  editor.undo();
+  assert.deepEqual(editor.getObjects().map((o: DraftObject) => o.id), ['spawn', 'floor']);
+});
+
 await test('menu stats reads only its level counters and metadata without scanning discovery', async () => {
   const { getLevelStats } = await import('../services/DiscoveryService');
   const { levelAttemptsKey, levelMetaKey } = await import('../core/redisKeys');

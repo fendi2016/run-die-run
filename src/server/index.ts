@@ -14,6 +14,7 @@ import { scheduler } from './routes/scheduler';
 import { triggers } from './routes/triggers';
 import { userStats } from './routes/userStats';
 import { myCurses } from './routes/myCurses';
+import { tutorial } from './routes/tutorial';
 
 const app = new Hono();
 const internal = new Hono();
@@ -33,6 +34,7 @@ app.route('/api/follow', follow);
 app.route('/api/leaderboard', leaderboard);
 app.route('/api/stats', userStats);
 app.route('/api/me/curses', myCurses);
+app.route('/api/tutorial', tutorial);
 
 serve({
   fetch: app.fetch,

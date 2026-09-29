@@ -15,13 +15,16 @@ import {
 export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
-  hazard: ['candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes', 'cannon'],
+  hazard: [
+    'candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes', 'cannon',
+    'ceilingSpikes', 'spikeMine', 'electricMine', 'mace', 'crusher',
+  ],
   // 'bridge' behaves exactly like 'platform' (see ObjectRegistry) and is
   // curse-placeable/removable alongside it for the same reason — the new
   // full-cell terrain blocks behave like 'ground', which was never
   // curse-placeable, so they're deliberately left out of every category.
   platform: ['platform', 'movingPlatform', 'bridge'],
-  powerUp: ['shield', 'speedBoost'],
+  powerUp: ['shield', 'speedBoost', 'wings', 'stopwatch', 'star'],
 };
 
 // Wire contract for the base level editor's test/publish flow (spec
@@ -103,7 +106,7 @@ export function isDraftObject(value: unknown): value is DraftObject {
 }
 
 // Parses the editor's "Load from JSON" textarea (spec: HONK-style JSON
-// import, reshaped to CURSED's own editor rather than copied wholesale —
+// import, reshaped to SKETCHY's own editor rather than copied wholesale —
 // see docs/plans). Returns null on anything that isn't exactly a
 // DraftObject[] — invalid JSON, a non-array, or an array with a malformed
 // element — so the caller can show one generic "that's not valid level

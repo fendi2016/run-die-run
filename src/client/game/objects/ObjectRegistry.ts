@@ -6,9 +6,27 @@ import {
   BAT_DISPLAY_HEIGHT_PX,
   CANDLE_DISPLAY_HEIGHT_PX,
   CANDLE_HITBOX_WIDTH_PX,
+  CEILING_SPIKES_DISPLAY_WIDTH_PX,
+  CEILING_SPIKES_HITBOX_WIDTH_PX,
+  CRUSHER_DISPLAY_HEIGHT_PX,
+  CRUSHER_HITBOX_WIDTH_PX,
+  CRUSHER_LIFT_PX,
+  CRUSHER_PERIOD_MS,
   GHOST_DISPLAY_HEIGHT_PX,
   FINISH_DISPLAY_HEIGHT_PX,
-  HAZARD_TINT,
+  MACE_ART_SCALE,
+  MACE_HITBOX_PX,
+  MACE_PERIOD_MS,
+  MACE_PIVOT_INSET_PX,
+  MACE_SWING_DEG,
+  POWERUP_DISPLAY_HEIGHT_PX,
+  SAW_DISPLAY_SIZE_PX,
+  SPIKE_MINE_DISPLAY_HEIGHT_PX,
+  SPIKE_MINE_HITBOX_PX,
+  ZAPPER_DISPLAY_HEIGHT_PX,
+  ZAPPER_HITBOX_PX,
+  ZAPPER_ON_FRACTION,
+  ZAPPER_PERIOD_MS,
   GHOST_AMPLITUDE_PX,
   GHOST_PERIOD_MS,
   MOVING_PLATFORM_AMPLITUDE_PX,
@@ -56,6 +74,14 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   // bullets it fires are lethal, and those are runtime-only, never a
   // LevelObject/category of their own.
   cannon: 'solid',
+  ceilingSpikes: 'hazard',
+  spikeMine: 'hazard',
+  electricMine: 'hazard',
+  mace: 'hazard',
+  crusher: 'hazard',
+  wings: 'powerup',
+  stopwatch: 'powerup',
+  star: 'powerup',
 };
 
 // ground/platform/movingPlatform are deliberately absent here — their
@@ -84,15 +110,25 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   bridge: 'block-bridge',
   spikes: 'spikes',
   cannon: 'cannon',
+  ceilingSpikes: 'ceiling-spikes',
+  spikeMine: 'spike-mine',
+  electricMine: 'electric-mine',
+  // The chain and ball; the beam it hangs from is a second, unrotated image
+  // (see renderMace).
+  mace: 'mace-swing',
+  crusher: 'crusher',
+  wings: 'wings',
+  stopwatch: 'stopwatch',
+  star: 'star',
 };
 
-// The ghost/candle(stapler)/bat 8-frame spritesheets (hazards/*-sheet.webp): frame
-// size of each, for the Preloader. The texture keys stay the plain type
-// names, so TEXTURE_BY_TYPE above didn't change.
+// The ghost/bat spritesheets (hazards/*-sheet.webp): frame size of each,
+// for the Preloader. The texture keys stay the plain type names, so
+// TEXTURE_BY_TYPE above didn't change. The stapler (candle) is a single
+// image from the traps sheet now, with a cosmetic chomp tween instead.
 export const HAZARD_SPRITESHEETS = [
   // Scribble creatures (Kenney Scribble Platformer): one frame each for now.
   { key: 'ghost', file: 'hazards/ghost-sheet.webp', frameWidth: 83, frameHeight: 123 },
-  { key: 'candle', file: 'hazards/stapler-sheet.webp', frameWidth: 111, frameHeight: 120 },
   { key: 'bat', file: 'hazards/bat-sheet.webp', frameWidth: 84, frameHeight: 127 },
 ] as const;
 
@@ -104,13 +140,11 @@ export const HAZARD_SPRITESHEETS = [
 // SAW_TYPES/renderLevelObject) rather than a multi-frame sheet.
 const SPIN_ANIM_BY_TYPE: Partial<Record<ObjectType, string>> = {
   ghost: 'ghost-float',
-  candle: 'candle-chomp',
   bat: 'bat-flap',
 };
 
 const HAZARD_ANIMS: readonly { key: string; texture: string; frameRate: number }[] = [
   { key: 'ghost-float', texture: 'ghost', frameRate: 8 },
-  { key: 'candle-chomp', texture: 'candle', frameRate: 10 },
   { key: 'bat-flap', texture: 'bat', frameRate: 12 },
 ];
 
@@ -199,6 +233,23 @@ export function motionTweenConfigFor(
   sprite: Phaser.GameObjects.Sprite,
   object: { type: ObjectType; x: number; y: number }
 ): Phaser.Types.Tweens.TweenBuilderConfig | undefined {
+  const cycle = cyclePoseFor(sprite, object);
+  if (cycle) {
+    // A 0..1 phase counter rather than a tween on the sprite itself: each of
+    // these poses is a function of where in the cycle it is (a swing, an
+    // on/off, a lift-hold-slam), which a single yoyo can't express. Still
+    // one Tween, so LevelLoader's pause/restart/Slow Time handling applies
+    // unchanged.
+    const state = { phase: 0 };
+    return {
+      targets: state,
+      phase: 1,
+      duration: cycle.periodMs,
+      repeat: -1,
+      ease: 'Linear',
+      onUpdate: () => cycle.apply(state.phase),
+    };
+  }
   if (object.type === 'movingPlatform') {
     return {
       targets: sprite,
@@ -234,6 +285,129 @@ export function motionTweenConfigFor(
       }
     },
   };
+}
+
+type CyclePose = { periodMs: number; apply: (phase: number) => void };
+
+// Resyncs a static body after its sprite moved (or changed pose) —
+// harmless in the editor boards, where nothing collides.
+function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
+  if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    sprite.body.updateFromGameObject();
+  }
+}
+
+// The looping traps: each pose is recomputed from scratch for a phase in
+// [0, 1), so a restart (phase back to 0) always lands the same way.
+function cyclePoseFor(
+  sprite: Phaser.GameObjects.Sprite,
+  object: { type: ObjectType; x: number; y: number }
+): CyclePose | undefined {
+  if (object.type === 'electricMine') {
+    return {
+      periodMs: ZAPPER_PERIOD_MS,
+      apply: (phase) => {
+        const on = phase < ZAPPER_ON_FRACTION;
+        if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) sprite.body.enable = on;
+        sprite.setAlpha(on ? 1 : 0.35);
+        if (on) sprite.clearTint();
+        else sprite.setTint(0x9e9e9e);
+      },
+    };
+  }
+  if (object.type === 'crusher') {
+    return {
+      periodMs: CRUSHER_PERIOD_MS,
+      apply: (phase) => {
+        sprite.setY(object.y - CRUSHER_LIFT_PX * crusherLift(phase));
+        syncStaticBody(sprite);
+      },
+    };
+  }
+  if (object.type === 'mace') {
+    const hitbox = maceHitboxOf(sprite);
+    const pivot = macePivot(object);
+    return {
+      periodMs: MACE_PERIOD_MS,
+      apply: (phase) => {
+        const angleDeg = MACE_REST_ANGLE_DEG + MACE_SWING_DEG * Math.sin(phase * Math.PI * 2);
+        // Re-placed every step: a restart snaps the sprite to the authored
+        // (x, y), which isn't where the pivot sits.
+        sprite.setPosition(pivot.x, pivot.y).setAngle(angleDeg);
+        if (!hitbox) return;
+        const a = Phaser.Math.DegToRad(angleDeg);
+        const bx = MACE_BALL_OFFSET.x * MACE_ART_SCALE;
+        const by = MACE_BALL_OFFSET.y * MACE_ART_SCALE;
+        hitbox.setPosition(
+          pivot.x + bx * Math.cos(a) - by * Math.sin(a),
+          pivot.y + bx * Math.sin(a) + by * Math.cos(a)
+        );
+        syncStaticBody(hitbox);
+      },
+    };
+  }
+  return undefined;
+}
+
+// Share of CRUSHER_LIFT_PX the crusher is raised at `phase`: resting on
+// its surface, a slow lift, a pause at the top, then a fast slam.
+function crusherLift(phase: number): number {
+  if (phase < 0.3) return 0;
+  if (phase < 0.7) return 0.5 - 0.5 * Math.cos(((phase - 0.3) / 0.4) * Math.PI);
+  if (phase < 0.85) return 1;
+  const t = (phase - 0.85) / 0.15;
+  return 1 - t * t;
+}
+
+// The mace art (hazards/mace-*.webp) shares one 225x256 canvas: the bolt the
+// chain hangs from, and the ball's center, in that canvas's pixels.
+const MACE_CANVAS = { width: 225, height: 256 };
+const MACE_BOLT = { x: 42, y: 24 };
+const MACE_BALL_OFFSET = { x: 125 - MACE_BOLT.x, y: 185 - MACE_BOLT.y };
+// The art draws the chain swung out to the right; rotating by this much
+// makes it hang straight down.
+const MACE_REST_ANGLE_DEG = Phaser.Math.RadToDeg(Math.atan2(MACE_BALL_OFFSET.x, MACE_BALL_OFFSET.y));
+const MACE_HITBOX_DATA_KEY = 'maceHitbox';
+
+function macePivot(object: { x: number; y: number }): { x: number; y: number } {
+  return { x: object.x, y: object.y - GRID_CELL_SIZE + MACE_PIVOT_INSET_PX };
+}
+
+// The mace's lethal part is only the ball, so it gets its own small
+// invisible hitbox sprite that follows the swing; the chain sprite's own
+// body stays disabled. LevelLoader registers this in its place.
+export function maceHitboxOf(sprite: Phaser.GameObjects.Sprite): Phaser.GameObjects.Sprite | undefined {
+  const hitbox: unknown = sprite.getData(MACE_HITBOX_DATA_KEY);
+  return hitbox instanceof Phaser.GameObjects.Sprite ? hitbox : undefined;
+}
+
+function renderMace(scene: Phaser.Scene, object: LevelObject): Phaser.GameObjects.Sprite {
+  const pivot = macePivot(object);
+  const origin = { x: MACE_BOLT.x / MACE_CANVAS.width, y: MACE_BOLT.y / MACE_CANVAS.height };
+  const sprite = scene.add
+    .sprite(pivot.x, pivot.y, 'mace-swing')
+    .setOrigin(origin.x, origin.y)
+    .setScale(MACE_ART_SCALE)
+    .setAngle(MACE_REST_ANGLE_DEG);
+  const beam = scene.add
+    .image(pivot.x, pivot.y, 'mace-beam')
+    .setOrigin(origin.x, origin.y)
+    .setScale(MACE_ART_SCALE)
+    .setDepth(sprite.depth + 0.01);
+  const hitbox = scene.add
+    .sprite(pivot.x, pivot.y, '__DEFAULT')
+    .setDisplaySize(MACE_HITBOX_PX, MACE_HITBOX_PX)
+    .setVisible(false);
+  scene.physics.add.existing(hitbox, true);
+  sprite.setData(MACE_HITBOX_DATA_KEY, hitbox);
+  sprite.once(Phaser.GameObjects.Events.DESTROY, () => {
+    beam.destroy();
+    hitbox.destroy();
+  });
+  scene.physics.add.existing(sprite, true);
+  if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) sprite.body.enable = false;
+  cyclePoseFor(sprite, object)?.apply(0);
+  return sprite;
 }
 
 // Locks the bat onto (targetX, targetY) — the player's exact position at
@@ -315,11 +489,13 @@ export function pickPlatformTexture(
   return PLATFORM_CENTER_KEYS[index] as string;
 }
 
-// Hazards drawn with the scribble art (see HAZARD_TINT). The bat, ghost and
-// stapler (candle) are painted art, which a multiply tint would only muddy.
-// Spikes is the same Kenney Scribble Platformer line-art pack as saw, so it
-// gets the same red-danger tint treatment.
-const SCRIBBLE_HAZARD_TYPES = new Set<ObjectType>(['saw', 'movingSaw', 'spikes']);
+const POWERUP_TYPES = new Set<ObjectType>(['shield', 'speedBoost', 'wings', 'stopwatch', 'star']);
+
+// Static body shrunk to `width` x `height` (default: the display height),
+// centered on the drawing, so edge scribbles don't count as contact.
+function shrinkStaticBody(sprite: Phaser.GameObjects.Sprite, width: number, height = sprite.displayHeight): void {
+  if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) sprite.body.setSize(width, height);
+}
 
 // A solid's `y` is authored as its walkable top face (spawn position and
 // fall-death both assume that), so it must be top-anchored — the tile's
@@ -362,6 +538,8 @@ export function renderLevelObject(
     return null;
   }
 
+  if (object.type === 'mace') return renderMace(scene, object);
+
   const [originX, originY] = originFor(categoryOf(object.type));
   const sprite = scene.add
     .sprite(object.x, object.y, textureKey)
@@ -389,9 +567,25 @@ export function renderLevelObject(
   } else if (object.type === 'spikes') {
     // Aspect preserved — the source art is already low-and-wide.
     sprite.setScale(SPIKES_DISPLAY_HEIGHT_PX / sprite.height);
-  }
-  if (HAZARD_TINT !== null && SCRIBBLE_HAZARD_TYPES.has(object.type)) {
-    sprite.setTint(HAZARD_TINT);
+  } else if (SAW_TYPES.has(object.type)) {
+    // Spun about its own center (a sprite rotates about its origin): with
+    // the bottom-center origin every other hazard uses, the blade swept a
+    // circle half into the ground while its hitbox stayed put. Same box,
+    // since the center sits half a blade above the authored surface y.
+    sprite
+      .setDisplaySize(SAW_DISPLAY_SIZE_PX, SAW_DISPLAY_SIZE_PX)
+      .setOrigin(0.5, 0.5)
+      .setY(object.y - SAW_DISPLAY_SIZE_PX / 2);
+  } else if (object.type === 'ceilingSpikes') {
+    sprite.setScale(CEILING_SPIKES_DISPLAY_WIDTH_PX / sprite.width);
+  } else if (object.type === 'spikeMine') {
+    sprite.setScale(SPIKE_MINE_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (object.type === 'electricMine') {
+    sprite.setScale(ZAPPER_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (object.type === 'crusher') {
+    sprite.setScale(CRUSHER_DISPLAY_HEIGHT_PX / sprite.height);
+  } else if (POWERUP_TYPES.has(object.type)) {
+    sprite.setScale(POWERUP_DISPLAY_HEIGHT_PX / sprite.height);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
   if (object.type === 'candle' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
@@ -402,6 +596,10 @@ export function renderLevelObject(
     // a spike tip still reads as a clean clear.
     sprite.body.setSize(SPIKES_HITBOX_WIDTH_PX, sprite.displayHeight);
   }
+  if (object.type === 'ceilingSpikes') shrinkStaticBody(sprite, CEILING_SPIKES_HITBOX_WIDTH_PX);
+  if (object.type === 'spikeMine') shrinkStaticBody(sprite, SPIKE_MINE_HITBOX_PX, SPIKE_MINE_HITBOX_PX);
+  if (object.type === 'electricMine') shrinkStaticBody(sprite, ZAPPER_HITBOX_PX, ZAPPER_HITBOX_PX);
+  if (object.type === 'crusher') shrinkStaticBody(sprite, CRUSHER_HITBOX_WIDTH_PX);
 
   // A dynamic body inherits the game's world gravity the instant it's
   // created, so a movingPlatform rendered anywhere that isn't a live run
@@ -436,6 +634,21 @@ export function renderLevelObject(
       duration: SAW_ROTATION_PERIOD_MS,
       repeat: -1,
       ease: 'Linear',
+    });
+  }
+  if (object.type === 'candle') {
+    // Purely cosmetic chomp (the art used to be an 8-frame sheet); the
+    // static body keeps the size it was created with.
+    const baseScaleY = sprite.scaleY;
+    scene.tweens.add({
+      targets: sprite,
+      scaleY: baseScaleY * 0.88,
+      duration: 140,
+      yoyo: true,
+      repeat: -1,
+      repeatDelay: 380,
+      delay: Math.random() * 500,
+      ease: 'Quad.easeOut',
     });
   }
 

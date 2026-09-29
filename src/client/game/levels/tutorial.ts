@@ -1,5 +1,6 @@
 import { GRID_CELL_SIZE, GROUND_TOP_Y, SEED_AUTHOR } from '../../../shared/constants';
 import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/types';
+import { isTutorialStatusResponse } from '../../../shared/tutorialApi';
 
 // The first-play tutorial: a short level that teaches the one control, one
 // obstacle at a time (jump the stapler, hold longer across a gap, stay low
@@ -9,7 +10,7 @@ import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/type
 // Built by SEED_AUTHOR, so a death names no player.
 export const TUTORIAL_LEVEL_ID = 'tutorial';
 
-const TUTORIAL_DONE_KEY = 'cursed:tutorial-done';
+const TUTORIAL_DONE_KEY = 'sketchy:tutorial-done';
 
 // 240px: a quick tap only makes it from the very edge, a held jump has
 // about three times the room (checked in a headless timing sweep).
@@ -101,10 +102,13 @@ export function hintTargetAt(x: number): LevelObject | undefined {
   return TUTORIAL_LEVEL.objects.find((object) => object.id === targetId);
 }
 
-// Per-device: a player on a new device sees it once more, which is
-// harmless (it's short and skippable). Storage can throw in private mode
-// or previews — then it just counts as not done.
-export function isTutorialDone(): boolean {
+// Remembered two ways: localStorage for this device (instant, works signed
+// out), and a per-user server flag so it isn't forced on the player again
+// on another post or device. Devvit's webview storage doesn't reliably
+// survive between sessions, which on its own meant the tutorial came back
+// on every Play. Storage can throw in private mode or previews — then it
+// just counts as not done locally.
+function isTutorialDoneLocally(): boolean {
   try {
     return localStorage.getItem(TUTORIAL_DONE_KEY) === '1';
   } catch {
@@ -112,10 +116,54 @@ export function isTutorialDone(): boolean {
   }
 }
 
-export function markTutorialDone(): void {
+function rememberLocally(): void {
   try {
     localStorage.setItem(TUTORIAL_DONE_KEY, '1');
   } catch {
-    // Not remembered; the player can skip it again next time.
+    // Not remembered on this device; the server flag still covers it.
   }
+}
+
+let serverStatus: Promise<boolean> | undefined;
+
+// Starts (once) the server lookup, so the menu can kick it off before the
+// player taps Play and isTutorialDone() rarely has to wait on it.
+export function prefetchTutorialStatus(): void {
+  if (serverStatus || isTutorialDoneLocally()) return;
+  serverStatus = fetch('/api/tutorial', { signal: AbortSignal.timeout(4000) })
+    .then((response) => (response.ok ? response.json() : undefined))
+    .then((body: unknown) => {
+      const done = isTutorialStatusResponse(body) && body.done;
+      if (done) rememberLocally();
+      return done;
+    })
+    .catch(() => {
+      // Unknown counts as not done; a retry on the next Play may do better.
+      serverStatus = undefined;
+      return false;
+    });
+}
+
+// Waits at most `maxWaitMs` for the server's answer — a slow network
+// shouldn't hold Play hostage, it just risks one extra tutorial.
+export async function isTutorialDone(maxWaitMs = 1500): Promise<boolean> {
+  if (isTutorialDoneLocally()) return true;
+  prefetchTutorialStatus();
+  const pending = serverStatus;
+  if (!pending) return false;
+  return Promise.race([
+    pending,
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), maxWaitMs)),
+  ]);
+}
+
+// Called as soon as the tutorial starts, not only when it's finished or
+// skipped: leaving through the pause menu or closing the post used to leave
+// it unmarked, so it came back on the next Play.
+export function markTutorialDone(): void {
+  rememberLocally();
+  serverStatus = Promise.resolve(true);
+  fetch('/api/tutorial/done', { method: 'POST' }).catch(() => {
+    // The local flag still covers this device.
+  });
 }

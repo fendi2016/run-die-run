@@ -7,4 +7,5 @@ import type { ObjectType } from './types';
 // fires are, and those are runtime-only projectiles, never LevelObjects.
 export const HAZARD_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
   'candle', 'saw', 'movingSaw', 'bat', 'ghost', 'fallingBlock', 'spikes',
+  'ceilingSpikes', 'spikeMine', 'electricMine', 'mace', 'crusher',
 ]);

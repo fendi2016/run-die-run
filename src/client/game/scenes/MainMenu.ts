@@ -2,18 +2,24 @@ import { Scene } from 'phaser';
 import { SPLASH_AUTOSTART_KEY } from '../../../shared/constants';
 import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { GameMenu } from '../../ui/GameMenu';
-import { isTutorialDone } from '../levels/tutorial';
+import { isTutorialDone, prefetchTutorialStatus } from '../levels/tutorial';
 
 // The menu scene for game.html (the popped-out/expanded webview). Renders
 // no Phaser content of its own — GameMenu is a DOM overlay styled to match
 // splash.html's card, so this scene's only job is deciding whether to show
 // it or bypass it entirely.
 export class MainMenu extends Scene {
+  // Set while Play waits on the tutorial lookup, so a double tap doesn't
+  // start GameScene twice.
+  private starting = false;
+
   constructor() {
     super('MainMenu');
   }
 
   create(data: { browse?: boolean } = {}): void {
+    this.starting = false;
+    prefetchTutorialStatus();
     let browseRequested = data.browse === true;
     // The splash screen's Play/Build/Browse each expand into this same
     // 'game' entrypoint (requestExpandedMode has no way to target a scene
@@ -69,7 +75,12 @@ export class MainMenu extends Scene {
   // the level this post plays. Picking a level from Browse skips it — that
   // player already knows what they want.
   private play(): void {
-    this.scene.start('GameScene', isTutorialDone() ? {} : { tutorial: true });
+    if (this.starting) return;
+    this.starting = true;
+    void isTutorialDone().then((done) => {
+      if (!this.scene.isActive()) return;
+      this.scene.start('GameScene', done ? {} : { tutorial: true });
+    });
   }
 
   // DiscoveryOverlay is a DOM overlay shown on top of GameMenu (same

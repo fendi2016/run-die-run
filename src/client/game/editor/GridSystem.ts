@@ -27,14 +27,22 @@ export const PLACEABLE_TYPES = [
   'ghost',
   'spikes',
   'cannon',
+  'ceilingSpikes',
+  'spikeMine',
+  'electricMine',
+  'mace',
+  'crusher',
   'movingPlatform',
   'shield',
   'speedBoost',
+  'wings',
+  'stopwatch',
+  'star',
   'spawn',
   'finish',
 ] as const;
 export type PlaceableObjectType = (typeof PLACEABLE_TYPES)[number];
-export type EditorTool = 'select' | PlaceableObjectType;
+export type EditorTool = 'select' | 'erase' | PlaceableObjectType;
 
 // Board rows increase downward from the highest editable row. This puts
 // the extra tap row below the ground while keeping all board indices >= 0.

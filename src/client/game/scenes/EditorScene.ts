@@ -190,6 +190,10 @@ export class EditorScene extends Scene {
       this.handleSelectTap(world.x, world.y);
       return;
     }
+    if (tool === 'erase') {
+      this.handleEraseTap(world.x, world.y);
+      return;
+    }
 
     // Any type can go on any cell — Test (spec section 13) is what catches
     // an unbeatable layout, not the editor second-guessing placement.
@@ -218,6 +222,24 @@ export class EditorScene extends Scene {
     if (!found) {
       this.toolbar.showMessage('Nothing there to select — tap an object.');
     }
+  }
+
+  // One tap, one object gone — no select-then-Delete. Same smoke puff as
+  // deleteSelected.
+  private handleEraseTap(x: number, y: number): void {
+    let spawnTapped = false;
+    this.applyMutation(() => {
+      const erased = this.controller.eraseAt(x, y);
+      if (erased === 'spawn') {
+        spawnTapped = true;
+        return false;
+      }
+      if (!erased) return false;
+      const at = this.renderedObjects.get(erased.id)?.getCenter();
+      if (at) playPixelFx(this, 'smoke-poof', at.x, at.y, { scale: 1, depth: 10 });
+      return true;
+    }, 'Nothing to erase there.');
+    if (spawnTapped) this.toolbar.showMessage('Every level needs a spawn. Use Select to move it.');
   }
 
   // A puff of smoke where the deleted object was. Drawn above the objects,

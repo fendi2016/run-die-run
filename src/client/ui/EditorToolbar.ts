@@ -8,7 +8,7 @@ import {
   requireTextArea,
 } from './domUtils';
 
-const TOOL_IDS: EditorTool[] = ['select', ...PLACEABLE_TYPES];
+const TOOL_IDS: EditorTool[] = ['select', 'erase', ...PLACEABLE_TYPES];
 
 export type EditorToolbarHandlers = {
   onToolSelected: (tool: EditorTool) => void;

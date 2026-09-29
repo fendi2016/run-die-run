@@ -23,11 +23,19 @@ const TYPE_BUTTON_ENTRIES: [ObjectType, string][] = [
   ['ghost', 'curse-type-ghost'],
   ['spikes', 'curse-type-spikes'],
   ['cannon', 'curse-type-cannon'],
+  ['ceilingSpikes', 'curse-type-ceilingSpikes'],
+  ['spikeMine', 'curse-type-spikeMine'],
+  ['electricMine', 'curse-type-electricMine'],
+  ['mace', 'curse-type-mace'],
+  ['crusher', 'curse-type-crusher'],
   ['platform', 'curse-type-platform'],
   ['movingPlatform', 'curse-type-movingPlatform'],
   ['bridge', 'curse-type-bridge'],
   ['shield', 'curse-type-shield'],
   ['speedBoost', 'curse-type-speedBoost'],
+  ['wings', 'curse-type-wings'],
+  ['stopwatch', 'curse-type-stopwatch'],
+  ['star', 'curse-type-star'],
 ];
 
 export type CurseToolbarHandlers = {

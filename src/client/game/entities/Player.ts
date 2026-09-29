@@ -27,6 +27,7 @@ import {
   RUN_SPEED,
   SPEED_BOOST_DURATION_MS,
   SPEED_BOOST_MULTIPLIER,
+  STAR_DURATION_MS,
 } from '../constants';
 
 // Each player pose is its own named image (extracted from the old
@@ -395,6 +396,13 @@ export class Player {
   // not currently shown, so presence alone doubles as "is one showing".
   private shieldSprite: Phaser.GameObjects.Sprite | undefined;
   private hyperspeedSprite: Phaser.GameObjects.Sprite | undefined;
+  // Wings: one extra jump in mid-air, shown as a small pair of wings on the
+  // player's back until it's used.
+  private airJumps = 0;
+  private wingsSprite: Phaser.GameObjects.Image | undefined;
+  // Star: traps can't hurt the player while this counts down.
+  private invincibleRemainingMs = 0;
+  private readonly starColor = new Phaser.Display.Color();
 
   // Tap-to-start (spec: don't auto-run the instant a level loads) — while
   // true, update() skips the auto-run velocity and jump handling entirely
@@ -474,7 +482,22 @@ export class Player {
     this.updateDisplay(Math.min(this.scene.game.loop.delta, 100) / 1000);
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
+    this.wingsSprite?.setPosition(this.sprite.x - PLAYER_SIZE * 0.22, centerY - PLAYER_SIZE * 0.08);
     this.fitHyperspeedSprite();
+    this.updateStarTint();
+  }
+
+  // Cycles the drawn player through the rainbow while the Star lasts,
+  // blinking in its last second so running out isn't a surprise.
+  private updateStarTint(): void {
+    if (this.invincibleRemainingMs <= 0) return;
+    const now = this.scene.time.now;
+    if (this.invincibleRemainingMs < 1000 && Math.floor(now / 90) % 2 === 0) {
+      this.display.clearTint();
+      return;
+    }
+    Phaser.Display.Color.HSVToRGB((now / 400) % 1, 0.45, 1, this.starColor);
+    this.display.setTint(this.starColor.color);
   }
 
   private updateDisplay(dtS: number): void {
@@ -537,11 +560,18 @@ export class Player {
     this.shieldSprite = undefined;
     this.hyperspeedSprite?.destroy();
     this.hyperspeedSprite = undefined;
+    this.wingsSprite?.destroy();
+    this.wingsSprite = undefined;
+    this.display.clearTint();
   }
 
   update(deltaMs: number): void {
     this.updateLandingDust();
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
+    if (this.invincibleRemainingMs > 0) {
+      this.invincibleRemainingMs = Math.max(0, this.invincibleRemainingMs - deltaMs);
+      if (this.invincibleRemainingMs === 0) this.display.clearTint();
+    }
     this.msSinceGrounded = this.isGrounded
       ? 0
       : this.msSinceGrounded + deltaMs;
@@ -568,10 +598,20 @@ export class Player {
 
     const hasBufferedJump = this.msSinceJumpPressed <= JUMP_BUFFER_MS;
     const canGroundJump = this.msSinceGrounded <= COYOTE_TIME_MS;
-    if (hasBufferedJump && canGroundJump) {
+    if (hasBufferedJump && (canGroundJump || this.airJumps > 0)) {
+      if (!canGroundJump) this.useAirJump();
       this.jump();
       this.releaseCutInMs =
         this.bufferedHeldMs === null ? null : Math.max(this.bufferedHeldMs, MIN_JUMP_HOLD_MS);
+    }
+  }
+
+  private useAirJump(): void {
+    this.airJumps--;
+    if (this.wingsSprite) {
+      playPixelFx(this.scene, 'pickup-flash', this.wingsSprite.x, this.wingsSprite.y, { scale: 0.6 });
+      this.wingsSprite.destroy();
+      this.wingsSprite = undefined;
     }
   }
 
@@ -678,6 +718,7 @@ export class Player {
   // shielded hit never reaches `die()` at all — the caller decides whether
   // to skip attribution/kill-counting for an absorbed hit.
   tryAbsorbHit(): boolean {
+    if (this.invincibleRemainingMs > 0) return true;
     if (this.shieldProtectionRemainingMs > 0) return true;
     if (!this.hasShield) {
       return false;
@@ -719,6 +760,22 @@ export class Player {
       this.sprite.x,
       this.sprite.y - PLAYER_SIZE / 2
     );
+  }
+
+  // Wings: one mid-air jump, kept until it's used. Picking up another pair
+  // while still holding one doesn't stack.
+  grantWings(): void {
+    this.airJumps = 1;
+    if (this.wingsSprite) return;
+    this.wingsSprite = this.scene.add
+      .image(this.sprite.x, this.sprite.y - PLAYER_SIZE / 2, 'wings')
+      .setDepth(this.display.depth - 0.01);
+    this.wingsSprite.setScale((PLAYER_SIZE * 0.5) / this.wingsSprite.height);
+  }
+
+  // Star: every trap is harmless for a few seconds (falling still kills).
+  grantStar(): void {
+    this.invincibleRemainingMs = STAR_DURATION_MS;
   }
 
   applySpeedBoost(): void {
@@ -845,6 +902,8 @@ export class Player {
     this.speedMultiplier = 1;
     this.speedBoostTimer?.remove();
     this.speedBoostTimer = undefined;
+    this.airJumps = 0;
+    this.invincibleRemainingMs = 0;
   }
 
   destroy(): void {

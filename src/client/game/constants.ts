@@ -64,6 +64,12 @@ export const CAMERA_PLAYER_Y_ANCHOR = 0.6;
 // deterministic (no randomness), none add a new input.
 export const SPEED_BOOST_MULTIPLIER = 1.6;
 export const SPEED_BOOST_DURATION_MS = 1400;
+// Wings: one extra jump in mid-air, kept until used (or the attempt ends).
+// Stopwatch: every moving trap runs at this fraction of its speed for a while.
+export const SLOW_TIME_SCALE = 0.4;
+export const SLOW_TIME_DURATION_MS = 4000;
+// Star: every trap is harmless for this long (falling still kills).
+export const STAR_DURATION_MS = 5000;
 // Amplitude/period of a Moving Saw's deterministic back-and-forth path.
 export const MOVING_SAW_AMPLITUDE_PX = 90;
 export const MOVING_SAW_PERIOD_MS = 900;
@@ -113,6 +119,37 @@ export const GHOST_DISPLAY_HEIGHT_PX = 50;
 // still reads as a clean clear.
 export const SPIKES_DISPLAY_HEIGHT_PX = 34;
 export const SPIKES_HITBOX_WIDTH_PX = 46;
+
+// Traps from the scribble "traps and powerups" sheet. Display sizes keep
+// each art's own aspect ratio; hitboxes are a bit smaller than the drawing
+// (spikes/motion scribbles at the edges) so a graze reads fairly.
+// The saw/movingSaw keep the old 40x40 footprint; only the art changed.
+export const SAW_DISPLAY_SIZE_PX = 40;
+// Hangs from a ceiling or platform above: one cell wide, spikes pointing down.
+export const CEILING_SPIKES_DISPLAY_WIDTH_PX = GRID_CELL_SIZE;
+export const CEILING_SPIKES_HITBOX_WIDTH_PX = 46;
+export const SPIKE_MINE_DISPLAY_HEIGHT_PX = 48;
+export const SPIKE_MINE_HITBOX_PX = 34;
+// A Zapper is lethal for the first ZAPPER_ON_FRACTION of every cycle and
+// harmless (dimmed) for the rest.
+export const ZAPPER_DISPLAY_HEIGHT_PX = 54;
+export const ZAPPER_HITBOX_PX = 32;
+export const ZAPPER_PERIOD_MS = 3000;
+export const ZAPPER_ON_FRACTION = 0.5;
+// Swinging Mace: the beam's bolt sits near the top of its placed cell and
+// the ball swings below it, through roughly the next two cells down.
+export const MACE_ART_SCALE = 0.55;
+export const MACE_PIVOT_INSET_PX = 14;
+export const MACE_SWING_DEG = 60;
+export const MACE_PERIOD_MS = 2200;
+export const MACE_HITBOX_PX = 40;
+// Crusher: sits on its surface, lifts up, hangs there, then slams down.
+export const CRUSHER_DISPLAY_HEIGHT_PX = 70;
+export const CRUSHER_HITBOX_WIDTH_PX = 52;
+export const CRUSHER_LIFT_PX = 150;
+export const CRUSHER_PERIOD_MS = 2600;
+// Power-up pickups all draw at one size.
+export const POWERUP_DISPLAY_HEIGHT_PX = 56;
 
 // Cannon (Kenney expansion cannon_base + cannon_small, composed into one
 // static solid): forced to the same GRID_CELL_SIZE square footprint as

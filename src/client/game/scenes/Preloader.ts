@@ -96,10 +96,17 @@ export class Preloader extends Scene {
       );
     }
     // A single sawblade image, spun by angle (ObjectRegistry) instead of the
-    // old 8-frame sheet — kept at the old frame's exact 40x40 pixel size so
-    // the saw/movingSaw hitbox (derived from this texture's native size) is
-    // unchanged.
+    // old 8-frame sheet. Drawn at SAW_DISPLAY_SIZE_PX (the old 40x40), so
+    // the saw/movingSaw hitbox is unchanged.
     this.load.image('saw-spin', 'hazards/saw-spin.webp');
+    // Traps from the scribble traps sheet (see ObjectRegistry).
+    this.load.image('candle', 'hazards/stapler.webp');
+    this.load.image('ceiling-spikes', 'hazards/ceiling-spikes.webp');
+    this.load.image('spike-mine', 'hazards/spike-mine.webp');
+    this.load.image('electric-mine', 'hazards/electric-mine.webp');
+    this.load.image('mace-swing', 'hazards/mace-swing.webp');
+    this.load.image('mace-beam', 'hazards/mace-beam.webp');
+    this.load.image('crusher', 'hazards/crusher.webp');
     // Animated 8-frame sheets (see ObjectRegistry.HAZARD_SPRITESHEETS); the
     // single-frame hazards/*.webp next to them are only the editor icons.
     for (const sheet of HAZARD_SPRITESHEETS) {
@@ -114,6 +121,9 @@ export class Preloader extends Scene {
     this.load.image('spawn-marker', 'markers/spawn.webp');
     this.load.image('shield', 'powerups/shield.webp');
     this.load.image('speedBoost', 'powerups/speedBoost.webp');
+    this.load.image('wings', 'powerups/wings.webp');
+    this.load.image('stopwatch', 'powerups/stopwatch.webp');
+    this.load.image('star', 'powerups/star.webp');
     this.load.image('level-background', 'ui/paper-bg.webp');
     // Kenney scenery (see PaperScenery.drawKenneyScenery).
     for (const { key, file } of KENNEY_SCENERY) this.load.image(key, file);
@@ -129,7 +139,7 @@ export class Preloader extends Scene {
     this.load.image('block-sand', 'kenney/tiles/block-sand.webp');
     this.load.image('block-metal', 'kenney/tiles/block-metal.webp');
     this.load.image('block-bridge', 'kenney/tiles/block-bridge.webp');
-    this.load.image('spikes', 'kenney/hazards/spikes.webp');
+    this.load.image('spikes', 'hazards/spikes.webp');
     this.load.image('cannon', 'kenney/hazards/cannon.webp');
     // Not a level object of its own — spawned at runtime by a triggered
     // cannon (GameScene/LevelLoader) — but loaded here alongside the rest of

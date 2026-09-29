@@ -220,6 +220,10 @@
               <span class="editor-btn-icon">&#8598;</span>
               <span class="editor-btn-label">Select</span>
             </button>
+            <button type="button" id="editor-tool-erase" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/kenney/ui/ui-erase.webp" alt="" />
+              <span class="editor-btn-label">Erase</span>
+            </button>
             <span class="editor-divider"></span>
             <span class="editor-palette-group-label">Terrain</span>
             <button type="button" id="editor-tool-ground" class="editor-btn">
@@ -275,12 +279,32 @@
               <span class="editor-btn-label">Floater</span>
             </button>
             <button type="button" id="editor-tool-spikes" class="editor-btn">
-              <img class="editor-btn-icon-img" src="/assets/kenney/hazards/spikes.webp" alt="" />
+              <img class="editor-btn-icon-img" src="/assets/hazards/spikes.webp" alt="" />
               <span class="editor-btn-label">Spikes</span>
             </button>
             <button type="button" id="editor-tool-cannon" class="editor-btn">
               <img class="editor-btn-icon-img" src="/assets/kenney/hazards/cannon.webp" alt="" />
               <span class="editor-btn-label">Cannon</span>
+            </button>
+            <button type="button" id="editor-tool-ceilingSpikes" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/ceiling-spikes.webp" alt="" />
+              <span class="editor-btn-label">Ceiling Spikes</span>
+            </button>
+            <button type="button" id="editor-tool-spikeMine" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/spike-mine.webp" alt="" />
+              <span class="editor-btn-label">Spike Mine</span>
+            </button>
+            <button type="button" id="editor-tool-electricMine" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/electric-mine.webp" alt="" />
+              <span class="editor-btn-label">Zapper</span>
+            </button>
+            <button type="button" id="editor-tool-mace" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/mace-icon.webp" alt="" />
+              <span class="editor-btn-label">Swinging Mace</span>
+            </button>
+            <button type="button" id="editor-tool-crusher" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/hazards/crusher.webp" alt="" />
+              <span class="editor-btn-label">Crusher</span>
             </button>
             <span class="editor-divider"></span>
             <span class="editor-palette-group-label">Platforms</span>
@@ -313,6 +337,18 @@
             >
               <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.webp" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
+            </button>
+            <button type="button" id="editor-tool-wings" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/powerups/wings.webp" alt="" />
+              <span class="editor-btn-label">Wings</span>
+            </button>
+            <button type="button" id="editor-tool-stopwatch" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/powerups/stopwatch.webp" alt="" />
+              <span class="editor-btn-label">Stopwatch</span>
+            </button>
+            <button type="button" id="editor-tool-star" class="editor-btn">
+              <img class="editor-btn-icon-img" src="/assets/powerups/star.webp" alt="" />
+              <span class="editor-btn-label">Star</span>
             </button>
             <span class="editor-divider"></span>
             <span class="editor-palette-group-label">Markers</span>
@@ -537,7 +573,7 @@
               id="curse-type-spikes"
               class="editor-btn hidden"
             >
-              <img class="editor-btn-icon-img" src="/assets/kenney/hazards/spikes.webp" alt="" />
+              <img class="editor-btn-icon-img" src="/assets/hazards/spikes.webp" alt="" />
               <span class="editor-btn-label">Spikes</span>
             </button>
             <button
@@ -547,6 +583,46 @@
             >
               <img class="editor-btn-icon-img" src="/assets/kenney/hazards/cannon.webp" alt="" />
               <span class="editor-btn-label">Cannon</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-ceilingSpikes"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/ceiling-spikes.webp" alt="" />
+              <span class="editor-btn-label">Ceiling Spikes</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-spikeMine"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/spike-mine.webp" alt="" />
+              <span class="editor-btn-label">Spike Mine</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-electricMine"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/electric-mine.webp" alt="" />
+              <span class="editor-btn-label">Zapper</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-mace"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/mace-icon.webp" alt="" />
+              <span class="editor-btn-label">Swinging Mace</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-crusher"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/hazards/crusher.webp" alt="" />
+              <span class="editor-btn-label">Crusher</span>
             </button>
             <button
               type="button"
@@ -603,6 +679,30 @@
             >
               <img class="editor-btn-icon-img" src="/assets/powerups/speedBoost.webp" alt="" />
               <span class="editor-btn-label">Speed Boost</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-wings"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/powerups/wings.webp" alt="" />
+              <span class="editor-btn-label">Wings</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-stopwatch"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/powerups/stopwatch.webp" alt="" />
+              <span class="editor-btn-label">Stopwatch</span>
+            </button>
+            <button
+              type="button"
+              id="curse-type-star"
+              class="editor-btn hidden"
+            >
+              <img class="editor-btn-icon-img" src="/assets/powerups/star.webp" alt="" />
+              <span class="editor-btn-label">Star</span>
             </button>
           </div>
           <div id="curse-actions" class="editor-row">

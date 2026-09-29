@@ -18,6 +18,7 @@ import type {
 } from '../../../shared/types';
 import {
   categoryOf,
+  maceHitboxOf,
   motionTweenConfigFor,
   renderLevelObject,
 } from '../objects/ObjectRegistry';
@@ -245,17 +246,19 @@ export function loadLevel(
   // it could.
   function registerMovingTween(
     tween: Phaser.Tweens.Tween,
-    rendered: Phaser.GameObjects.Sprite,
-    object: LevelObject
+    rendered: Phaser.GameObjects.Sprite
   ): void {
     movingObjectTweens.push(tween);
+    // Where it was drawn, not the authored (x, y): a saw sits centered half
+    // a blade above its surface (see ObjectRegistry.renderLevelObject).
+    const home = { x: rendered.x, y: rendered.y };
     movementResets.push(() => {
       tween.timeScale = 1;
       tween.restart();
-      rendered.setPosition(object.x, object.y);
+      rendered.setPosition(home.x, home.y);
       if (rendered.body instanceof Phaser.Physics.Arcade.Body) {
         // Clear derived carry velocity as well as the platform's position.
-        rendered.body.reset(object.x, object.y);
+        rendered.body.reset(home.x, home.y);
       } else if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
         rendered.body.updateFromGameObject();
       }
@@ -309,11 +312,7 @@ export function loadLevel(
           }
           const platformTween = motionTweenConfigFor(rendered, object);
           if (platformTween) {
-            registerMovingTween(
-              scene.tweens.add(platformTween),
-              rendered,
-              object
-            );
+            registerMovingTween(scene.tweens.add(platformTween), rendered);
           }
         }
         if (object.type === 'cannon') {
@@ -350,9 +349,13 @@ export function loadLevel(
         }
         const hazardTween = motionTweenConfigFor(rendered, object);
         if (hazardTween) {
-          registerMovingTween(scene.tweens.add(hazardTween), rendered, object);
+          registerMovingTween(scene.tweens.add(hazardTween), rendered);
         }
-        hazards.add(rendered);
+        // A mace only kills with its ball, which has its own small hitbox
+        // following the swing (see ObjectRegistry.renderMace).
+        const hitbox = maceHitboxOf(rendered) ?? rendered;
+        if (hitbox !== rendered) sourceObjects.set(hitbox, object);
+        hazards.add(hitbox);
         break;
       }
       case 'finish': {
