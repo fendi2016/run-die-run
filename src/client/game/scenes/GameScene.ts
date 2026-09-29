@@ -757,7 +757,7 @@ export class GameScene extends Scene {
       .setScrollFactor(1, 1)
       .setDepth(-1);
     drawPaperBackdrop(this, this.levelWidth);
-    drawScenery(this, this.levelWidth, levelVersion.objects, levelVersion.levelId);
+    drawScenery(this);
 
     // The spawn pencil case the player comes out of, just to his left —
     // above the background, behind the player and every level object.

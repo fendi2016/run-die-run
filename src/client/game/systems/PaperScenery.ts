@@ -1,32 +1,26 @@
 import * as Phaser from 'phaser';
-import { GRID_CELL_SIZE, GROUND_TOP_Y, LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../../shared/constants';
-import type { LevelObject } from '../../../shared/types';
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../../shared/constants';
 
-// Set dressing for a run, so gameplay sits in the same drawn world as the
-// title screen instead of on a bare ruled sheet: paper grain, a margin
-// rule at the start, crayon scenery from the "background art" sheet
-// (clouds, a pale far treeline, trees and bushes) in three parallax layers,
-// and grass tufts along the ground.
+// Set dressing for a run: one backdrop, the same on every level — ruled
+// notebook paper (with grain and a margin rule where the page begins) and
+// a fixed set of crayon clouds from the "background art" sheet.
 // Everything here is cosmetic — no bodies, no input — and kept light and
 // behind the action so hazards stay visually dominant.
 
 const GRAIN_KEY = 'paper-grain';
 const MARGIN_RED = 0xe06666;
 
-// Layering: level-background (-1) < grain < clouds < far treeline < margin <
-// pinned paper scraps < death markers (-0.5) < spawn pencil case (-0.25) < finish
+// Layering: level-background (-1) < grain < clouds < margin <
+// death markers (-0.5) < spawn pencil case (-0.25) < finish
 // gate (-0.1) < ground tiles < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
 const CLOUD_DEPTH = -0.93;
-const FAR_TREE_DEPTH = -0.91;
 const MARGIN_DEPTH = -0.9;
-const PAPER_DECOR_DEPTH = -0.88;
 export const GROUND_TILE_DEPTH = -0.08;
 
 type Rng = () => number;
 
-// Deterministic per level, so a restart (or another player) sees the same
-// page rather than scenery reshuffling on every attempt.
+// Deterministic, so the paper grain is the same on every page.
 function seededRng(seedText: string): Rng {
   let seed = 2166136261;
   for (let i = 0; i < seedText.length; i++) {
@@ -44,12 +38,6 @@ function seededRng(seedText: string): Rng {
 function range(rng: Rng, min: number, max: number): number {
   return min + rng() * (max - min);
 }
-
-function pick<T>(rng: Rng, items: readonly T[]): T | undefined {
-  return items[Math.floor(rng() * items.length)];
-}
-
-type Point = { x: number; y: number };
 
 function ensureGrainTexture(scene: Phaser.Scene): void {
   if (scene.textures.exists(GRAIN_KEY)) return;
@@ -93,214 +81,31 @@ export function drawPaperBackdrop(scene: Phaser.Scene, levelWidth: number): void
   margin.lineBetween(31, 0, 31, LOGICAL_HEIGHT);
 }
 
-// Crayon scenery cut from the user's "background art" sheet
-// (public/assets/background). Each piece is trimmed to its drawing, so
-// its bottom edge is the ground line.
-type SceneryArt = { key: string; file: string };
+// Crayon clouds cut from the user's "background art" sheet
+// (public/assets/background), pinned to the camera in one fixed
+// arrangement so every level shows the same sky: [file, x, y, width] with
+// x/y as fractions of the screen.
+const CLOUDS: [string, number, number, number][] = [
+  ['cloud-a', 0.14, 0.13, 190],
+  ['cloud-d', 0.42, 0.24, 130],
+  ['cloud-b', 0.68, 0.11, 200],
+  ['cloud-c', 0.9, 0.28, 150],
+];
 
-const art = (name: string): SceneryArt => ({
-  key: `bg-${name}`,
+const cloudKey = (name: string): string => `bg-${name}`;
+
+export const SCENERY_ART: { key: string; file: string }[] = CLOUDS.map(([name]) => ({
+  key: cloudKey(name),
   file: `background/${name}.webp`,
-});
+}));
 
-const CLOUDS = ['cloud-a', 'cloud-b', 'cloud-c', 'cloud-d'].map(art);
-const TREES = ['tree-green', 'tree-pink', 'tree-autumn', 'tree-pine', 'tree-palm'].map(art);
-
-// Notebook-paper scraps from the level-piece sheet (public/assets/paper)
-// that can't be solid terrain — slopes, wedges, torn strips, holed scraps —
-// pinned or clipped to the backdrop instead. `width` is the display width;
-// `fastener` is what holds it up (strips that already carry their own tape
-// get nothing extra), stuck in at `anchor` — a spot on the paper itself as
-// a fraction of the image, since slopes and wedges leave much of their
-// bounding box empty.
-type Fastener = 'pin' | 'clip' | 'none';
-type DecorArt = { key: string; file: string; width: number; fastener: Fastener; anchor: Point };
-
-const decor = (name: string, width: number, fastener: Fastener, ax = 0.5, ay = 0.2): DecorArt => ({
-  key: `paper-decor-${name}`,
-  file: `paper/${name}.webp`,
-  width,
-  fastener,
-  anchor: { x: ax, y: ay },
-});
-
-const PAPER_SCRAPS: DecorArt[] = [
-  decor('paper-slope', 150, 'pin', 0.8, 0.3),
-  decor('paper-ramp', 130, 'pin', 0.82, 0.35),
-  decor('graph-triangle', 90, 'pin', 0.8, 0.4),
-  decor('scrap-ramp-holes', 160, 'clip', 0.14, 0.1),
-  decor('scrap-wedge-holes', 150, 'pin', 0.72, 0.3),
-  decor('paper-wedge-tape', 110, 'none'),
-  decor('scrap-ring', 80, 'pin', 0.5, 0.18),
-  decor('scrap-hook', 72, 'pin', 0.3, 0.2),
-  decor('scrap-holes', 130, 'clip', 0.18, 0.08),
-  decor('paper-pillar-small', 56, 'pin', 0.5, 0.16),
-  decor('red-corner', 92, 'pin', 0.78, 0.12),
-  decor('red-scribble-strip', 120, 'clip', 0.14, 0.14),
-  decor('tape-strip', 100, 'none'),
-  decor('tape-strip-long', 150, 'none'),
-  decor('tape-strip-small', 100, 'none'),
-  decor('paper-strip-bluetape', 124, 'none'),
-];
-const PINS = [decor('pin-red', 30, 'none'), decor('pin-blue', 27, 'none')];
-const CLIPS = [decor('paperclip-long', 80, 'none'), decor('paperclip-short', 52, 'none')];
-
-type LoadableArt = { key: string; file: string };
-
-export const SCENERY_ART: LoadableArt[] = [
-  ...CLOUDS,
-  ...PAPER_SCRAPS,
-  ...PINS,
-  ...CLIPS,
-];
-
-function standOnGround(
-  scene: Phaser.Scene,
-  a: SceneryArt,
-  x: number,
-  groundY: number,
-  height: number
-): Phaser.GameObjects.Image {
-  const image = scene.add.image(x, groundY, a.key).setOrigin(0.5, 1);
-  image.setScale(height / image.height);
-  return image;
-}
-
-// A far-off clump of one to three trees: small, pale, and slower than the
-// camera, so the page reads as having some distance to it.
-function farTrees(scene: Phaser.Scene, x: number, rng: Rng, factor: number): void {
-  const count = 1 + Math.floor(rng() * 3);
-  for (let i = 0; i < count; i++) {
-    const tree = pick(rng, TREES);
-    if (!tree) return;
-    standOnGround(scene, tree, x + i * range(rng, 55, 80), GROUND_TOP_Y + 8, range(rng, 90, 130))
-      .setScrollFactor(factor, 1)
-      .setDepth(FAR_TREE_DEPTH)
-      .setAlpha(0.22);
-  }
-}
-
-// Far background only for now: clouds and a faint parallax treeline, plus
-// the pinned paper scraps. Nothing stands on the level's own ground.
-export function drawScenery(
-  scene: Phaser.Scene,
-  levelWidth: number,
-  objects: LevelObject[],
-  seedText: string
-): void {
-  const rng = seededRng(`${seedText}:scenery`);
-  // A parallax layer at scroll factor f only moves f as far as the camera,
-  // so it needs levelWidth * f of content plus one screen.
-  const span = (factor: number): number => levelWidth * factor + 1400;
-
-  const cloudFactor = 0.25;
-  for (let x = range(rng, 60, 260); x < span(cloudFactor); x += range(rng, 280, 520)) {
-    const cloud = pick(rng, CLOUDS);
-    if (!cloud) break;
-    const image = scene.add
-      .image(x, range(rng, 50, 190), cloud.key)
-      .setScrollFactor(cloudFactor, 1)
+export function drawScenery(scene: Phaser.Scene): void {
+  for (const [name, fx, fy, width] of CLOUDS) {
+    const cloud = scene.add
+      .image(fx * LOGICAL_WIDTH, fy * LOGICAL_HEIGHT, cloudKey(name))
+      .setScrollFactor(0)
       .setDepth(CLOUD_DEPTH)
       .setAlpha(0.85);
-    image.setScale(range(rng, 130, 220) / image.width);
-  }
-
-  const farFactor = 0.55;
-  for (let x = range(rng, 380, 700); x < span(farFactor); x += range(rng, 520, 900)) {
-    farTrees(scene, x, rng, farFactor);
-  }
-
-  drawPaperDecor(scene, levelWidth, objects, seedText);
-}
-
-// Faded paper scraps pinned or clipped to the page in front of the far
-// treeline. Pale, warm-grey and tilted so they read as stuff
-// stuck to the notebook, never as a ledge to land on. Every scrap in the
-// sheet is dealt once (in a seeded shuffle) before any repeats, so even a
-// short level shows a good spread.
-function drawPaperDecor(
-  scene: Phaser.Scene,
-  levelWidth: number,
-  objects: LevelObject[],
-  seedText: string
-): void {
-  const rng = seededRng(`${seedText}:paper-decor`);
-  const factor = 0.72;
-  const alpha = 0.34;
-  const tint = 0xc8c2b4;
-  const halfScreen = LOGICAL_WIDTH / 2;
-  // With parallax, a scrap at layer-x `x` passes behind world-x
-  // halfScreen + (x - halfScreen) / factor while it's mid-screen, which is
-  // where the player's eye is. Keep that spot clear of the course, and keep
-  // off rows that hold something.
-  const busy = objects.filter((o) => o.type !== 'ground');
-  const overlapsCourse = (x: number, top: number, bottom: number, halfWidth: number): boolean => {
-    const worldX = halfScreen + (x - halfScreen) / factor;
-    const reach = halfWidth / factor + GRID_CELL_SIZE;
-    return busy.some(
-      (o) => Math.abs(o.x - worldX) < reach && o.y + GRID_CELL_SIZE > top && o.y - GRID_CELL_SIZE < bottom
-    );
-  };
-
-  const deck: DecorArt[] = [];
-  const deal = (): DecorArt | undefined => {
-    if (deck.length === 0) {
-      deck.push(...PAPER_SCRAPS);
-      for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        const a = deck[i];
-        const b = deck[j];
-        if (a && b) {
-          deck[i] = b;
-          deck[j] = a;
-        }
-      }
-    }
-    return deck[deck.length - 1];
-  };
-
-  const end = levelWidth * factor + LOGICAL_WIDTH;
-  for (let x = range(rng, 200, 380); x < end; x += range(rng, 260, 420)) {
-    const piece = deal();
-    if (!piece) break;
-    const y = range(rng, 70, 250);
-    const scale = piece.width / scene.textures.getFrame(piece.key).width;
-    const halfHeight = (scene.textures.getFrame(piece.key).height * scale) / 2;
-    // A crowded stretch: try this slot a little higher before giving up.
-    const clearY = [y, 70].find((cy) => !overlapsCourse(x, cy - halfHeight, cy + halfHeight, piece.width / 2));
-    if (clearY === undefined) continue;
-    deck.pop();
-
-    const angle = range(rng, -9, 9);
-    const image = scene.add
-      .image(x, clearY, piece.key)
-      .setScale(scale)
-      .setAngle(angle)
-      .setScrollFactor(factor, 1)
-      .setDepth(PAPER_DECOR_DEPTH)
-      .setAlpha(alpha)
-      .setTint(tint);
-
-    if (piece.fastener === 'none') continue;
-    const pool = piece.fastener === 'pin' ? PINS : CLIPS;
-    const fastener = pick(rng, pool);
-    if (!fastener) continue;
-    const offsetX = (piece.anchor.x - 0.5) * image.displayWidth;
-    const offsetY = (piece.anchor.y - 0.5) * image.displayHeight;
-    const at = Phaser.Math.RotateAround(
-      { x: x + offsetX, y: clearY + offsetY },
-      x,
-      clearY,
-      Phaser.Math.DegToRad(angle)
-    );
-    const holder = scene.add
-      .image(at.x, at.y, fastener.key)
-      .setOrigin(0.5, piece.fastener === 'pin' ? 0.85 : 0.5)
-      .setAngle(piece.fastener === 'pin' ? range(rng, -12, 12) : angle + range(rng, -20, -8))
-      .setScrollFactor(factor, 1)
-      .setDepth(PAPER_DECOR_DEPTH + 0.001)
-      .setAlpha(alpha + 0.1)
-      .setTint(tint);
-    holder.setScale(fastener.width / holder.width);
+    cloud.setScale(width / cloud.width);
   }
 }
