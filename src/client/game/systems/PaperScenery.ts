@@ -14,16 +14,14 @@ const GRAIN_KEY = 'paper-grain';
 const MARGIN_RED = 0xe06666;
 
 // Layering: level-background (-1) < grain < clouds < far treeline < margin <
-// pinned paper scraps < near scenery < death markers (-0.5) < spawn pencil case (-0.25) < finish
-// gate (-0.1) < ground tiles < ground detail < player and hazards (0).
+// pinned paper scraps < death markers (-0.5) < spawn pencil case (-0.25) < finish
+// gate (-0.1) < ground tiles < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
 const CLOUD_DEPTH = -0.93;
 const FAR_TREE_DEPTH = -0.91;
 const MARGIN_DEPTH = -0.9;
 const PAPER_DECOR_DEPTH = -0.88;
-const NEAR_SCENERY_DEPTH = -0.85;
 export const GROUND_TILE_DEPTH = -0.08;
-const GROUND_DETAIL_DEPTH = -0.05;
 
 type Rng = () => number;
 
@@ -103,18 +101,6 @@ const art = (name: string): SceneryArt => ({
 
 const CLOUDS = ['cloud-a', 'cloud-b', 'cloud-c', 'cloud-d'].map(art);
 const TREES = ['tree-green', 'tree-pink', 'tree-autumn', 'tree-pine', 'tree-palm'].map(art);
-const GRASS = ['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'grass-8'].map(art);
-// [art, display height] — trees tower over the pencil, bushes sit below
-// his knees.
-const NEAR: [SceneryArt, number][] = [
-  ...TREES.map((t): [SceneryArt, number] => [t, 200]),
-  [art('tree-small'), 120],
-  [art('tree-tiny'), 64],
-  [art('bush-a'), 52],
-  [art('bush-b'), 56],
-  [art('bush-c'), 52],
-  [art('bush-d'), 56],
-];
 
 // Notebook-paper scraps from the level-piece sheet (public/assets/paper)
 // that can't be solid terrain — slopes, wedges, torn strips, holed scraps —
@@ -159,8 +145,6 @@ type LoadableArt = { key: string; file: string };
 
 export const SCENERY_ART: LoadableArt[] = [
   ...CLOUDS,
-  ...NEAR.map(([a]) => a),
-  ...GRASS,
   ...PAPER_SCRAPS,
   ...PINS,
   ...CLIPS,
@@ -192,10 +176,8 @@ function farTrees(scene: Phaser.Scene, x: number, rng: Rng, factor: number): voi
   }
 }
 
-// Clouds (far), a faint treeline (middle distance) and trees/bushes
-// standing on the level's own ground (near). Near pieces only go where
-// there's ground under them and keep clear of every hazard, platform,
-// power-up and marker, so nothing ever reads as part of the course.
+// Far background only for now: clouds and a faint parallax treeline, plus
+// the pinned paper scraps. Nothing stands on the level's own ground.
 export function drawScenery(
   scene: Phaser.Scene,
   levelWidth: number,
@@ -224,31 +206,11 @@ export function drawScenery(
     farTrees(scene, x, rng, farFactor);
   }
 
-  const half = GRID_CELL_SIZE / 2;
-  const groundCells = new Set(
-    objects.filter((o) => o.type === 'ground').map((o) => Math.round((o.x - half) / GRID_CELL_SIZE))
-  );
-  const hasGround = (from: number, to: number): boolean => {
-    for (let c = Math.floor(from / GRID_CELL_SIZE); c <= Math.floor(to / GRID_CELL_SIZE); c++) {
-      if (!groundCells.has(c)) return false;
-    }
-    return true;
-  };
-  const busyX = objects.filter((o) => o.type !== 'ground').map((o) => o.x);
   drawPaperDecor(scene, levelWidth, objects, seedText);
-  for (let x = range(rng, 300, 460); x < levelWidth - 60; x += range(rng, 300, 560)) {
-    const pick = NEAR[Math.floor(rng() * NEAR.length)] ?? NEAR[0];
-    if (!pick) break;
-    const [a, height] = pick;
-    const halfWidth = height * 0.5;
-    if (!hasGround(x - halfWidth, x + halfWidth)) continue;
-    if (busyX.some((bx) => Math.abs(bx - x) < halfWidth + 70)) continue;
-    standOnGround(scene, a, x, GROUND_TOP_Y + 3, height).setDepth(NEAR_SCENERY_DEPTH);
-  }
 }
 
-// Faded paper scraps pinned or clipped to the page between the skyline
-// and the near scenery. Pale, warm-grey and tilted so they read as stuff
+// Faded paper scraps pinned or clipped to the page in front of the far
+// treeline. Pale, warm-grey and tilted so they read as stuff
 // stuck to the notebook, never as a ledge to land on. Every scrap in the
 // sheet is dealt once (in a seeded shuffle) before any repeats, so even a
 // short level shows a good spread.
@@ -265,8 +227,8 @@ function drawPaperDecor(
   const halfScreen = LOGICAL_WIDTH / 2;
   // With parallax, a scrap at layer-x `x` passes behind world-x
   // halfScreen + (x - halfScreen) / factor while it's mid-screen, which is
-  // where the player's eye is. Keep that spot clear of the course, like the
-  // near scenery does, and keep off rows that hold something.
+  // where the player's eye is. Keep that spot clear of the course, and keep
+  // off rows that hold something.
   const busy = objects.filter((o) => o.type !== 'ground');
   const overlapsCourse = (x: number, top: number, bottom: number, halfWidth: number): boolean => {
     const worldX = halfScreen + (x - halfScreen) / factor;
@@ -333,23 +295,5 @@ function drawPaperDecor(
       .setAlpha(alpha + 0.1)
       .setTint(tint);
     holder.setScale(fastener.width / holder.width);
-  }
-}
-
-// Crayon grass tufts from the background sheet, poking up over the lip of
-// about two in five ground tiles. Drawn per tile from the level's own
-// ground objects, so gaps stay clean gaps.
-const GRASS_HEIGHT = 20;
-
-export function drawGroundDetail(scene: Phaser.Scene, objects: LevelObject[], seedText: string): void {
-  const rng = seededRng(`${seedText}:ground`);
-  const half = GRID_CELL_SIZE / 2;
-  for (const tile of objects.filter((o) => o.type === 'ground')) {
-    if (rng() >= 0.4) continue;
-    const tuft = GRASS[Math.floor(rng() * GRASS.length)] ?? GRASS[0];
-    if (!tuft) return;
-    standOnGround(scene, tuft, tile.x - half + range(rng, 16, GRID_CELL_SIZE - 16), tile.y + 3, GRASS_HEIGHT)
-      .setDepth(GROUND_DETAIL_DEPTH)
-      .setFlipX(rng() < 0.5);
   }
 }

@@ -58,7 +58,7 @@ import { StarterOffer } from '../../ui/StarterOffer';
 import { RealtimeToast } from '../../ui/RealtimeToast';
 import { RunHud, loadBestProgress, saveBestProgress } from '../../ui/RunHud';
 import { RunResultOverlay } from '../../ui/RunResultOverlay';
-import { drawGroundDetail, drawScenery, drawPaperBackdrop } from '../systems/PaperScenery';
+import { drawScenery, drawPaperBackdrop } from '../systems/PaperScenery';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { TutorialHint } from '../../ui/TutorialHint';
 import { TutorialPointer } from '../systems/TutorialPointer';
@@ -754,7 +754,6 @@ export class GameScene extends Scene {
       .setDepth(-1);
     drawPaperBackdrop(this, this.levelWidth);
     drawScenery(this, this.levelWidth, levelVersion.objects, levelVersion.levelId);
-    drawGroundDetail(this, levelVersion.objects, levelVersion.levelId);
 
     // The spawn pencil case the player comes out of, just to his left —
     // above the background, behind the player and every level object.
