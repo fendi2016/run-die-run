@@ -145,6 +145,11 @@ export class CurseScene extends Scene {
   // real bug in that specific sub-feature, not something fixable from
   // here, so the drag gesture itself is native Phaser instead.
   private pendingImage: Phaser.GameObjects.Sprite | undefined;
+  // Where pendingImage sat when the current drag began. Some sprites are
+  // drawn away from their authored (x, y) — the mace hangs from a pivot a
+  // row above it — so a drop is placed at pending + how far the image
+  // moved, never at the image's own position.
+  private pendingDragStart: { x: number; y: number } | undefined;
 
   // A player's first curse (no curses yet, per GET /api/me/curses): the
   // toolbar offers three picks and a few ground cells glow as suggestions.
@@ -623,6 +628,9 @@ export class CurseScene extends Scene {
         this.pendingMotionTween?.pause();
       });
       image.on('pointerup', () => this.pendingMotionTween?.resume());
+      image.on('dragstart', () => {
+        this.pendingDragStart = { x: image.x, y: image.y };
+      });
       image.on('drag', (_p: unknown, dragX: number, dragY: number) =>
         this.onPendingDrag(dragX, dragY)
       );
@@ -657,18 +665,26 @@ export class CurseScene extends Scene {
   private onPendingDrag(dragX: number, dragY: number): void {
     if (this.proposalRequest || !this.pendingImage) return;
     this.pendingImage.setPosition(dragX, dragY);
-    this.drawPendingOutline(dragX, dragY);
+    const placement = this.draggedPlacement();
+    if (placement) this.drawPendingOutline(placement.x, placement.y);
+  }
+
+  // The authored position the pending object is currently dragged to.
+  private draggedPlacement(): { x: number; y: number } | undefined {
+    if (!this.pending || !this.pendingImage || !this.pendingDragStart) return undefined;
+    return {
+      x: this.pending.x + this.pendingImage.x - this.pendingDragStart.x,
+      y: this.pending.y + this.pendingImage.y - this.pendingDragStart.y,
+    };
   }
 
   private onPendingDragEnd(): void {
     this.panZoom.setSuspended(false);
-    if (this.proposalRequest || !this.pending || !this.pendingImage)
-      return;
+    const placement = this.draggedPlacement();
+    this.pendingDragStart = undefined;
+    if (this.proposalRequest || !placement) return;
 
-    const droppedTile = this.board.worldXYToTileXY(
-      this.pendingImage.x,
-      this.pendingImage.y
-    );
+    const droppedTile = this.board.worldXYToTileXY(placement.x, placement.y);
     const col = clampBoardColumn(droppedTile.x);
     const row = normalizeBoardRow(droppedTile.y);
     const snapped = this.board.tileXYToWorldXY(col, row);

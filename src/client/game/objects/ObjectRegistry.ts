@@ -281,7 +281,7 @@ export function motionTweenConfigFor(
     // resync rather than something collision detection there relies on.
     onUpdate: () => {
       if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
-        sprite.body.updateFromGameObject();
+        sprite.body.reset();
       }
     },
   };
@@ -293,7 +293,7 @@ type CyclePose = { periodMs: number; apply: (phase: number) => void };
 // harmless in the editor boards, where nothing collides.
 function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
   if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
-    sprite.body.updateFromGameObject();
+    sprite.body.reset();
   }
 }
 

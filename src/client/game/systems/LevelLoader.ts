@@ -260,7 +260,7 @@ export function loadLevel(
         // Clear derived carry velocity as well as the platform's position.
         rendered.body.reset(home.x, home.y);
       } else if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
-        rendered.body.updateFromGameObject();
+        rendered.body.reset();
       }
     });
   }
