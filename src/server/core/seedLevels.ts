@@ -63,12 +63,15 @@ function level(
   };
 }
 
-// The default level: two gaps, three candles, and a ghost drifting
+// The default level: three gaps, three staplers, and a floater drifting
 // well above the ground (only a threat if the player jumps into its band —
-// GROUND_TOP_Y - 80 stays out of reach of a grounded player's ~68px-tall
-// hitbox, so it punishes jumping here instead of rewarding it).
+// it stays out of reach of a grounded player's ~68px-tall hitbox, so it
+// punishes jumping here instead of rewarding it). Type ids are the old
+// internal names (candle = Stapler, ghost = Floater, saw = Gear; see
+// shared/objectLabels.ts); object ids stay as-is because stored per-object
+// data is keyed by them.
 //
-// Ground/candle/saw/spawn/finish are all bottom-anchored objects that SIT ON
+// Ground/stapler/gear/spawn/finish are all bottom-anchored objects that SIT ON
 // the surface at GROUND_TOP_Y (ObjectRegistry.originFor: everything but
 // 'solid' → origin 0.5,1), so they're all placed flush AT GROUND_TOP_Y —
 // spawn included, so the run starts with the player already standing on
@@ -84,7 +87,7 @@ const meatGrinder = level(
     placed('candle-1', 'candle', 400, GROUND_TOP_Y),
     placed('candle-2', 'candle', 1100, GROUND_TOP_Y),
     placed('candle-3', 'candle', 1850, GROUND_TOP_Y),
-    // Drifts ±GHOST_AMPLITUDE_PX (50px) around y = GROUND_TOP_Y - 130, on
+    // Floater: drifts ±GHOST_AMPLITUDE_PX (50px) around y = GROUND_TOP_Y - 130, on
     // the long clear run-up to the finish.
     placed('ghost-1', 'ghost', 2400, GROUND_TOP_Y - 130),
     placed('finish-1', 'finish', 3100, GROUND_TOP_Y),
