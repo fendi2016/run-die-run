@@ -1,6 +1,7 @@
 import { redis } from '@devvit/web/server';
 import { levelCurrentVersionKey, levelVersionKey } from '../core/redisKeys';
 import { SEED_LEVELS } from '../core/seedLevels';
+import { SEED_AUTHOR } from '../../shared/constants';
 import { isLevelVersion, isObjectType, type LevelObject, type LevelVersion } from '../../shared/types';
 
 // Not an ObjectType any more — only still found in stored level data.
@@ -41,6 +42,10 @@ export async function getCurrentLevelVersion(
   }
 
   const version = Number(storedVersionRaw);
+  // A built-in level's own seed version always comes from source, so an
+  // edit in seedLevels.ts reaches subreddits that stored the old copy.
+  const seedSource = SEED_LEVELS[levelId];
+  if (seedSource && seedSource.version === version) return seedSource;
   const raw = await redis.get(levelVersionKey(levelId, version));
   if (raw === undefined) {
     // The current-version pointer survived but its version blob didn't
@@ -65,7 +70,19 @@ export async function getCurrentLevelVersion(
     );
     return undefined;
   }
-  return withoutRetiredTypes(parsed);
+  return withoutRetiredTypes(withoutRemovedSeedObjects(parsed));
+}
+
+// Curses on a built-in level copy its seed objects forward, so a hazard
+// later taken out of seedLevels.ts (Meat Grinder's charger) would live on
+// in every cursed version. Drop seed-authored objects the seed no longer
+// has; everything players added stays.
+function withoutRemovedSeedObjects(level: LevelVersion): LevelVersion {
+  const seed = SEED_LEVELS[level.levelId];
+  if (!seed) return level;
+  const seedIds = new Set(seed.objects.map((o) => o.id));
+  const kept = level.objects.filter((o) => o.addedBy !== SEED_AUTHOR || seedIds.has(o.id));
+  return kept.length === level.objects.length ? level : { ...level, objects: kept };
 }
 
 // The spike was retired; the candle took its place. Levels published

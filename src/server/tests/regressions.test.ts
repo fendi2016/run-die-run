@@ -1522,3 +1522,32 @@ await test('a stored level with a removed cannon reads back without it', async (
   const level = await getCurrentLevelVersion('cannon-level');
   assert.deepEqual(level?.objects.map((o) => [o.id, o.type]), [['saw', 'saw']]);
 });
+
+await test("a cursed built-in level drops the seed's removed charger but keeps player curses", async () => {
+  const { levelCurrentVersionKey } = await import('../core/redisKeys');
+  const { SEED_AUTHOR } = await import('../../shared/constants');
+  values.set(levelCurrentVersionKey('meat-grinder'), '2');
+  values.set(levelVersionKey('meat-grinder', 2), JSON.stringify({
+    levelId: 'meat-grinder', version: 2, parentVersion: 1, contributorUsername: 'curser',
+    verificationTimeMs: 1000, createdAt: 1,
+    objects: [
+      { id: 'candle-1', type: 'candle', x: 400, y: 480, properties: {}, addedBy: SEED_AUTHOR, addedInVersion: 1 },
+      { id: 'bat-1', type: 'bat', x: 1250, y: 435, properties: {}, addedBy: SEED_AUTHOR, addedInVersion: 1 },
+      { id: 'curse-bat', type: 'bat', x: 900, y: 435, properties: {}, addedBy: 'curser', addedInVersion: 2 },
+    ],
+  }));
+  const level = await getCurrentLevelVersion('meat-grinder');
+  assert.deepEqual(level?.objects.map((o) => o.id), ['candle-1', 'curse-bat']);
+});
+
+await test("a built-in level's seed version is served from source, not a stale stored copy", async () => {
+  const { levelCurrentVersionKey } = await import('../core/redisKeys');
+  values.set(levelCurrentVersionKey('meat-grinder'), '1');
+  values.set(levelVersionKey('meat-grinder', 1), JSON.stringify({
+    levelId: 'meat-grinder', version: 1, parentVersion: null, contributorUsername: 'seed',
+    verificationTimeMs: 1000, createdAt: 1,
+    objects: [{ id: 'bat-1', type: 'bat', x: 1250, y: 435, properties: {}, addedBy: 'seed', addedInVersion: 1 }],
+  }));
+  const level = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(level?.objects.some((o) => o.type === 'bat'), false);
+});
