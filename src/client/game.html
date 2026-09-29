@@ -34,7 +34,12 @@
         <div id="tap-to-start-label"></div>
       </div>
       <div id="run-hud" class="hidden" aria-hidden="true">
-        <div id="run-hud-attempt">ATTEMPT <span id="run-hud-attempt-number">1</span></div>
+        <div id="run-hud-attempt">
+          ATTEMPT
+          <span id="run-hud-attempt-number" aria-label="1"
+            ><span id="run-hud-attempt-digits" aria-hidden="true"></span
+          ></span>
+        </div>
         <div id="run-hud-progress-row">
           <div id="run-hud-progress-track">
             <div id="run-hud-progress-fill"></div>
@@ -288,14 +293,14 @@
               id="editor-pan-left"
               class="editor-btn editor-btn-compact"
             >
-              <span class="editor-btn-icon">&#8249;</span>
+              <img class="editor-btn-icon-img" src="/assets/kenney/ui/tile-arrow-left.webp" alt="Pan left" />
             </button>
             <button
               type="button"
               id="editor-pan-right"
               class="editor-btn editor-btn-compact"
             >
-              <span class="editor-btn-icon">&#8250;</span>
+              <img class="editor-btn-icon-img" src="/assets/kenney/ui/tile-arrow-right.webp" alt="Pan right" />
             </button>
             <span class="editor-divider"></span>
             <button
@@ -544,14 +549,14 @@
               id="curse-pan-left"
               class="editor-btn editor-btn-compact"
             >
-              <span class="editor-btn-icon">&#8249;</span>
+              <img class="editor-btn-icon-img" src="/assets/kenney/ui/tile-arrow-left.webp" alt="Pan left" />
             </button>
             <button
               type="button"
               id="curse-pan-right"
               class="editor-btn editor-btn-compact"
             >
-              <span class="editor-btn-icon">&#8250;</span>
+              <img class="editor-btn-icon-img" src="/assets/kenney/ui/tile-arrow-right.webp" alt="Pan right" />
             </button>
             <span class="editor-divider"></span>
             <button

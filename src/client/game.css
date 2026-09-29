@@ -300,21 +300,45 @@ body {
   filter: drop-shadow(0 4px 8px var(--ink-faint));
 }
 
-/* One card (the design system's ink-outline, hard-shadow base), not a thin
-   pill — matches every other button/dialog surface in the notebook system. */
+/* A Kenney ui_balloon speech bubble, not a plain card — the scribble-style
+   ink-outline panel (public/assets/kenney/ui/ui-balloon-body.webp, the
+   pack's balloon art with its own tail cropped off) as a 9-slice
+   border-image, so the flat top/left/right/bottom edges and corners stay
+   crisp at any label width while only the invisible middle stretches. The
+   downward tail (ui-balloon-tail.webp, the cropped-off piece from the same
+   source art) is a separate fixed-size ::after so it never gets stretched
+   along with the body. */
 #tap-to-start-label {
+  position: relative;
   font-family: var(--font-hand);
   font-size: clamp(18px, 5vw, 28px);
   color: var(--ink);
   text-align: center;
   max-width: min(88vw, 420px);
   box-sizing: border-box;
-  padding: 8px 20px;
-  border-radius: var(--radius-md);
+  padding: 10px 22px 14px;
   background: var(--paper-card);
-  border: var(--line-strong) solid var(--ink);
+  border-style: solid;
+  border-width: 14px;
+  border-image-source: url('/assets/kenney/ui/ui-balloon-body.webp');
+  border-image-slice: 34;
+  border-image-width: 14px;
+  border-image-repeat: stretch;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-hard);
   animation: tap-to-start-pulse 1100ms ease-in-out infinite;
+}
+
+#tap-to-start-label::after {
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 20px;
+  background: url('/assets/kenney/ui/ui-balloon-tail.webp') center / 100% 100% no-repeat;
+  pointer-events: none;
 }
 
 #tap-to-start-label:empty {
@@ -336,6 +360,8 @@ body {
    interactive (taps are jumps). GameScene only sets its text once the run
    has started (see update()), so it's never on screen at the same time as
    #tap-to-start. */
+/* Same ui_balloon speech-bubble chrome as #tap-to-start-label above — see
+   its own comment for why the body/tail are two separate image pieces. */
 #tutorial-hint {
   position: absolute;
   top: 30%;
@@ -343,15 +369,32 @@ body {
   transform: translate(-50%, -50%);
   max-width: min(90vw, 480px);
   box-sizing: border-box;
-  padding: 8px 18px;
-  border: var(--line-strong) solid var(--ink);
+  padding: 10px 20px 14px;
+  border-style: solid;
+  border-width: 14px;
+  border-image-source: url('/assets/kenney/ui/ui-balloon-body.webp');
+  border-image-slice: 34;
+  border-image-width: 14px;
+  border-image-repeat: stretch;
   border-radius: var(--radius-md);
   background: var(--paper-card);
   box-shadow: var(--shadow-hard);
-  color: var(--rule-blue);
+  color: var(--ink);
   font-family: var(--font-hand);
   font-size: clamp(16px, 4.5vw, 22px);
   text-align: center;
+  pointer-events: none;
+}
+
+#tutorial-hint::after {
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 20px;
+  background: url('/assets/kenney/ui/ui-balloon-tail.webp') center / 100% 100% no-repeat;
   pointer-events: none;
 }
 
@@ -542,6 +585,21 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   font-weight: 900;
   letter-spacing: 0;
   color: var(--ink);
+}
+
+/* Kenney scribble digits (see RunHud.setAttempt) instead of text — one
+   <img> per digit, sized to sit on the "ATTEMPT" label's own line. */
+#run-hud-attempt-digits {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  vertical-align: middle;
+}
+
+.run-hud-attempt-digit {
+  height: 18px;
+  width: auto;
+  display: block;
 }
 
 /* Restarted from setAttempt() by toggling this class off then back on
@@ -794,6 +852,17 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   height: 38px;
   object-fit: contain;
   image-rendering: pixelated;
+}
+
+/* The Kenney pan-arrow icons are smooth scribble line art, not pixel-art
+   hazard sprites — the shared pixelated hint above (tuned for those)
+   would alias their downscaled edges instead of keeping the hand-drawn
+   line smooth. */
+#editor-pan-left .editor-btn-icon-img,
+#editor-pan-right .editor-btn-icon-img,
+#curse-pan-left .editor-btn-icon-img,
+#curse-pan-right .editor-btn-icon-img {
+  image-rendering: auto;
 }
 
 .editor-btn-label {
