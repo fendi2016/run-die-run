@@ -71,7 +71,9 @@ import {
   CAMERA_ZOOM_BOOST,
   CAMERA_FOLLOW_Y_LERP,
   CAMERA_PLAYER_Y_ANCHOR,
+  SPAWN_CASE_CLEARANCE_PX,
   SPAWN_CASE_HEIGHT_PX,
+  SPAWN_CASE_SINK_PX,
   PLAYER_SIZE,
   SLOW_TIME_DURATION_MS,
   SLOW_TIME_SCALE,
@@ -665,7 +667,14 @@ export class GameScene extends Scene {
       onPowerUpCollected: (type, x, y) => this.onPowerUpCollected(type, x, y),
     });
 
-    this.spawn = loaded.spawn;
+    // The pencil case sits left of the player (see SPAWN_CASE_CLEARANCE_PX).
+    const caseFrame = this.textures.getFrame('spawn-marker');
+    const caseScale = SPAWN_CASE_HEIGHT_PX / caseFrame.height;
+    const caseWidth = caseFrame.width * caseScale;
+    this.spawn = {
+      x: Math.max(loaded.spawn.x, caseWidth + SPAWN_CASE_CLEARANCE_PX),
+      y: loaded.spawn.y,
+    };
     this.levelWidth = loaded.levelWidth;
     this.movingObjectTweens = loaded.movingObjectTweens;
     this.resetMovingObjects = loaded.resetMovingObjects;
@@ -697,12 +706,16 @@ export class GameScene extends Scene {
     drawKenneyScenery(this, this.levelWidth, levelVersion.objects, levelVersion.levelId);
     drawGroundDetail(this, levelVersion.objects, levelVersion.levelId);
 
-    // The spawn pencil case the player comes out of — above the background,
-    // behind the player and every level object.
+    // The spawn pencil case the player comes out of, just to his left —
+    // above the background, behind the player and every level object.
     this.add
-      .image(this.spawn.x, this.spawn.y, 'spawn-marker')
-      .setOrigin(0.5, 1)
-      .setScale(SPAWN_CASE_HEIGHT_PX / this.textures.getFrame('spawn-marker').height)
+      .image(
+        this.spawn.x - SPAWN_CASE_CLEARANCE_PX,
+        this.spawn.y + SPAWN_CASE_SINK_PX,
+        'spawn-marker'
+      )
+      .setOrigin(1, 1)
+      .setScale(caseScale)
       .setDepth(-0.25);
 
     // waiting=true: hold at spawn (idle, no auto-run) until the first tap
