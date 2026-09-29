@@ -2,7 +2,7 @@ import { SCRIBBLE_FX } from '../systems/DeathEffects';
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
-import { HAZARD_SPRITESHEETS } from '../objects/ObjectRegistry';
+import { HAZARD_SPRITESHEETS, TERRAIN_TEXTURE_FILES } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
@@ -77,24 +77,10 @@ export class Preloader extends Scene {
     // Level object art (see ObjectRegistry for how each ObjectType maps to
     // one of these keys). Sourced from the open-source sprite pack in
     // /sprites, pre-cropped/scaled to the game's tile and hazard sizes.
-    this.load.image('ground', 'tiles/ground.webp');
-    // Mossy-stone platform tileset (see ObjectRegistry.pickPlatformTexture)
-    // — edge/center variants so a run of platform tiles reads as one
-    // continuous block instead of one texture tiled flat.
-    this.load.image(
-      'platform-top-left-edge',
-      'tiles/platform/platform-top-left-edge.webp'
-    );
-    this.load.image(
-      'platform-top-right-edge',
-      'tiles/platform/platform-top-right-edge.webp'
-    );
-    for (let i = 1; i <= 7; i++) {
-      this.load.image(
-        `platform-top-center-${i}`,
-        `tiles/platform/platform-top-center-${i}.webp`
-      );
-    }
+    // Terrain art from the "level sprites" sheet: every tileset in
+    // ObjectRegistry's TERRAIN_TILESETS (end caps, centers, standalone
+    // pieces), listed there once.
+    for (const { key, file } of TERRAIN_TEXTURE_FILES) this.load.image(key, file);
     // A single sawblade image, spun by angle (ObjectRegistry) instead of the
     // old 8-frame sheet. Drawn at SAW_DISPLAY_SIZE_PX (the old 40x40), so
     // the saw/movingSaw hitbox is unchanged.
@@ -128,23 +114,7 @@ export class Preloader extends Scene {
     // Kenney scenery (see PaperScenery.drawKenneyScenery).
     for (const { key, file } of KENNEY_SCENERY) this.load.image(key, file);
 
-    // Kenney level objects (Kenney Scribble Platformer + its expansion pack,
-    // CC0 — see ObjectRegistry's TEXTURE_BY_TYPE for how each maps to an
-    // ObjectType). New full-cell terrain blocks and the bridge/plank behave
-    // exactly like ground/platform; spikes and cannon are new hazards.
-    this.load.image('block-brick', 'kenney/tiles/block-brick.webp');
-    this.load.image('block-stone', 'kenney/tiles/block-stone.webp');
-    this.load.image('block-crate', 'kenney/tiles/block-crate.webp');
-    this.load.image('block-grass', 'kenney/tiles/block-grass.webp');
-    this.load.image('block-sand', 'kenney/tiles/block-sand.webp');
-    this.load.image('block-metal', 'kenney/tiles/block-metal.webp');
-    this.load.image('block-bridge', 'kenney/tiles/block-bridge.webp');
     this.load.image('spikes', 'hazards/spikes.webp');
-    this.load.image('cannon', 'kenney/hazards/cannon.webp');
-    // Not a level object of its own — spawned at runtime by a triggered
-    // cannon (GameScene/LevelLoader) — but loaded here alongside the rest of
-    // the Kenney art rather than scattered into a hazard-specific preload.
-    this.load.image('bullet', 'kenney/hazards/bullet.webp');
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
     for (const { key, file } of SCRIBBLE_FX) this.load.image(key, file);
 

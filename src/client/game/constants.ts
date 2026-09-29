@@ -151,27 +151,6 @@ export const CRUSHER_PERIOD_MS = 2600;
 // Power-up pickups all draw at one size.
 export const POWERUP_DISPLAY_HEIGHT_PX = 56;
 
-// Cannon (Kenney expansion cannon_base + cannon_small, composed into one
-// static solid): forced to the same GRID_CELL_SIZE square footprint as
-// ground (see ObjectRegistry's FULL_BLOCK_TYPES) so its hitbox never spills
-// into a neighboring cell, even though the source art is wider than tall.
-export const CANNON_FIRE_INTERVAL_MS = 2000;
-export const CANNON_BULLET_SPEED_PX = 500;
-export const CANNON_BULLET_DISPLAY_HEIGHT_PX = 22;
-// Slightly smaller than the display size so a close graze isn't an
-// unavoidable death, matching every other hazard's fair-hitbox convention.
-export const CANNON_BULLET_HITBOX_WIDTH_PX = 20;
-export const CANNON_BULLET_HITBOX_HEIGHT_PX = 14;
-// Where a bullet spawns relative to the cannon's (top-anchored) authored
-// position: at the cell's left edge, roughly muzzle height.
-export const CANNON_MUZZLE_OFFSET_X_PX = GRID_CELL_SIZE / 2;
-export const CANNON_MUZZLE_OFFSET_Y_PX = 24;
-// A bullet this far behind the player is guaranteed off the left edge of
-// even the widest camera viewport — cheaper and immune to the zoom-pivot
-// gotcha (see memory) than computing the camera's true world-space left
-// edge from scrollX.
-export const CANNON_BULLET_CULL_DISTANCE_PX = 400;
-
 // Pencil test: multiply tint for the scribble hazards (white fill, black
 // outline), so the fill turns red and the outline stays black. null leaves
 // them plain white-and-black, for comparing the two looks.

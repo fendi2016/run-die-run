@@ -1,7 +1,7 @@
 import { redis } from '@devvit/web/server';
 import { levelCurrentVersionKey, levelVersionKey } from '../core/redisKeys';
 import { SEED_LEVELS } from '../core/seedLevels';
-import { isLevelVersion, type LevelVersion } from '../../shared/types';
+import { isLevelVersion, isObjectType, type LevelObject, type LevelVersion } from '../../shared/types';
 
 // Not an ObjectType any more — only still found in stored level data.
 const RETIRED_SPIKE: string = 'spike';
@@ -71,14 +71,19 @@ export async function getCurrentLevelVersion(
 // The spike was retired; the candle took its place. Levels published
 // before that still store 'spike' objects, so they're read back as candles
 // (same id and position, so trap-kill attribution keeps working) rather
-// than rendering nothing where a hazard used to be.
+// than rendering nothing where a hazard used to be. Any other type that's no
+// longer an ObjectType (e.g. the removed 'cannon') is dropped outright —
+// isLevelVersion only checks `type` is a string, so without this a retired
+// object would reach the client with a type nothing knows how to render.
 function withoutRetiredTypes(level: LevelVersion): LevelVersion {
-  if (!level.objects.some((o) => o.type === RETIRED_SPIKE)) return level;
+  if (level.objects.every((o) => o.type !== RETIRED_SPIKE && isObjectType(o.type))) {
+    return level;
+  }
   return {
     ...level,
-    objects: level.objects.map((o) =>
-      o.type === RETIRED_SPIKE ? { ...o, type: 'candle' } : o
-    ),
+    objects: level.objects
+      .map((o): LevelObject => (o.type === RETIRED_SPIKE ? { ...o, type: 'candle' } : o))
+      .filter((o) => isObjectType(o.type)),
   };
 }
 

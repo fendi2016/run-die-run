@@ -73,7 +73,6 @@ import {
   CAMERA_PLAYER_Y_ANCHOR,
   SPAWN_CASE_HEIGHT_PX,
   PLAYER_SIZE,
-  CANNON_FIRE_INTERVAL_MS,
   SLOW_TIME_DURATION_MS,
   SLOW_TIME_SCALE,
 } from '../constants';
@@ -96,7 +95,6 @@ import {
   loadLevel,
   setPowerUpAvailable,
   type LoadedBat,
-  type LoadedCannon,
 } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { triggerBatFlight } from '../objects/ObjectRegistry';
@@ -217,13 +215,6 @@ export class GameScene extends Scene {
   private resetMovingObjects: (() => void) | undefined;
   private powerUpImages: Phaser.GameObjects.Sprite[] = [];
   private bats: LoadedBat[] = [];
-  private cannons: LoadedCannon[] = [];
-  private fireCannon: ((cannon: LoadedCannon) => void) | undefined;
-  private cullCannonBullets: (() => void) | undefined;
-  // One repeating timer per triggered cannon (started the moment it enters
-  // view — see update()); torn down and rebuilt on every restart/reload so a
-  // stale timer never keeps firing a cannon that hasn't re-triggered yet.
-  private cannonTimers: Phaser.Time.TimerEvent[] = [];
   // Smooths the player and bats between fixed physics steps (see
   // PhysicsInterpolation); rebuilt with each startRun().
   private interpolation: PhysicsInterpolation | undefined;
@@ -281,11 +272,6 @@ export class GameScene extends Scene {
     this.resetMovingObjects = undefined;
     this.powerUpImages = [];
     this.bats = [];
-    this.cannons = [];
-    this.fireCannon = undefined;
-    this.cullCannonBullets = undefined;
-    for (const timer of this.cannonTimers) timer.remove();
-    this.cannonTimers = [];
     this.slowTimeTimer = undefined;
     this.interpolation = undefined;
     this.finishSprite = undefined;
@@ -368,32 +354,7 @@ export class GameScene extends Scene {
           triggerBatFlight(bat.sprite, this.player.sprite.x, this.player.sprite.y);
         }
       }
-      // A cannon starts firing the instant it enters view, same trigger as
-      // a bat above — deterministic relative to run start (Prove It replays
-      // this identically) since it only depends on the player's own
-      // auto-run position, never wall-clock time. It then fires again every
-      // CANNON_FIRE_INTERVAL_MS from that moment via its own timer, which
-      // freezes correctly on pause (this.sys.pause() halts the whole
-      // scene's Clock, not just physics) and is torn down on every
-      // restart/reload (see init()/restartRun()).
-      for (const cannon of this.cannons) {
-        if (!cannon.triggered && cannon.sprite.x <= viewRightEdge) {
-          cannon.triggered = true;
-          this.fireCannon?.(cannon);
-          this.cannonTimers.push(
-            this.time.addEvent({
-              delay: CANNON_FIRE_INTERVAL_MS,
-              loop: true,
-              callback: () => {
-                if (this.runEnded) return;
-                this.fireCannon?.(cannon);
-              },
-            })
-          );
-        }
-      }
     }
-    this.cullCannonBullets?.();
 
     if (this.runStarted && !this.runEnded) {
       this.runHud.setProgress(this.currentProgress());
@@ -710,9 +671,6 @@ export class GameScene extends Scene {
     this.resetMovingObjects = loaded.resetMovingObjects;
     this.powerUpImages = loaded.powerUpImages;
     this.bats = loaded.bats;
-    this.cannons = loaded.cannons;
-    this.fireCannon = loaded.fireCannon;
-    this.cullCannonBullets = loaded.cullCannonBullets;
     this.finishSprite = loaded.finishSprite;
     this.bestProgress = this.previewLevel
       ? null
@@ -1085,7 +1043,7 @@ export class GameScene extends Scene {
 
   // Stopwatch: every moving trap (and moving platform, so it stays
   // rideable) runs slower for a while. The run timer and the player are
-  // untouched. Bats and cannon shots keep their speed.
+  // untouched. Bats keep their speed.
   private slowTime(): void {
     for (const tween of this.movingObjectTweens) tween.timeScale = SLOW_TIME_SCALE;
     this.cameras.main.flash(160, 120, 190, 255, false);
@@ -1412,13 +1370,6 @@ export class GameScene extends Scene {
     this.resetMovingObjects?.();
     this.slowTimeTimer?.remove();
     this.slowTimeTimer = undefined;
-    // Cannon triggered-flags and live bullets are reset by
-    // resetMovingObjects above (LevelLoader owns that state) — the
-    // per-cannon firing timers are GameScene's own, though, so they need
-    // their own teardown or a cannon that already triggered this attempt
-    // would keep firing into the next one before ever re-entering view.
-    for (const timer of this.cannonTimers) timer.remove();
-    this.cannonTimers = [];
 
     // Defensive: onFinishReached leaves runEnded=true, and every normal
     // path out of a finish is the result overlay's next-level/editor-return
@@ -1442,8 +1393,6 @@ export class GameScene extends Scene {
   private cleanup(): void {
     DiscoveryOverlay.instance().hide();
     this.attempt.abort();
-    for (const timer of this.cannonTimers) timer.remove();
-    this.cannonTimers = [];
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     window.removeEventListener('blur', this.onLeaveApp);
     window.removeEventListener('pagehide', this.onLeaveApp);

@@ -479,11 +479,11 @@ await test('curse propose rejects a disallowed type', async () => {
 // Kenney level objects (Phase: Kenney level objects): the new full-cell
 // terrain blocks behave exactly like 'ground' for curse purposes too — never
 // curse-placeable, same as 'ground' never was — while the new hazards
-// (spikes, cannon) and the platform-like bridge are, mirroring what
+// (spikes) and the platform-like bridge are, mirroring what
 // 'candle'/'platform' already do.
 await test('curse propose accepts the new hazards and bridge, rejects the new terrain blocks', async () => {
   await getCurrentLevelVersion('meat-grinder');
-  const curseable: ObjectType[] = ['spikes', 'cannon', 'bridge'];
+  const curseable: ObjectType[] = ['spikes', 'bridge', 'rulerPlatform', 'paperclipPlatform'];
   for (const type of curseable) {
     const { body } = await proposeCurse('alice', 'meat-grinder', {
       id: `x-${type}`,
@@ -996,17 +996,16 @@ await test('spawn can stand on a platform in the editor and pass validation', as
     .some((e: string) => e.includes('too close to the spawn')));
 });
 
-// Kenney level objects: every new full-cell terrain block (and the cannon
-// body) is a surface exactly like ground/platform — a hazard can share its
-// cell (same reasoning as candle-on-ground), but two surfaces in the same
-// cell still conflict, and the cannon itself does too, even though it isn't
-// offered in the terrain palette.
-await test('new terrain blocks and the cannon body are surfaces, same as ground/platform', async () => {
+// Kenney level objects: every new full-cell terrain block is a surface
+// exactly like ground/platform — a hazard can share its cell (same
+// reasoning as candle-on-ground), but two surfaces in the same cell still
+// conflict.
+await test('new terrain blocks are surfaces, same as ground/platform', async () => {
   const { isSurfaceType } = await import('../../shared/editorApi');
   const surfaces: ObjectType[] = [
     'ground', 'platform', 'bridge',
+    'rulerPlatform', 'eraserPlatform', 'notebookPlatform', 'tapedPlatform', 'paperclipPlatform',
     'brickBlock', 'stoneBlock', 'crateBlock', 'grassBlock', 'sandBlock', 'metalBlock',
-    'cannon',
   ];
   for (const type of surfaces) {
     assert.ok(isSurfaceType(type), `${type} should be a surface type`);
@@ -1507,4 +1506,19 @@ await test('a stored level with a retired spike reads back with a candle in its 
   }));
   const level = await getCurrentLevelVersion('old-level');
   assert.deepEqual(level?.objects.map((o) => [o.id, o.type]), [['old-spike', 'candle']]);
+});
+
+await test('a stored level with a removed cannon reads back without it', async () => {
+  const { levelCurrentVersionKey } = await import('../core/redisKeys');
+  values.set(levelCurrentVersionKey('cannon-level'), '1');
+  values.set(levelVersionKey('cannon-level', 1), JSON.stringify({
+    levelId: 'cannon-level', version: 1, parentVersion: null, contributorUsername: 'maker',
+    verificationTimeMs: 1000, createdAt: 1,
+    objects: [
+      { id: 'old-cannon', type: 'cannon', x: 600, y: 480, properties: {}, addedBy: 'maker', addedInVersion: 1 },
+      { id: 'saw', type: 'saw', x: 720, y: 480, properties: {}, addedBy: 'maker', addedInVersion: 1 },
+    ],
+  }));
+  const level = await getCurrentLevelVersion('cannon-level');
+  assert.deepEqual(level?.objects.map((o) => [o.id, o.type]), [['saw', 'saw']]);
 });

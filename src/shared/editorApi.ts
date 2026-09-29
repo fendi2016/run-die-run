@@ -16,14 +16,18 @@ export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
   hazard: [
-    'candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes', 'cannon',
+    'candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes',
     'ceilingSpikes', 'spikeMine', 'electricMine', 'mace', 'crusher',
   ],
-  // 'bridge' behaves exactly like 'platform' (see ObjectRegistry) and is
+  // 'bridge' and the other PLATFORM_LIKE_TYPES behave exactly like
+  // 'platform' (see ObjectRegistry) and are
   // curse-placeable/removable alongside it for the same reason — the new
   // full-cell terrain blocks behave like 'ground', which was never
   // curse-placeable, so they're deliberately left out of every category.
-  platform: ['platform', 'movingPlatform', 'bridge'],
+  platform: [
+    'platform', 'movingPlatform', 'bridge', 'rulerPlatform', 'eraserPlatform',
+    'notebookPlatform', 'tapedPlatform', 'paperclipPlatform',
+  ],
   powerUp: ['shield', 'speedBoost', 'wings', 'stopwatch', 'star'],
 };
 
@@ -44,11 +48,7 @@ export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
 export function isSurfaceType(type: ObjectType): boolean {
   return (
     GROUND_LIKE_TYPES.has(type) ||
-    PLATFORM_LIKE_TYPES.has(type) ||
-    // The cannon body is solid/top-anchored like a surface (a hazard/spawn
-    // sharing its cell is a legitimate "resting on top of it", same as any
-    // other block), even though it isn't offered as terrain in the palette.
-    type === 'cannon'
+    PLATFORM_LIKE_TYPES.has(type)
   );
 }
 

@@ -67,13 +67,14 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   grassBlock: 'solid',
   sandBlock: 'solid',
   metalBlock: 'solid',
-  // Behaves exactly like 'platform'.
+  // Behave exactly like 'platform'.
   bridge: 'solid',
+  rulerPlatform: 'solid',
+  eraserPlatform: 'solid',
+  notebookPlatform: 'solid',
+  tapedPlatform: 'solid',
+  paperclipPlatform: 'solid',
   spikes: 'hazard',
-  // The cannon body itself is solid (the player can stand on it) — only the
-  // bullets it fires are lethal, and those are runtime-only, never a
-  // LevelObject/category of their own.
-  cannon: 'solid',
   ceilingSpikes: 'hazard',
   spikeMine: 'hazard',
   electricMine: 'hazard',
@@ -84,12 +85,9 @@ const CATEGORY_BY_TYPE: Partial<Record<ObjectType, ObjectCategory>> = {
   star: 'powerup',
 };
 
-// ground/platform/movingPlatform are deliberately absent here — their
-// texture isn't a single fixed key, it's picked per-instance by
-// pickPlatformTexture (edge vs. center variant) instead of a static lookup.
-// The new Kenney terrain blocks and bridge *do* belong here even though
-// they're ground/platform-like in every other way: each is one single
-// fixed texture with no separate edge/center variant art.
+// Terrain types are deliberately absent here — their texture isn't a
+// single fixed key, it's picked per-instance from TERRAIN_TILESETS by
+// pickTerrainTexture (end cap vs. center vs. standalone piece).
 const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   saw: 'saw-spin',
   // Art is shared with the regular saw — LevelLoader is what gives the
@@ -101,15 +99,7 @@ const TEXTURE_BY_TYPE: Partial<Record<ObjectType, string>> = {
   finish: 'finish-gate',
   shield: 'shield',
   speedBoost: 'speedBoost',
-  brickBlock: 'block-brick',
-  stoneBlock: 'block-stone',
-  crateBlock: 'block-crate',
-  grassBlock: 'block-grass',
-  sandBlock: 'block-sand',
-  metalBlock: 'block-metal',
-  bridge: 'block-bridge',
   spikes: 'spikes',
-  cannon: 'cannon',
   ceilingSpikes: 'ceiling-spikes',
   spikeMine: 'spike-mine',
   electricMine: 'electric-mine',
@@ -434,59 +424,135 @@ export function triggerBatFlight(
   );
 }
 
-// ground and platform/movingPlatform are both "solid terrain, placed in
-// horizontal runs" and share the same mossy-stone tileset art — ground
-// keeps its old 60x60 footprint (TILESET_DISPLAY_SIZE), platform/
-// movingPlatform use the thinner PLATFORM_DISPLAY_HEIGHT_PX.
-const TILESET_TYPES = new Set<ObjectType>(['ground', 'platform', 'movingPlatform']);
+// Terrain art ("level sprites" sheet, public/assets/paper): every solid
+// type is drawn from its own tileset, sliced so a horizontal run of one
+// type tiles as a single continuous piece — end caps on the open sides, a
+// seed-picked center in between, and a standalone piece for a lone tile.
+// Each role is a list: most have one texture, the centers (and every role
+// of the sticky notes) have interchangeable variants picked by seed.
+export type TerrainTileset = {
+  left: readonly string[];
+  right: readonly string[];
+  single: readonly string[];
+  centers: readonly string[];
+};
 
-// Every type forced to the same GRID_CELL_SIZE square footprint as 'ground'
-// (GROUND_LIKE_TYPES, shared/types.ts — the Kenney full-cell terrain
-// blocks), plus the cannon body, which isn't offered as terrain but needs
-// the identical one-cell solid footprint. Unlike TILESET_TYPES, each of
-// these is one fixed texture (TEXTURE_BY_TYPE), not a per-instance
-// edge/center pick.
-function isFullBlockType(type: ObjectType): boolean {
-  return GROUND_LIKE_TYPES.has(type) || type === 'cannon';
+// Texture key -> file (relative to /assets) for every terrain texture, so
+// the Preloader loads them from this one table instead of a hand list.
+export const TERRAIN_TEXTURE_FILES: { key: string; file: string }[] = [];
+
+function registerTerrainFile(key: string, file: string): string {
+  if (!TERRAIN_TEXTURE_FILES.some((entry) => entry.key === key)) {
+    TERRAIN_TEXTURE_FILES.push({ key, file });
+  }
+  return key;
 }
 
-// 7 interchangeable center-tile textures (art directly off the sheet, not
-// a generated variation) — picking between them by position instead of
-// always the same one keeps a long run of tiles from reading as one
-// texture obviously stamped over and over.
-const PLATFORM_CENTER_KEYS = [
-  'platform-top-center-1',
-  'platform-top-center-2',
-  'platform-top-center-3',
-  'platform-top-center-4',
-  'platform-top-center-5',
-  'platform-top-center-6',
-  'platform-top-center-7',
-];
+// A sliced set: paper/tiles/<name>-{left,right,single,center-N}.webp.
+function slicedTileset(name: string, centerCount: number): TerrainTileset {
+  const role = (suffix: string): string =>
+    registerTerrainFile(`terrain-${name}-${suffix}`, `paper/tiles/${name}-${suffix}.webp`);
+  return {
+    left: [role('left')],
+    right: [role('right')],
+    single: [role('single')],
+    centers: Array.from({ length: centerCount }, (_, i) => role(`center-${i + 1}`)),
+  };
+}
+
+// Whole square pieces (paper/<name>.webp) used for every role — they don't
+// join up, each tile is its own object.
+function wholePieceTileset(names: readonly string[]): TerrainTileset {
+  const keys = names.map((name) => registerTerrainFile(`terrain-${name}`, `paper/${name}.webp`));
+  return { left: keys, right: keys, single: keys, centers: keys };
+}
+
+// Type ids are unchanged (saved levels keep loading); only the art moved.
+const TERRAIN_TILESETS: Partial<Record<ObjectType, TerrainTileset>> = {
+  ground: slicedTileset('ground', 3),
+  platform: slicedTileset('platform', 11),
+  movingPlatform: slicedTileset('pencil', 3),
+  bridge: slicedTileset('shelf', 1),
+  brickBlock: slicedTileset('stack', 2),
+  stoneBlock: slicedTileset('clipstack', 1),
+  crateBlock: wholePieceTileset(['note-crown', 'note-smiley', 'note-arrow']),
+  grassBlock: slicedTileset('graph', 1),
+  sandBlock: wholePieceTileset(['sponge']),
+  metalBlock: slicedTileset('scribble', 2),
+  rulerPlatform: slicedTileset('ruler', 1),
+  eraserPlatform: slicedTileset('eraser', 1),
+  notebookPlatform: slicedTileset('notebook', 1),
+  tapedPlatform: slicedTileset('taped', 1),
+  paperclipPlatform: wholePieceTileset(['paperclip-shelf']),
+};
+
+export function isTerrainType(type: ObjectType): boolean {
+  return TERRAIN_TILESETS[type] !== undefined;
+}
 
 export type PlatformNeighbors = { left: boolean; right: boolean };
 
-// Whichever side has no same-row same-type tile next to it gets the
-// rounded end-cap texture instead of a center tile, so a run of ground or
-// platform tiles reads as one continuous mossy block with capped ends
-// rather than the same tile stamped flat across every cell. `variantSeed`
-// (LevelLoader derives it from grid position) only affects which of the 7
-// interchangeable center textures gets used when both sides are open — it
-// has no bearing on the edge cases.
-export function pickPlatformTexture(
+function pickVariant(keys: readonly string[], seed: number): string | undefined {
+  if (keys.length === 0) return undefined;
+  return keys[((seed % keys.length) + keys.length) % keys.length];
+}
+
+// Whichever side has no same-row same-type tile next to it gets that
+// side's end cap; a tile with neither neighbor gets the standalone piece.
+// `variantSeed` (derived from grid position) only picks between
+// interchangeable variants of the chosen role.
+export function pickTerrainTexture(
+  type: ObjectType,
   neighbors: PlatformNeighbors,
   variantSeed: number
-): string {
-  if (!neighbors.left) {
-    return 'platform-top-left-edge';
+): string | undefined {
+  const tileset = TERRAIN_TILESETS[type];
+  if (!tileset) return undefined;
+  if (!neighbors.left && !neighbors.right) return pickVariant(tileset.single, variantSeed);
+  if (!neighbors.left) return pickVariant(tileset.left, variantSeed);
+  if (!neighbors.right) return pickVariant(tileset.right, variantSeed);
+  return pickVariant(tileset.centers, variantSeed);
+}
+
+// Same-type, same-row adjacency for every terrain tile in `objects`, so a
+// run of one type picks end caps/centers (LevelLoader, and the editor and
+// curse boards, which redraw the whole level at once). Moving platforms
+// count too: every one shares the same tween, so a run moves as one piece.
+export function terrainNeighborsIn(
+  objects: readonly { type: ObjectType; x: number; y: number }[]
+): (object: { type: ObjectType; x: number; y: number }) => PlatformNeighbors {
+  const cellKey = (type: ObjectType, x: number, y: number): string =>
+    `${type}:${Math.round(x)}:${Math.round(y)}`;
+  const occupied = new Set<string>();
+  for (const object of objects) {
+    if (isTerrainType(object.type)) occupied.add(cellKey(object.type, object.x, object.y));
   }
-  if (!neighbors.right) {
-    return 'platform-top-right-edge';
+  return (object) => ({
+    left: occupied.has(cellKey(object.type, object.x - GRID_CELL_SIZE, object.y)),
+    right: occupied.has(cellKey(object.type, object.x + GRID_CELL_SIZE, object.y)),
+  });
+}
+
+// Collision footprint of each terrain type — unchanged by the reskin: the
+// full GRID_CELL_SIZE square for ground-like types, the thinner
+// PLATFORM_DISPLAY_HEIGHT_PX slab for platform-like ones (moving included).
+function terrainFootprintHeight(type: ObjectType): number {
+  return GROUND_LIKE_TYPES.has(type) ? GRID_CELL_SIZE : PLATFORM_DISPLAY_HEIGHT_PX;
+}
+
+// Terrain collision stays exactly the pre-reskin footprint (a cell wide,
+// `height` tall, top edge on the authored y) whatever the art's own
+// proportions: the body is resized and pinned to the sprite's top-left.
+function setTerrainFootprint(sprite: Phaser.GameObjects.Sprite, height: number): void {
+  const body = sprite.body;
+  if (body instanceof Phaser.Physics.Arcade.StaticBody) {
+    body.setSize(GRID_CELL_SIZE, height, false);
+    body.setOffset(0, 0);
+  } else if (body instanceof Phaser.Physics.Arcade.Body) {
+    // A dynamic body's size is in unscaled source pixels.
+    body.setSize(GRID_CELL_SIZE / sprite.scaleX, height / sprite.scaleY, false);
+    body.setOffset(0, 0);
   }
-  const index =
-    ((variantSeed % PLATFORM_CENTER_KEYS.length) + PLATFORM_CENTER_KEYS.length) %
-    PLATFORM_CENTER_KEYS.length;
-  return PLATFORM_CENTER_KEYS[index] as string;
 }
 
 const POWERUP_TYPES = new Set<ObjectType>(['shield', 'speedBoost', 'wings', 'stopwatch', 'star']);
@@ -519,15 +585,20 @@ function originFor(category: ObjectCategory): [number, number] {
 export function renderLevelObject(
   scene: Phaser.Scene,
   object: LevelObject,
-  // Only meaningful for ground/platform/movingPlatform — defaulting to
+  // Only meaningful for terrain types (see terrainNeighborsIn) — defaulting to
   // "both sides occupied" picks a plain center tile for any caller that
-  // doesn't bother computing real adjacency (editor/curse previews render
-  // one object in isolation), rather than every un-adjacent-aware call
+  // doesn't bother computing real adjacency (e.g. a lone curse preview),
+  // rather than every un-adjacent-aware call
   // site getting an end-cap that implies a run that isn't there.
   platformNeighbors: PlatformNeighbors = { left: true, right: true }
 ): Phaser.GameObjects.Sprite | null {
-  const textureKey = TILESET_TYPES.has(object.type)
-    ? pickPlatformTexture(platformNeighbors, Math.round(object.x / GRID_CELL_SIZE))
+  const terrain = isTerrainType(object.type);
+  const textureKey = terrain
+    ? pickTerrainTexture(
+        object.type,
+        platformNeighbors,
+        Math.round(object.x / GRID_CELL_SIZE) + 3 * Math.round(object.y / GRID_CELL_SIZE)
+      )
     : TEXTURE_BY_TYPE[object.type];
   if (!textureKey) {
     if (object.type !== 'spawn') {
@@ -544,17 +615,12 @@ export function renderLevelObject(
   const sprite = scene.add
     .sprite(object.x, object.y, textureKey)
     .setOrigin(originX, originY);
-  if (object.type === 'ground' || isFullBlockType(object.type)) {
-    // Matches the old ground.webp's native 60x60 footprint exactly, so
-    // ground collision is unchanged — only its art is now edge-aware. Every
-    // Kenney terrain block (and the cannon body) shares this exact
-    // footprint too, regardless of the source art's own aspect ratio.
-    sprite.setDisplaySize(GRID_CELL_SIZE, GRID_CELL_SIZE);
-  } else if (TILESET_TYPES.has(object.type) || object.type === 'bridge') {
-    // Every platform/movingPlatform/bridge variant is forced to one shared
-    // footprint (see PLATFORM_DISPLAY_HEIGHT_PX) so collision stays
-    // uniform regardless of which edge/center texture got picked.
-    sprite.setDisplaySize(GRID_CELL_SIZE, PLATFORM_DISPLAY_HEIGHT_PX);
+  if (terrain) {
+    // Uniform scale to one cell wide (never squashed), so every slice of a
+    // run shares the same scale and its seams line up; the art is anchored
+    // at its top face and its bottom (torn edges, brackets) may hang past
+    // the collision footprint, which is set separately below.
+    sprite.setScale(GRID_CELL_SIZE / sprite.width);
   } else if (object.type === 'bat') {
     sprite.setScale(BAT_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'candle') {
@@ -588,6 +654,7 @@ export function renderLevelObject(
     sprite.setScale(POWERUP_DISPLAY_HEIGHT_PX / sprite.height);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
+  if (terrain) setTerrainFootprint(sprite, terrainFootprintHeight(object.type));
   if (object.type === 'candle' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
     sprite.body.setSize(CANDLE_HITBOX_WIDTH_PX, sprite.displayHeight);
   }

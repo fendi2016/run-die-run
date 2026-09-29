@@ -29,6 +29,7 @@ import {
   motionTweenConfigFor,
   renderLevelObject,
   renderSpawnMarker,
+  terrainNeighborsIn,
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
@@ -282,6 +283,7 @@ export class EditorScene extends Scene {
       image.destroy();
     }
     this.renderedObjects.clear();
+    const neighborsOf = terrainNeighborsIn(this.controller.getObjects());
     for (const object of this.controller.getObjects()) {
       // ObjectRegistry deliberately renders nothing for 'spawn' (Player
       // reads its position directly at runtime, it's never an obstacle),
@@ -295,7 +297,7 @@ export class EditorScene extends Scene {
               properties: {},
               addedBy: '',
               addedInVersion: 1,
-            });
+            }, neighborsOf(object));
       if (image) {
         this.renderedObjects.set(object.id, image);
         const tweenConfig = motionTweenConfigFor(image, object);

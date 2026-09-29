@@ -40,6 +40,7 @@ import {
   motionTweenConfigFor,
   renderLevelObject,
   renderSpawnMarker,
+  terrainNeighborsIn,
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
@@ -528,6 +529,7 @@ export class CurseScene extends Scene {
     }
     this.baseImages = [];
     const relocatingFinish = this.pendingExtendTiles > 0;
+    const neighborsOf = terrainNeighborsIn(this.baseLevel?.objects ?? []);
     for (const object of this.baseLevel?.objects ?? []) {
       if (relocatingFinish && object.type === 'finish') {
         continue;
@@ -535,7 +537,7 @@ export class CurseScene extends Scene {
       const image =
         object.type === 'spawn'
           ? renderSpawnMarker(this, object.x, object.y)
-          : renderLevelObject(this, object);
+          : renderLevelObject(this, object, neighborsOf(object));
       if (image) {
         image.disableInteractive();
         if (object.id === this.pendingRemoveId) {

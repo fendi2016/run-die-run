@@ -29,9 +29,15 @@ export const OBJECT_TYPES = [
   'sandBlock',
   'metalBlock',
   'bridge',
+  // More platform-like solids from the "level sprites" sheet — behave
+  // exactly like 'platform'/'bridge', only the art differs.
+  'rulerPlatform',
+  'eraserPlatform',
+  'notebookPlatform',
+  'tapedPlatform',
+  'paperclipPlatform',
   // New hazards.
   'spikes',
-  'cannon',
   // Traps and power-ups from the scribble "traps and powerups" sheet.
   'ceilingSpikes',
   'spikeMine',
@@ -60,14 +66,19 @@ export const GROUND_LIKE_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
   'metalBlock',
 ]);
 
-// 'bridge' behaves exactly like 'platform' (thin rideable solid, no
-// auto-tiled edge/center art) — shared the same way as GROUND_LIKE_TYPES
+// 'bridge' and the other platform-like solids behave exactly like
+// 'platform' (thin rideable solid) — shared the same way as GROUND_LIKE_TYPES
 // above. Deliberately excludes 'movingPlatform': callers that also want
 // moving platforms included (coursePreview) check for it separately, same
 // as isSurfaceType deliberately leaves it out (see its own comment).
 export const PLATFORM_LIKE_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
   'platform',
   'bridge',
+  'rulerPlatform',
+  'eraserPlatform',
+  'notebookPlatform',
+  'tapedPlatform',
+  'paperclipPlatform',
 ]);
 
 const OBJECT_TYPE_SET: ReadonlySet<string> = new Set(OBJECT_TYPES);

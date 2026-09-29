@@ -106,7 +106,6 @@ await test('new terrain blocks silhouette like ground/platform in the course pre
     obj('b1', 'brickBlock', 30), obj('b2', 'stoneBlock', 90), obj('b3', 'crateBlock', 150),
     obj('bridge', 'bridge', 300, GROUND_TOP_Y - 120),
     obj('spikes', 'spikes', 210),
-    obj('cannon', 'cannon', 270),
     obj('s', 'spawn', 30), obj('f', 'finish', 330),
   ]));
   assert.deepEqual(preview.ground, [[0, 180]]);

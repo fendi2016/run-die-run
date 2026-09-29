@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { GRID_CELL_SIZE, GROUND_TOP_Y, LOGICAL_HEIGHT } from '../../../shared/constants';
+import { GRID_CELL_SIZE, GROUND_TOP_Y, LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../../shared/constants';
 import type { LevelObject } from '../../../shared/types';
 
 // Set dressing for a run, so gameplay sits in the same drawn world as the
@@ -11,17 +11,17 @@ import type { LevelObject } from '../../../shared/types';
 // behind the action so hazards stay visually dominant.
 
 const GRAIN_KEY = 'paper-grain';
-const GRAPHITE = 0x5d6474;
 const INK = 0x2b2b2b;
 const MARGIN_RED = 0xe06666;
 
 // Layering: level-background (-1) < grain < clouds < skyline < margin <
-// near scenery < death markers (-0.5) < spawn pencil case (-0.25) < finish
+// pinned paper scraps < near scenery < death markers (-0.5) < spawn pencil case (-0.25) < finish
 // gate (-0.1) < ground tiles < ground detail < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
 const CLOUD_DEPTH = -0.93;
 const SKYLINE_DEPTH = -0.91;
 const MARGIN_DEPTH = -0.9;
+const PAPER_DECOR_DEPTH = -0.88;
 const NEAR_SCENERY_DEPTH = -0.85;
 const SKYLINE_SIZE = 0.62;
 export const GROUND_TILE_DEPTH = -0.08;
@@ -143,10 +143,54 @@ const NEAR: [SceneryArt, number][] = [
   [art('fence', 1), 62],
 ];
 
-export const KENNEY_SCENERY: SceneryArt[] = [
+// Notebook-paper scraps from the level-piece sheet (public/assets/paper)
+// that can't be solid terrain — slopes, wedges, torn strips, holed scraps —
+// pinned or clipped to the backdrop instead. `width` is the display width;
+// `fastener` is what holds it up (strips that already carry their own tape
+// get nothing extra), stuck in at `anchor` — a spot on the paper itself as
+// a fraction of the image, since slopes and wedges leave much of their
+// bounding box empty.
+type Fastener = 'pin' | 'clip' | 'none';
+type DecorArt = { key: string; file: string; width: number; fastener: Fastener; anchor: Point };
+
+const decor = (name: string, width: number, fastener: Fastener, ax = 0.5, ay = 0.2): DecorArt => ({
+  key: `paper-decor-${name}`,
+  file: `paper/${name}.webp`,
+  width,
+  fastener,
+  anchor: { x: ax, y: ay },
+});
+
+const PAPER_SCRAPS: DecorArt[] = [
+  decor('paper-slope', 150, 'pin', 0.8, 0.3),
+  decor('paper-ramp', 130, 'pin', 0.82, 0.35),
+  decor('graph-triangle', 90, 'pin', 0.8, 0.4),
+  decor('scrap-ramp-holes', 160, 'clip', 0.14, 0.1),
+  decor('scrap-wedge-holes', 150, 'pin', 0.72, 0.3),
+  decor('paper-wedge-tape', 110, 'none'),
+  decor('scrap-ring', 80, 'pin', 0.5, 0.18),
+  decor('scrap-hook', 72, 'pin', 0.3, 0.2),
+  decor('scrap-holes', 130, 'clip', 0.18, 0.08),
+  decor('paper-pillar-small', 56, 'pin', 0.5, 0.16),
+  decor('red-corner', 92, 'pin', 0.78, 0.12),
+  decor('red-scribble-strip', 120, 'clip', 0.14, 0.14),
+  decor('tape-strip', 100, 'none'),
+  decor('tape-strip-long', 150, 'none'),
+  decor('tape-strip-small', 100, 'none'),
+  decor('paper-strip-bluetape', 124, 'none'),
+];
+const PINS = [decor('pin-red', 30, 'none'), decor('pin-blue', 27, 'none')];
+const CLIPS = [decor('paperclip-long', 80, 'none'), decor('paperclip-short', 52, 'none')];
+
+type LoadableArt = { key: string; file: string };
+
+export const KENNEY_SCENERY: LoadableArt[] = [
   ...CLOUDS,
   ...Object.values(SKYLINE),
   ...NEAR.map(([a]) => a),
+  ...PAPER_SCRAPS,
+  ...PINS,
+  ...CLIPS,
 ];
 
 function standOnGround(
@@ -237,6 +281,7 @@ export function drawKenneyScenery(
     return true;
   };
   const busyX = objects.filter((o) => o.type !== 'ground').map((o) => o.x);
+  drawPaperDecor(scene, levelWidth, objects, seedText);
   for (let x = range(rng, 300, 460); x < levelWidth - 60; x += range(rng, 300, 560)) {
     const pick = NEAR[Math.floor(rng() * NEAR.length)] ?? NEAR[0];
     if (!pick) break;
@@ -248,9 +293,101 @@ export function drawKenneyScenery(
   }
 }
 
-// Hatching, tufts and pebbles over each run of ground tiles, so the ground
-// reads as drawn rather than an empty white slab. Drawn per tile from the
-// level's own ground objects, so gaps stay clean gaps.
+// Faded paper scraps pinned or clipped to the page between the skyline
+// and the near scenery. Pale, warm-grey and tilted so they read as stuff
+// stuck to the notebook, never as a ledge to land on. Every scrap in the
+// sheet is dealt once (in a seeded shuffle) before any repeats, so even a
+// short level shows a good spread.
+function drawPaperDecor(
+  scene: Phaser.Scene,
+  levelWidth: number,
+  objects: LevelObject[],
+  seedText: string
+): void {
+  const rng = seededRng(`${seedText}:paper-decor`);
+  const factor = 0.72;
+  const alpha = 0.34;
+  const tint = 0xc8c2b4;
+  const halfScreen = LOGICAL_WIDTH / 2;
+  // With parallax, a scrap at layer-x `x` passes behind world-x
+  // halfScreen + (x - halfScreen) / factor while it's mid-screen, which is
+  // where the player's eye is. Keep that spot clear of the course, like the
+  // near scenery does, and keep off rows that hold something.
+  const busy = objects.filter((o) => o.type !== 'ground');
+  const overlapsCourse = (x: number, top: number, bottom: number, halfWidth: number): boolean => {
+    const worldX = halfScreen + (x - halfScreen) / factor;
+    const reach = halfWidth / factor + GRID_CELL_SIZE;
+    return busy.some(
+      (o) => Math.abs(o.x - worldX) < reach && o.y + GRID_CELL_SIZE > top && o.y - GRID_CELL_SIZE < bottom
+    );
+  };
+
+  const deck: DecorArt[] = [];
+  const deal = (): DecorArt | undefined => {
+    if (deck.length === 0) {
+      deck.push(...PAPER_SCRAPS);
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const a = deck[i];
+        const b = deck[j];
+        if (a && b) {
+          deck[i] = b;
+          deck[j] = a;
+        }
+      }
+    }
+    return deck[deck.length - 1];
+  };
+
+  const end = levelWidth * factor + LOGICAL_WIDTH;
+  for (let x = range(rng, 200, 380); x < end; x += range(rng, 260, 420)) {
+    const piece = deal();
+    if (!piece) break;
+    const y = range(rng, 70, 250);
+    const scale = piece.width / scene.textures.getFrame(piece.key).width;
+    const halfHeight = (scene.textures.getFrame(piece.key).height * scale) / 2;
+    // A crowded stretch: try this slot a little higher before giving up.
+    const clearY = [y, 70].find((cy) => !overlapsCourse(x, cy - halfHeight, cy + halfHeight, piece.width / 2));
+    if (clearY === undefined) continue;
+    deck.pop();
+
+    const angle = range(rng, -9, 9);
+    const image = scene.add
+      .image(x, clearY, piece.key)
+      .setScale(scale)
+      .setAngle(angle)
+      .setScrollFactor(factor, 1)
+      .setDepth(PAPER_DECOR_DEPTH)
+      .setAlpha(alpha)
+      .setTint(tint);
+
+    if (piece.fastener === 'none') continue;
+    const pool = piece.fastener === 'pin' ? PINS : CLIPS;
+    const fastener = pool[Math.floor(rng() * pool.length)] ?? pool[0];
+    if (!fastener) continue;
+    const offsetX = (piece.anchor.x - 0.5) * image.displayWidth;
+    const offsetY = (piece.anchor.y - 0.5) * image.displayHeight;
+    const rad = Phaser.Math.DegToRad(angle);
+    const fx = x + offsetX * Math.cos(rad) - offsetY * Math.sin(rad);
+    const fy = clearY + offsetX * Math.sin(rad) + offsetY * Math.cos(rad);
+    const holder = scene.add
+      .image(fx, fy, fastener.key)
+      .setOrigin(0.5, piece.fastener === 'pin' ? 0.85 : 0.5)
+      .setAngle(piece.fastener === 'pin' ? range(rng, -12, 12) : angle + range(rng, -20, -8))
+      .setScrollFactor(factor, 1)
+      .setDepth(PAPER_DECOR_DEPTH + 0.001)
+      .setAlpha(alpha + 0.1)
+      .setTint(tint);
+    holder.setScale(fastener.width / holder.width);
+  }
+}
+
+// Grass tufts poking up over each ground tile's lip. The ground art (the
+// lined-paper tileset from the "level sprites" sheet) already carries its
+// own outline and texture, so the pencil hatching, pebbles and cracks this
+// used to draw over the old blank ground are gone — they read as dirt
+// scribbled on top of the paper. Drawn per tile from the level's own
+// ground objects, so gaps stay clean gaps.
 export function drawGroundDetail(scene: Phaser.Scene, objects: LevelObject[], seedText: string): void {
   const rng = seededRng(`${seedText}:ground`);
   const g = scene.add.graphics().setDepth(GROUND_DETAIL_DEPTH);
@@ -258,50 +395,10 @@ export function drawGroundDetail(scene: Phaser.Scene, objects: LevelObject[], se
   const tiles = objects
     .filter((o) => o.type === 'ground')
     .sort((a, b) => a.x - b.x);
-  const bottom = Math.min(LOGICAL_HEIGHT, GROUND_TOP_Y + GRID_CELL_SIZE);
 
   for (const tile of tiles) {
     const left = tile.x - half;
     const top = tile.y;
-
-    // Shading band under the lip: diagonal hatching, densest just below
-    // the edge and thinning out lower down, like a quick pencil shadow.
-    g.lineStyle(1.3, GRAPHITE, 0.26);
-    for (let hx = left - 14; hx < left + GRID_CELL_SIZE; hx += 7) {
-      const len = range(rng, 9, 15);
-      const x0 = Math.max(left + 1, hx);
-      const x1 = Math.min(left + GRID_CELL_SIZE - 1, hx + len);
-      if (x1 <= x0) continue;
-      const y0 = top + 7 + (x0 - hx);
-      g.lineBetween(x0, y0, x1, y0 + (x1 - x0) * 0.9);
-    }
-    // Sparse cross-hatch deeper in.
-    g.lineStyle(1, GRAPHITE, 0.14);
-    for (let i = 0; i < 3; i++) {
-      const hx = left + range(rng, 4, GRID_CELL_SIZE - 16);
-      const hy = top + range(rng, 28, 44);
-      g.lineBetween(hx, hy, hx + 10, hy - 8);
-    }
-
-    // Occasional detail: a pebble, a buried scribble, a crack.
-    const roll = rng();
-    if (roll < 0.22) {
-      g.lineStyle(1.4, INK, 0.45);
-      g.strokeEllipse(left + range(rng, 14, 46), Math.min(bottom - 8, top + range(rng, 30, 44)), range(rng, 8, 13), range(rng, 5, 8));
-    } else if (roll < 0.34) {
-      g.lineStyle(1.2, INK, 0.35);
-      const cx = left + range(rng, 12, 40);
-      const cy = top + range(rng, 26, 40);
-      g.beginPath();
-      g.moveTo(cx, cy);
-      g.lineTo(cx + 6, cy + 5);
-      g.lineTo(cx + 3, cy + 11);
-      g.lineTo(cx + 10, cy + 16);
-      g.strokePath();
-    } else if (roll < 0.42) {
-      g.fillStyle(INK, 0.35);
-      for (let i = 0; i < 3; i++) g.fillCircle(left + range(rng, 10, 50), top + range(rng, 24, 48), range(rng, 1, 1.8));
-    }
 
     // Grass poking up over the lip: a quick zigzag, the way grass gets
     // drawn in a margin, in ink like the rest of the edge.
