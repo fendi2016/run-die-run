@@ -205,6 +205,9 @@ export class GameScene extends Scene {
   private attempt = new AbortController();
   private submitting = false;
   private findingNext = false;
+  // A successful lookUpNextLevel result, so the post-curse shortcut and the
+  // clear screen share one discovery fetch.
+  private nextLevel: { levelId: string; title: string } | undefined;
   private levelRequest: AbortController | undefined;
   // Set the moment the tap-to-start gate lifts (see update()) — false for
   // the entire tap-to-start hold, forever true afterward for the rest of
@@ -253,6 +256,7 @@ export class GameScene extends Scene {
     this.tutorial = data.tutorial === true;
     this.returnTo = data.returnTo;
     this.justCursed = data.justCursed === true;
+    this.nextLevel = undefined;
     // The tutorial runs as a preview so nothing about it is reported or
     // saved (deaths, best distance, share); it only differs at load and at
     // the finish.
@@ -1018,6 +1022,7 @@ export class GameScene extends Scene {
   private async lookUpNextLevel(
     signal: AbortSignal
   ): Promise<{ levelId: string; title: string } | undefined> {
+    if (this.nextLevel) return this.nextLevel;
     const response = await fetch('/api/discovery/levels?sort=new', {
       signal: withTimeout(signal, 15000),
     });
@@ -1025,9 +1030,10 @@ export class GameScene extends Scene {
     if (!response.ok || !isDiscoveryResponse(body)) throw new Error('Could not find levels');
     const currentId = this.levelVersion?.levelId;
     const currentIndex = body.levels.findIndex((level) => level.levelId === currentId);
-    return body.levels.slice(currentIndex + 1)
+    this.nextLevel = body.levels.slice(currentIndex + 1)
       .concat(body.levels.slice(0, Math.max(0, currentIndex)))
       .find((level) => level.levelId !== currentId);
+    return this.nextLevel;
   }
 
   private async findNextLevel(): Promise<void> {

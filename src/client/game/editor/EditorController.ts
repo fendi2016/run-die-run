@@ -67,10 +67,17 @@ export class EditorController {
     );
   }
 
-  selectAt(x: number, y: number): boolean {
-    const found =
+  // Whatever is on top in this cell: an object resting on a surface before
+  // the surface itself.
+  private topObjectAt(x: number, y: number): DraftObject | undefined {
+    return (
       this.objects.find((o) => o.x === x && o.y === y && !isSurfaceType(o.type)) ??
-      this.objects.find((o) => o.x === x && o.y === y);
+      this.objects.find((o) => o.x === x && o.y === y)
+    );
+  }
+
+  selectAt(x: number, y: number): boolean {
+    const found = this.topObjectAt(x, y);
     this.selectedId = found?.id;
     return found !== undefined;
   }
@@ -117,14 +124,11 @@ export class EditorController {
     return true;
   }
 
-  // The Erase tool: removes whatever is on top in this cell (an object
-  // resting on a surface before the surface itself — the same pick order as
-  // selectAt). The spawn can't be erased — a level needs one, so it's moved
+  // The Erase tool: removes whatever is on top in this cell (the same pick
+  // order as selectAt). The spawn can't be erased — a level needs one, so it's moved
   // instead. Returns the erased object, if any.
   eraseAt(x: number, y: number): DraftObject | 'spawn' | undefined {
-    const found =
-      this.objects.find((o) => o.x === x && o.y === y && !isSurfaceType(o.type)) ??
-      this.objects.find((o) => o.x === x && o.y === y);
+    const found = this.topObjectAt(x, y);
     if (!found) return undefined;
     if (found.type === 'spawn') return 'spawn';
     this.pushUndoSnapshot();

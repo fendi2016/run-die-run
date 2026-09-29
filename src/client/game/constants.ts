@@ -112,7 +112,7 @@ export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_HITBOX_WIDTH_PX = 28;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
-// Spikes (Kenney tile_spikes): low and wide, unlike every other hazard here.
+// Spikes (hazards/spikes.webp): low and wide, unlike every other hazard here.
 // Display height only — width follows the art's own ~1.9:1 aspect ratio via
 // setScale, landing just under one grid cell wide. The hitbox is narrower
 // than the display width so a jump that clips the very edge of the art
@@ -150,11 +150,6 @@ export const CRUSHER_LIFT_PX = 150;
 export const CRUSHER_PERIOD_MS = 2600;
 // Power-up pickups all draw at one size.
 export const POWERUP_DISPLAY_HEIGHT_PX = 56;
-
-// Pencil test: multiply tint for the scribble hazards (white fill, black
-// outline), so the fill turns red and the outline stays black. null leaves
-// them plain white-and-black, for comparing the two looks.
-export const HAZARD_TINT: number | null = 0xe53935;
 
 // The finish pencil sharpener is scaled to this height (2 grid tiles, so
 // its mouth sits at the pencil's tip height); width follows the art's own

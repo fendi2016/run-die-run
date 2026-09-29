@@ -60,7 +60,11 @@ export async function startServer({ api = () => undefined } = {}) {
     } catch { res.writeHead(404).end(); }
   });
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
-  return { url: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
+  const close = () => {
+    server.closeAllConnections();
+    return new Promise((done) => server.close(done));
+  };
+  return { url: `http://127.0.0.1:${server.address().port}`, close };
 }
 
 // Opens game.html at MainMenu, runs `fn`, and always tears down the browser

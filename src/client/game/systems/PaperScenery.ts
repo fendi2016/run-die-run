@@ -45,6 +45,10 @@ function range(rng: Rng, min: number, max: number): number {
   return min + rng() * (max - min);
 }
 
+function pick<T>(rng: Rng, items: readonly T[]): T | undefined {
+  return items[Math.floor(rng() * items.length)];
+}
+
 type Point = { x: number; y: number };
 
 function ensureGrainTexture(scene: Phaser.Scene): void {
@@ -167,7 +171,7 @@ function standOnGround(
 function farTrees(scene: Phaser.Scene, x: number, rng: Rng, factor: number): void {
   const count = 1 + Math.floor(rng() * 3);
   for (let i = 0; i < count; i++) {
-    const tree = TREES[Math.floor(rng() * TREES.length)] ?? TREES[0];
+    const tree = pick(rng, TREES);
     if (!tree) return;
     standOnGround(scene, tree, x + i * range(rng, 55, 80), GROUND_TOP_Y + 8, range(rng, 90, 130))
       .setScrollFactor(factor, 1)
@@ -191,7 +195,7 @@ export function drawScenery(
 
   const cloudFactor = 0.25;
   for (let x = range(rng, 60, 260); x < span(cloudFactor); x += range(rng, 280, 520)) {
-    const cloud = CLOUDS[Math.floor(rng() * CLOUDS.length)] ?? CLOUDS[0];
+    const cloud = pick(rng, CLOUDS);
     if (!cloud) break;
     const image = scene.add
       .image(x, range(rng, 50, 190), cloud.key)
@@ -279,15 +283,18 @@ function drawPaperDecor(
 
     if (piece.fastener === 'none') continue;
     const pool = piece.fastener === 'pin' ? PINS : CLIPS;
-    const fastener = pool[Math.floor(rng() * pool.length)] ?? pool[0];
+    const fastener = pick(rng, pool);
     if (!fastener) continue;
     const offsetX = (piece.anchor.x - 0.5) * image.displayWidth;
     const offsetY = (piece.anchor.y - 0.5) * image.displayHeight;
-    const rad = Phaser.Math.DegToRad(angle);
-    const fx = x + offsetX * Math.cos(rad) - offsetY * Math.sin(rad);
-    const fy = clearY + offsetX * Math.sin(rad) + offsetY * Math.cos(rad);
+    const at = Phaser.Math.RotateAround(
+      { x: x + offsetX, y: clearY + offsetY },
+      x,
+      clearY,
+      Phaser.Math.DegToRad(angle)
+    );
     const holder = scene.add
-      .image(fx, fy, fastener.key)
+      .image(at.x, at.y, fastener.key)
       .setOrigin(0.5, piece.fastener === 'pin' ? 0.85 : 0.5)
       .setAngle(piece.fastener === 'pin' ? range(rng, -12, 12) : angle + range(rng, -20, -8))
       .setScrollFactor(factor, 1)

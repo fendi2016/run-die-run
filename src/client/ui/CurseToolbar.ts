@@ -8,39 +8,8 @@ import { requireButton, requireElement } from './domUtils';
 
 const CATEGORIES: CurseCategory[] = ['hazard', 'platform', 'powerUp'];
 
-// Only types the curse flow can actually offer today (spec sections 14-15
-// scoped down to whatever CURSE_CATEGORY_TYPES currently lists — powerUp is
-// empty until Phase 8, so its button stays disabled rather than offering a
-// pickup ObjectRegistry can't render yet). A tuple array (not a
-// Partial<Record> read back via Object.entries) keeps `type` typed as
-// `ObjectType` at every call site without a cast (AGENTS.md: never cast
-// TypeScript types).
-const TYPE_BUTTON_ENTRIES: [ObjectType, string][] = [
-  ['saw', 'curse-type-saw'],
-  ['movingSaw', 'curse-type-movingSaw'],
-  ['candle', 'curse-type-candle'],
-  ['bat', 'curse-type-bat'],
-  ['ghost', 'curse-type-ghost'],
-  ['spikes', 'curse-type-spikes'],
-  ['ceilingSpikes', 'curse-type-ceilingSpikes'],
-  ['spikeMine', 'curse-type-spikeMine'],
-  ['electricMine', 'curse-type-electricMine'],
-  ['mace', 'curse-type-mace'],
-  ['crusher', 'curse-type-crusher'],
-  ['platform', 'curse-type-platform'],
-  ['movingPlatform', 'curse-type-movingPlatform'],
-  ['bridge', 'curse-type-bridge'],
-  ['rulerPlatform', 'curse-type-rulerPlatform'],
-  ['eraserPlatform', 'curse-type-eraserPlatform'],
-  ['notebookPlatform', 'curse-type-notebookPlatform'],
-  ['tapedPlatform', 'curse-type-tapedPlatform'],
-  ['paperclipPlatform', 'curse-type-paperclipPlatform'],
-  ['shield', 'curse-type-shield'],
-  ['speedBoost', 'curse-type-speedBoost'],
-  ['wings', 'curse-type-wings'],
-  ['stopwatch', 'curse-type-stopwatch'],
-  ['star', 'curse-type-star'],
-];
+// Every type the curse flow can offer has a `curse-type-<type>` button.
+const CURSE_TYPES: ObjectType[] = CATEGORIES.flatMap((category) => CURSE_CATEGORY_TYPES[category]);
 
 export type CurseToolbarHandlers = {
   onCategorySelected: (category: CurseCategory) => void;
@@ -101,8 +70,8 @@ export class CurseToolbar {
       });
     }
 
-    for (const [objectType, id] of TYPE_BUTTON_ENTRIES) {
-      const button = requireButton(id);
+    for (const objectType of CURSE_TYPES) {
+      const button = requireButton(`curse-type-${objectType}`);
       this.typeButtons.set(objectType, button);
       button.addEventListener('click', () => {
         this.setActiveType(objectType);

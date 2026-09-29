@@ -1,32 +1,18 @@
 // Run after npm run build: node tools/game-regressions.mjs
 // Exercises the built client with local API fixtures; no Reddit writes.
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright';
+import { startServer } from './playtest/harness.mjs';
 import { testStageOne } from './stage-one-regressions.mjs';
 
-const root = resolve('dist/client');
-const server = createServer(async (req, res) => {
-  const pathname = new URL(req.url, 'http://localhost').pathname;
-  const file = resolve(root, `.${pathname}`);
-  if (!file.startsWith(`${root}/`)) { res.writeHead(403).end(); return; }
-  try {
-    const body = await readFile(file);
-    const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp' };
-    res.setHeader('Content-Type', mime[extname(file)] ?? 'application/octet-stream');
-    res.end(body);
-  } catch { res.writeHead(404).end(); }
-});
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const server = await startServer();
 let browser;
 try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/game.html`);
+  await page.goto(`${server.url}/game.html`);
   await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
 
   const movement = await page.evaluate(async () => {
@@ -153,7 +139,7 @@ try {
   let failAsset = true;
   await phone.route('**/assets/player/player-idle.webp', (route) =>
     failAsset ? route.fulfill({ status: 503, body: '' }) : route.continue());
-  await phone.goto(`http://127.0.0.1:${server.address().port}/game.html`);
+  await phone.goto(`${server.url}/game.html`);
   await phone.waitForFunction(() => {
     const scene = window.__PHASER_GAME__?.scene.getScene('Preloader');
     return scene?.failed && !scene.load.isLoading();
@@ -182,7 +168,7 @@ try {
       ? route.fulfill({ json: { levelId: 'first-blood', version: 1, parentVersion: null, objects: fbObjects,
         contributorUsername: 'sketchy-seed', verificationTimeMs: 1, createdAt: 0 } })
       : route.fulfill({ status: 404, body: '' }));
-  await starterPage.goto(`http://127.0.0.1:${server.address().port}/game.html?level=first-blood`);
+  await starterPage.goto(`${server.url}/game.html?level=first-blood`);
   await starterPage.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
   await starterPage.evaluate(() => localStorage.setItem('sketchy:tutorial-done', '1'));
   await starterPage.click('#game-menu-play');
@@ -228,7 +214,7 @@ try {
       if (match) return route.fulfill({ json: funnelLevel(match[1]) });
       return route.fulfill({ status: 404, body: '' });
     });
-    await page.goto(`http://127.0.0.1:${server.address().port}/game.html${query}`);
+    await page.goto(`${server.url}/game.html${query}`);
     await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
     if (tutorialDone) await page.evaluate(() => localStorage.setItem('sketchy:tutorial-done', '1'));
     await page.click('#game-menu-play');
@@ -283,7 +269,7 @@ try {
       if (path === '/api/me/curses') return route.fulfill({ json: { curses } });
       return route.fulfill({ status: 404, body: '' });
     });
-    await page.goto(`http://127.0.0.1:${server.address().port}/game.html`);
+    await page.goto(`${server.url}/game.html`);
     await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
     // From MainMenu itself, so its shutdown hides the menu overlay.
     await page.evaluate(() => window.__PHASER_GAME__.scene.getScene('MainMenu').scene.start('CurseScene', { levelId: 'cursable' }));
@@ -333,7 +319,7 @@ try {
     if (path === '/api/levels/real') return route.fulfill({ json: realLevel });
     return route.fulfill({ status: 404, body: '' });
   });
-  await fresh.goto(`http://127.0.0.1:${server.address().port}/game.html?level=real`);
+  await fresh.goto(`${server.url}/game.html?level=real`);
   await fresh.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
   await fresh.click('#game-menu-play');
   await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.levelVersion?.levelId === 'tutorial');
@@ -429,6 +415,5 @@ try {
   console.log('Passed: movement retries; editor locking and recovery; mobile resize, dense-level collision groups, pickups, hazards, touch retry after an asset failure, a tap-only First Blood clear, and first-play tutorial routing.');
 } finally {
   await browser?.close();
-  server.closeAllConnections();
-  await new Promise((resolve) => server.close(resolve));
+  await server.close();
 }

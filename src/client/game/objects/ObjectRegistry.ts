@@ -269,11 +269,7 @@ export function motionTweenConfigFor(
     // on their own, so each tween step has to resync it by hand — harmless
     // to run in the editor/curse boards too, where it's a no-op cosmetic
     // resync rather than something collision detection there relies on.
-    onUpdate: () => {
-      if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
-        sprite.body.reset();
-      }
-    },
+    onUpdate: () => syncStaticBody(sprite),
   };
 }
 
@@ -281,7 +277,7 @@ type CyclePose = { periodMs: number; apply: (phase: number) => void };
 
 // Resyncs a static body after its sprite moved (or changed pose) —
 // harmless in the editor boards, where nothing collides.
-function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
+export function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
   if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
     sprite.body.reset();
   }
@@ -325,13 +321,13 @@ function cyclePoseFor(
         // (x, y), which isn't where the pivot sits.
         sprite.setPosition(pivot.x, pivot.y).setAngle(angleDeg);
         if (!hitbox) return;
-        const a = Phaser.Math.DegToRad(angleDeg);
-        const bx = MACE_BALL_OFFSET.x * MACE_ART_SCALE;
-        const by = MACE_BALL_OFFSET.y * MACE_ART_SCALE;
-        hitbox.setPosition(
-          pivot.x + bx * Math.cos(a) - by * Math.sin(a),
-          pivot.y + bx * Math.sin(a) + by * Math.cos(a)
+        const ball = Phaser.Math.RotateAround(
+          { x: pivot.x + MACE_BALL_OFFSET.x * MACE_ART_SCALE, y: pivot.y + MACE_BALL_OFFSET.y * MACE_ART_SCALE },
+          pivot.x,
+          pivot.y,
+          Phaser.Math.DegToRad(angleDeg)
         );
+        hitbox.setPosition(ball.x, ball.y);
         syncStaticBody(hitbox);
       },
     };
@@ -555,8 +551,6 @@ function setTerrainFootprint(sprite: Phaser.GameObjects.Sprite, height: number):
   }
 }
 
-const POWERUP_TYPES = new Set<ObjectType>(['shield', 'speedBoost', 'wings', 'stopwatch', 'star']);
-
 // Static body shrunk to `width` x `height` (default: the display height),
 // centered on the drawing, so edge scribbles don't count as contact.
 function shrinkStaticBody(sprite: Phaser.GameObjects.Sprite, width: number, height = sprite.displayHeight): void {
@@ -650,19 +644,15 @@ export function renderLevelObject(
     sprite.setScale(ZAPPER_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'crusher') {
     sprite.setScale(CRUSHER_DISPLAY_HEIGHT_PX / sprite.height);
-  } else if (POWERUP_TYPES.has(object.type)) {
+  } else if (categoryOf(object.type) === 'powerup') {
     sprite.setScale(POWERUP_DISPLAY_HEIGHT_PX / sprite.height);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
   if (terrain) setTerrainFootprint(sprite, terrainFootprintHeight(object.type));
-  if (object.type === 'candle' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
-    sprite.body.setSize(CANDLE_HITBOX_WIDTH_PX, sprite.displayHeight);
-  }
-  if (object.type === 'spikes' && sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
-    // Slightly narrower than the art so a jump that clips the very edge of
-    // a spike tip still reads as a clean clear.
-    sprite.body.setSize(SPIKES_HITBOX_WIDTH_PX, sprite.displayHeight);
-  }
+  if (object.type === 'candle') shrinkStaticBody(sprite, CANDLE_HITBOX_WIDTH_PX);
+  // Slightly narrower than the art so a jump that clips the very edge of a
+  // spike tip still reads as a clean clear.
+  if (object.type === 'spikes') shrinkStaticBody(sprite, SPIKES_HITBOX_WIDTH_PX);
   if (object.type === 'ceilingSpikes') shrinkStaticBody(sprite, CEILING_SPIKES_HITBOX_WIDTH_PX);
   if (object.type === 'spikeMine') shrinkStaticBody(sprite, SPIKE_MINE_HITBOX_PX, SPIKE_MINE_HITBOX_PX);
   if (object.type === 'electricMine') shrinkStaticBody(sprite, ZAPPER_HITBOX_PX, ZAPPER_HITBOX_PX);

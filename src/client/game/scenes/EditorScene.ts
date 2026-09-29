@@ -225,8 +225,7 @@ export class EditorScene extends Scene {
     }
   }
 
-  // One tap, one object gone — no select-then-Delete. Same smoke puff as
-  // deleteSelected.
+  // One tap, one object gone — no select-then-Delete.
   private handleEraseTap(x: number, y: number): void {
     let spawnTapped = false;
     this.applyMutation(() => {
@@ -237,23 +236,25 @@ export class EditorScene extends Scene {
       }
       if (!erased) return false;
       const at = this.renderedObjects.get(erased.id)?.getCenter();
-      if (at) playPixelFx(this, 'smoke-poof', at.x, at.y, { scale: 1, depth: 10 });
+      if (at) this.puffAt(at);
       return true;
     }, 'Nothing to erase there.');
     if (spawnTapped) this.toolbar.showMessage('Every level needs a spawn. Use Select to move it.');
   }
 
-  // A puff of smoke where the deleted object was. Drawn above the objects,
+  // A puff of smoke where a removed object was. Drawn above the objects,
   // which applyMutation rebuilds right after.
+  private puffAt(at: { x: number; y: number }): void {
+    playPixelFx(this, 'smoke-poof', at.x, at.y, { scale: 1, depth: 10 });
+  }
+
   private deleteSelected(): void {
     const selectedId = this.controller.getSelectedId();
     const image = selectedId ? this.renderedObjects.get(selectedId) : undefined;
     const center = image?.getCenter();
     this.applyMutation(() => {
       const deleted = this.controller.deleteSelected();
-      if (deleted && center) {
-        playPixelFx(this, 'smoke-poof', center.x, center.y, { scale: 1, depth: 10 });
-      }
+      if (deleted && center) this.puffAt(center);
       return deleted;
     }, 'Nothing selected.');
   }

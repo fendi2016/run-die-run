@@ -12,8 +12,8 @@ import {
   categoryOf,
   maceHitboxOf,
   motionTweenConfigFor,
-  isTerrainType,
   renderLevelObject,
+  syncStaticBody,
   terrainNeighborsIn,
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow, attachPickupShimmer } from './Juice';
@@ -156,8 +156,8 @@ export function loadLevel(
       if (rendered.body instanceof Phaser.Physics.Arcade.Body) {
         // Clear derived carry velocity as well as the platform's position.
         rendered.body.reset(home.x, home.y);
-      } else if (rendered.body instanceof Phaser.Physics.Arcade.StaticBody) {
-        rendered.body.reset();
+      } else {
+        syncStaticBody(rendered);
       }
     });
   }
@@ -170,9 +170,7 @@ export function loadLevel(
       continue;
     }
 
-    const rendered = isTerrainType(object.type)
-      ? renderLevelObject(scene, object, terrainNeighborsOf(object))
-      : renderLevelObject(scene, object);
+    const rendered = renderLevelObject(scene, object, terrainNeighborsOf(object));
     if (!rendered) {
       continue;
     }
