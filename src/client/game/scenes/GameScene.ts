@@ -148,10 +148,16 @@ type GameSceneData = {
   // Set on the starter: where Next Level leads (Level of the Day after the
   // tutorial, or back to the level the player was struggling on).
   returnTo?: { levelId: string; title: string };
+  // Set when landing back in a level right after publishing a curse on it:
+  // the player gets to see their trap live, with a way on to the next level.
+  justCursed?: boolean;
 };
 
 // Levels the starter has already been offered on this session.
 const starterOfferedOn = new Set<string>();
+// Levels this player has left a curse on this session. Leaving your curse
+// is what unlocks Next Level after a clear (see onFinishReached).
+const cursedThisSession = new Set<string>();
 
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
 // the server as data (LevelVersion) and built through the ObjectRegistry /
@@ -229,6 +235,7 @@ export class GameScene extends Scene {
   private explicitLevelId: string | undefined;
   private tutorial = false;
   private returnTo: { levelId: string; title: string } | undefined;
+  private justCursed = false;
   private tutorialHint!: TutorialHint;
   private tutorialPointer!: TutorialPointer;
 
@@ -250,6 +257,7 @@ export class GameScene extends Scene {
   init(data: GameSceneData): void {
     this.tutorial = data.tutorial === true;
     this.returnTo = data.returnTo;
+    this.justCursed = data.justCursed === true;
     // The tutorial runs as a preview so nothing about it is reported or
     // saved (deaths, best distance, share); it only differs at load and at
     // the finish.
@@ -620,6 +628,25 @@ export class GameScene extends Scene {
     this.subscribeRealtime(levelVersion.levelId);
     void this.loadLevelStats(levelVersion.levelId);
     this.startRun(levelVersion);
+    if (this.justCursed) void this.showNextLevelShortcut();
+  }
+
+  // Right after publishing a curse the player lands back in the level to
+  // see their trap live; this top-left button is their way on without
+  // having to beat their own curse first.
+  private async showNextLevelShortcut(): Promise<void> {
+    const attempt = this.attempt;
+    let next: { levelId: string; title: string } | undefined;
+    try {
+      next = await this.lookUpNextLevel(attempt.signal);
+    } catch {
+      return;
+    }
+    if (!next || attempt.signal.aborted || !this.scene.isActive()) return;
+    const { levelId } = next;
+    PreviewBackButton.instance().setLabel('Next Level →');
+    PreviewBackButton.instance().setOnBack(() => this.scene.start('GameScene', { levelId }));
+    PreviewBackButton.instance().show();
   }
 
   // A live version-published/world-record toast is strictly cosmetic — it
@@ -776,16 +803,13 @@ export class GameScene extends Scene {
 
     if (this.tutorial) {
       PreviewBackButton.instance().hide();
-      this.resultOverlay.showSaveStatus('Tutorial complete! Now for a real one…');
-      // A Restart from the pause menu aborts the attempt; don't then yank
-      // the player out of the new run.
-      const attempt = this.attempt;
-      this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
-        if (!attempt.signal.aborted) this.leaveTutorial();
-      });
+      // The whole point of the game, said once, where it can't be missed:
+      // clearing a level is what earns you a curse on it.
+      this.resultOverlay.showTutorialOutro(() => this.leaveTutorial());
     } else if (devWarp) {
       this.offerCurse(this.levelVersion.levelId);
       this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
+      this.offerNextLevel(this.levelVersion.levelId);
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
@@ -802,7 +826,7 @@ export class GameScene extends Scene {
         submissionId: crypto.randomUUID(),
       };
       void this.submitRun(request);
-      void this.findNextLevel();
+      this.offerNextLevel(levelVersion.levelId);
     }
   }
 
@@ -814,6 +838,17 @@ export class GameScene extends Scene {
   private offerCurse(levelId: string): void {
     if (this.previewLevel || CURSE_LOCKED_LEVEL_IDS.has(levelId)) return;
     this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
+  }
+
+  // Next Level stays locked until you've left your curse on this level —
+  // cursing is the game, not an optional extra. Levels that can't be cursed
+  // (the starter) and players who already cursed this one go straight on.
+  private offerNextLevel(levelId: string): void {
+    if (CURSE_LOCKED_LEVEL_IDS.has(levelId) || cursedThisSession.has(levelId)) {
+      void this.findNextLevel();
+      return;
+    }
+    this.resultOverlay.showNext('Leave your curse to unlock the next level.');
   }
 
   // Verification (spec section 16) is shared by both preview flows — only
@@ -902,7 +937,8 @@ export class GameScene extends Scene {
     this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
       if (attempt.signal.aborted) return;
       if (published) {
-        this.scene.start('GameScene', { levelId: previewReturn.levelId });
+        cursedThisSession.add(previewReturn.levelId);
+        this.scene.start('GameScene', { levelId: previewReturn.levelId, justCursed: true });
         return;
       }
       this.scene.start('CurseScene', {
@@ -934,7 +970,10 @@ export class GameScene extends Scene {
       });
       if (attempt.signal.aborted) return;
       if (response.status === 401) {
-        this.resultOverlay.showSaveStatus('Sign in to Reddit to save scores. You can still replay or browse.');
+        // Signed out: no curse is possible, so don't hold Next Level hostage.
+        this.resultOverlay.showSaveStatus('Sign in to Reddit to save scores and leave curses.');
+        this.resultOverlay.hideCurse();
+        void this.findNextLevel();
         return;
       }
       const body: unknown = await response.json();
@@ -953,6 +992,23 @@ export class GameScene extends Scene {
     }
   }
 
+  // The level after this one in the newest-first listing (wrapping round),
+  // or undefined when this is the only one. Throws when the listing fails.
+  private async lookUpNextLevel(
+    signal: AbortSignal
+  ): Promise<{ levelId: string; title: string } | undefined> {
+    const response = await fetch('/api/discovery/levels?sort=new', {
+      signal: withTimeout(signal, 15000),
+    });
+    const body: unknown = await response.json();
+    if (!response.ok || !isDiscoveryResponse(body)) throw new Error('Could not find levels');
+    const currentId = this.levelVersion?.levelId;
+    const currentIndex = body.levels.findIndex((level) => level.levelId === currentId);
+    return body.levels.slice(currentIndex + 1)
+      .concat(body.levels.slice(0, Math.max(0, currentIndex)))
+      .find((level) => level.levelId !== currentId);
+  }
+
   private async findNextLevel(): Promise<void> {
     if (this.returnTo) {
       const { levelId, title } = this.returnTo;
@@ -967,16 +1023,8 @@ export class GameScene extends Scene {
     const attempt = this.attempt;
     this.resultOverlay.showNext('Finding another level…');
     try {
-      const response = await fetch('/api/discovery/levels?sort=new', {
-        signal: withTimeout(attempt.signal, 15000),
-      });
-      const body: unknown = await response.json();
-      if (!response.ok || !isDiscoveryResponse(body)) throw new Error('Could not find levels');
+      const next = await this.lookUpNextLevel(attempt.signal);
       if (attempt.signal.aborted) return;
-      const currentIndex = body.levels.findIndex((level) => level.levelId === this.levelVersion?.levelId);
-      const next = body.levels.slice(currentIndex + 1)
-        .concat(body.levels.slice(0, Math.max(0, currentIndex)))
-        .find((level) => level.levelId !== this.levelVersion?.levelId);
       if (next) {
         this.resultOverlay.showNext(`Up next: ${next.title}`, 'Next Level', () =>
           this.scene.start('GameScene', { levelId: next.levelId })

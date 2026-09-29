@@ -4,8 +4,10 @@ import { isTutorialStatusResponse } from '../../../shared/tutorialApi';
 
 // The first-play tutorial: a short level that teaches the one control, one
 // obstacle at a time (jump the stapler, hold longer across a gap, stay low
-// under a floater, a quick double), then hands off to the level the player asked
-// for. It lives on the client only — never published, so it can't be
+// under a floater, a quick double), and the point of the game — beat a level,
+// then leave your curse on it (the last hints and the finish screen, see
+// RunResultOverlay.showTutorialOutro) — then hands off to the level the
+// player asked for. It lives on the client only — never published, so it can't be
 // cursed, browsed, or show up on any stats — and plays like a preview run.
 // Built by SEED_AUTHOR, so a death names no player.
 export const TUTORIAL_LEVEL_ID = 'tutorial';
@@ -76,10 +78,17 @@ export const TUTORIAL_HINTS: TutorialHintEntry[] = [
   {
     fromX: 2100,
     toX: 2600,
-    text: 'Two staplers in a row',
+    // Starts the curse idea mid-run: these traps aren't the level
+    // designer's, they're other players'.
+    text: 'Two in a row! Players who beat a level leave traps like these',
     targetObjectId: 'candle-2',
   },
-  { fromX: 2680, toX: LEVEL_END_X, text: 'Reach the gate!', targetObjectId: 'finish' },
+  {
+    fromX: 2680,
+    toX: LEVEL_END_X,
+    text: 'Reach the gate, then leave your own curse!',
+    targetObjectId: 'finish',
+  },
 ];
 
 function hintEntryAt(x: number): TutorialHintEntry | undefined {

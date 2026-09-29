@@ -20,8 +20,11 @@ export class RunResultOverlay {
   private readonly saveRetry = requireButton('run-result-save-retry');
   private readonly nextStatus = requireElement('run-result-next-status');
   private readonly nextButton = requireButton('run-result-next');
+  private readonly titleEl = requireElement('run-result-title');
+  private readonly curseHintEl = requireElement('run-result-curse-hint');
 
   showSaveStatus(message: string, retry?: () => void): void {
+    this.saveStatus.classList.remove('run-result-info');
     this.saveStatus.textContent = message;
     this.saveRetry.classList.toggle('hidden', !retry);
     this.saveRetry.onclick = retry ?? null;
@@ -36,6 +39,8 @@ export class RunResultOverlay {
 
   // Shown immediately on finish, before the server round-trip resolves.
   showTime(): void {
+    this.titleEl.textContent = 'CLEAR!';
+    this.curseHintEl.classList.add('hidden');
     this.showSaveStatus('');
     this.showNext('');
     this.streakEl.textContent = '';
@@ -55,7 +60,25 @@ export class RunResultOverlay {
 
   setCurseHandler(handler: () => void): void {
     this.curseBtn.classList.remove('hidden');
+    this.curseHintEl.classList.remove('hidden');
     this.curseBtn.onclick = handler;
+  }
+
+  hideCurse(): void {
+    this.curseBtn.classList.add('hidden');
+    this.curseHintEl.classList.add('hidden');
+    this.curseBtn.onclick = null;
+  }
+
+  // The tutorial's finish: explains the curse loop before the first real
+  // level, with a button to go on (no timed auto-advance, so it gets read).
+  showTutorialOutro(onContinue: () => void): void {
+    this.titleEl.textContent = 'YOU MADE IT!';
+    this.showSaveStatus(
+      "Here's the twist: players build every level. Beat one and you get to leave your curse — one new trap that everyone after you has to survive. Then it's on to the next level."
+    );
+    this.saveStatus.classList.add('run-result-info');
+    this.showNext('', 'Play a real level →', onContinue);
   }
 
   setShareHandler(handler: () => void): void {

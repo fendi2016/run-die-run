@@ -67,6 +67,14 @@ body {
     visibility 0s linear 0s;
 }
 
+/* Where the card is wide enough to reach the top-right Pause/Sound
+   buttons, start it below them so they don't cover its title. */
+@media (max-width: 700px) {
+  #run-result {
+    padding-top: calc(max(12px, env(safe-area-inset-top)) + 56px);
+  }
+}
+
 /* `opacity: 0` alone leaves this overlay fully hit-testable: #run-result-panel
    opts itself back in with `pointer-events: auto` (a descendant's explicit
    `auto` wins over an ancestor's `none`). That left an invisible ~289x52px
@@ -162,6 +170,11 @@ body {
 #run-result-save-status {
   color: #e53935;
 }
+/* The tutorial's closing explanation reuses this line; it's not an error. */
+#run-result-save-status.run-result-info {
+  color: var(--ink);
+  font-size: 15px;
+}
 #run-result-next-status {
   color: rgba(43, 43, 43, 0.55);
 }
@@ -209,6 +222,21 @@ body {
 #run-result-primary .editor-btn {
   flex: 1 1 150px;
   min-width: 150px;
+}
+
+/* Leaving your curse is the point of a clear: full width, first, loud. */
+#run-result-primary #run-result-curse-btn {
+  flex-basis: 100%;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+#run-result-curse-hint {
+  flex-basis: 100%;
+  margin-top: -4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 .editor-btn-curse {
