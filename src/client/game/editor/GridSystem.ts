@@ -13,8 +13,6 @@ import {
 export const PLACEABLE_TYPES = [
   'ground',
   'platform',
-  'brickBlock',
-  'stoneBlock',
   'crateBlock',
   'grassBlock',
   'sandBlock',
