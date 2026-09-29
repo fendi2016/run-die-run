@@ -4,26 +4,24 @@ import type { LevelObject } from '../../../shared/types';
 
 // Set dressing for a run, so gameplay sits in the same drawn world as the
 // title screen instead of on a bare ruled sheet: paper grain, a margin
-// rule at the start, Kenney Scribble Platformer scenery (CC0 — clouds, a
-// far skyline, trees and bushes, the same style as the menu art) in three
-// parallax layers, and pencil hatching + edge detail on the ground.
+// rule at the start, crayon scenery from the "background art" sheet
+// (clouds, a pale far treeline, trees and bushes) in three parallax layers,
+// and grass tufts along the ground.
 // Everything here is cosmetic — no bodies, no input — and kept light and
 // behind the action so hazards stay visually dominant.
 
 const GRAIN_KEY = 'paper-grain';
-const INK = 0x2b2b2b;
 const MARGIN_RED = 0xe06666;
 
-// Layering: level-background (-1) < grain < clouds < skyline < margin <
+// Layering: level-background (-1) < grain < clouds < far treeline < margin <
 // pinned paper scraps < near scenery < death markers (-0.5) < spawn pencil case (-0.25) < finish
 // gate (-0.1) < ground tiles < ground detail < player and hazards (0).
 const GRAIN_DEPTH = -0.95;
 const CLOUD_DEPTH = -0.93;
-const SKYLINE_DEPTH = -0.91;
+const FAR_TREE_DEPTH = -0.91;
 const MARGIN_DEPTH = -0.9;
 const PAPER_DECOR_DEPTH = -0.88;
 const NEAR_SCENERY_DEPTH = -0.85;
-const SKYLINE_SIZE = 0.62;
 export const GROUND_TILE_DEPTH = -0.08;
 const GROUND_DETAIL_DEPTH = -0.05;
 
@@ -50,24 +48,6 @@ function range(rng: Rng, min: number, max: number): number {
 }
 
 type Point = { x: number; y: number };
-
-// A pencil line: every vertex wobbles a little and the stroke is drawn
-// twice, slightly offset, the way a quick sketch doubles back on itself.
-function sketch(g: Phaser.GameObjects.Graphics, points: Point[], rng: Rng, wobble = 1.2, closed = false): void {
-  for (let pass = 0; pass < 2; pass++) {
-    const dx = pass === 0 ? 0 : range(rng, -0.8, 0.8);
-    const dy = pass === 0 ? 0 : range(rng, -0.8, 0.8);
-    g.beginPath();
-    points.forEach((p, i) => {
-      const x = p.x + dx + range(rng, -wobble, wobble);
-      const y = p.y + dy + range(rng, -wobble, wobble);
-      if (i === 0) g.moveTo(x, y);
-      else g.lineTo(x, y);
-    });
-    if (closed) g.closePath();
-    g.strokePath();
-  }
-}
 
 function ensureGrainTexture(scene: Phaser.Scene): void {
   if (scene.textures.exists(GRAIN_KEY)) return;
@@ -111,36 +91,29 @@ export function drawPaperBackdrop(scene: Phaser.Scene, levelWidth: number): void
   margin.lineBetween(31, 0, 31, LOGICAL_HEIGHT);
 }
 
-// Kenney Scribble Platformer scenery (public/assets/kenney/scenery, CC0).
-// `padBottom` is each image's transparent rows below the drawing, so
-// things stand exactly on the ground line.
-type SceneryArt = { key: string; file: string; padBottom: number };
+// Crayon scenery cut from the user's "background art" sheet
+// (public/assets/background). Each piece is trimmed to its drawing, so
+// its bottom edge is the ground line.
+type SceneryArt = { key: string; file: string };
 
-const art = (name: string, padBottom: number): SceneryArt => ({
-  key: `kenney-${name}`,
-  file: `kenney/scenery/${name}.webp`,
-  padBottom,
+const art = (name: string): SceneryArt => ({
+  key: `bg-${name}`,
+  file: `background/${name}.webp`,
 });
 
-const CLOUDS = [art('cloud-a', 0), art('cloud-b', 1)];
-const SKYLINE = {
-  castle: art('castle', 1),
-  tower: art('tower', 1),
-  towerTop: art('tower-top', 1),
-  roof: art('roof-round', 1),
-  obelisk: art('obelisk', 1),
-  archway: art('archway', 1),
-  column: art('column', 0),
-};
-// [art, display height] — trees tower over the pencil, bushes and fences
-// sit below his knees.
+const CLOUDS = ['cloud-a', 'cloud-b', 'cloud-c', 'cloud-d'].map(art);
+const TREES = ['tree-green', 'tree-pink', 'tree-autumn', 'tree-pine', 'tree-palm'].map(art);
+const GRASS = ['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'grass-8'].map(art);
+// [art, display height] — trees tower over the pencil, bushes sit below
+// his knees.
 const NEAR: [SceneryArt, number][] = [
-  [art('tree', 2), 190],
-  [art('tree-large', 2), 220],
-  [art('pine', 3), 96],
-  [art('bush', 4), 56],
-  [art('bush-half', 1), 58],
-  [art('fence', 1), 62],
+  ...TREES.map((t): [SceneryArt, number] => [t, 200]),
+  [art('tree-small'), 120],
+  [art('tree-tiny'), 64],
+  [art('bush-a'), 52],
+  [art('bush-b'), 56],
+  [art('bush-c'), 52],
+  [art('bush-d'), 56],
 ];
 
 // Notebook-paper scraps from the level-piece sheet (public/assets/paper)
@@ -184,10 +157,10 @@ const CLIPS = [decor('paperclip-long', 80, 'none'), decor('paperclip-short', 52,
 
 type LoadableArt = { key: string; file: string };
 
-export const KENNEY_SCENERY: LoadableArt[] = [
+export const SCENERY_ART: LoadableArt[] = [
   ...CLOUDS,
-  ...Object.values(SKYLINE),
   ...NEAR.map(([a]) => a),
+  ...GRASS,
   ...PAPER_SCRAPS,
   ...PINS,
   ...CLIPS,
@@ -202,47 +175,28 @@ function standOnGround(
 ): Phaser.GameObjects.Image {
   const image = scene.add.image(x, groundY, a.key).setOrigin(0.5, 1);
   image.setScale(height / image.height);
-  image.y += a.padBottom * image.scaleY;
   return image;
 }
 
-// One far-off building: a castle, a tower with a roof, an obelisk...
-function skylinePiece(scene: Phaser.Scene, x: number, rng: Rng, factor: number): void {
-  // Far away: everything at about two-thirds size, and pale.
-  const place = (a: SceneryArt, px: number, bottom: number, height: number): Phaser.GameObjects.Image =>
-    standOnGround(scene, a, x + (px - x) * SKYLINE_SIZE, bottom, height * SKYLINE_SIZE)
+// A far-off clump of one to three trees: small, pale, and slower than the
+// camera, so the page reads as having some distance to it.
+function farTrees(scene: Phaser.Scene, x: number, rng: Rng, factor: number): void {
+  const count = 1 + Math.floor(rng() * 3);
+  for (let i = 0; i < count; i++) {
+    const tree = TREES[Math.floor(rng() * TREES.length)] ?? TREES[0];
+    if (!tree) return;
+    standOnGround(scene, tree, x + i * range(rng, 55, 80), GROUND_TOP_Y + 8, range(rng, 90, 130))
       .setScrollFactor(factor, 1)
-      .setDepth(SKYLINE_DEPTH)
+      .setDepth(FAR_TREE_DEPTH)
       .setAlpha(0.22);
-  const base = GROUND_TOP_Y + 8;
-  const kind = Math.floor(rng() * 5);
-  if (kind === 0) {
-    place(SKYLINE.castle, x, base, 110);
-    place(SKYLINE.castle, x + 100, base, 110);
-    const tower = place(SKYLINE.tower, x + 50, base - 100 * SKYLINE_SIZE, 90);
-    place(SKYLINE.towerTop, x + 50, tower.y - tower.displayHeight + 4, 70);
-  } else if (kind === 1) {
-    const tower = place(SKYLINE.tower, x, base, 150);
-    place(SKYLINE.roof, x, tower.y - tower.displayHeight + 4, 80);
-  } else if (kind === 2) {
-    place(SKYLINE.obelisk, x, base, 150);
-    place(SKYLINE.column, x + 70, base, 100);
-    place(SKYLINE.column, x - 70, base, 80);
-  } else if (kind === 3) {
-    place(SKYLINE.archway, x, base, 120);
-    place(SKYLINE.archway, x + 118, base, 120);
-  } else {
-    const tower = place(SKYLINE.tower, x, base, 180);
-    place(SKYLINE.towerTop, x, tower.y - tower.displayHeight + 4, 80);
-    place(SKYLINE.castle, x + 95, base, 90);
   }
 }
 
-// Clouds (far), a faint skyline (middle distance) and trees/bushes/fences
+// Clouds (far), a faint treeline (middle distance) and trees/bushes
 // standing on the level's own ground (near). Near pieces only go where
 // there's ground under them and keep clear of every hazard, platform,
 // power-up and marker, so nothing ever reads as part of the course.
-export function drawKenneyScenery(
+export function drawScenery(
   scene: Phaser.Scene,
   levelWidth: number,
   objects: LevelObject[],
@@ -265,9 +219,9 @@ export function drawKenneyScenery(
     image.setScale(range(rng, 130, 220) / image.width);
   }
 
-  const skylineFactor = 0.55;
-  for (let x = range(rng, 380, 700); x < span(skylineFactor); x += range(rng, 520, 900)) {
-    skylinePiece(scene, x, rng, skylineFactor);
+  const farFactor = 0.55;
+  for (let x = range(rng, 380, 700); x < span(farFactor); x += range(rng, 520, 900)) {
+    farTrees(scene, x, rng, farFactor);
   }
 
   const half = GRID_CELL_SIZE / 2;
@@ -382,36 +336,20 @@ function drawPaperDecor(
   }
 }
 
-// Grass tufts poking up over each ground tile's lip. The ground art (the
-// lined-paper tileset from the "level sprites" sheet) already carries its
-// own outline and texture, so the pencil hatching, pebbles and cracks this
-// used to draw over the old blank ground are gone — they read as dirt
-// scribbled on top of the paper. Drawn per tile from the level's own
+// Crayon grass tufts from the background sheet, poking up over the lip of
+// about two in five ground tiles. Drawn per tile from the level's own
 // ground objects, so gaps stay clean gaps.
+const GRASS_HEIGHT = 20;
+
 export function drawGroundDetail(scene: Phaser.Scene, objects: LevelObject[], seedText: string): void {
   const rng = seededRng(`${seedText}:ground`);
-  const g = scene.add.graphics().setDepth(GROUND_DETAIL_DEPTH);
   const half = GRID_CELL_SIZE / 2;
-  const tiles = objects
-    .filter((o) => o.type === 'ground')
-    .sort((a, b) => a.x - b.x);
-
-  for (const tile of tiles) {
-    const left = tile.x - half;
-    const top = tile.y;
-
-    // Grass poking up over the lip: a quick zigzag, the way grass gets
-    // drawn in a margin, in ink like the rest of the edge.
-    if (rng() < 0.4) {
-      const tx = left + range(rng, 6, GRID_CELL_SIZE - 24);
-      const blades = 2 + Math.floor(rng() * 3);
-      const points: Point[] = [{ x: tx, y: top + 1 }];
-      for (let i = 0; i < blades; i++) {
-        const bx = tx + i * 5;
-        points.push({ x: bx + range(rng, 1.5, 4), y: top + 1 - range(rng, 4, 10) }, { x: bx + 5, y: top + 1 });
-      }
-      g.lineStyle(1.3, INK, 0.6);
-      sketch(g, points, rng, 0.3);
-    }
+  for (const tile of objects.filter((o) => o.type === 'ground')) {
+    if (rng() >= 0.4) continue;
+    const tuft = GRASS[Math.floor(rng() * GRASS.length)] ?? GRASS[0];
+    if (!tuft) return;
+    standOnGround(scene, tuft, tile.x - half + range(rng, 16, GRID_CELL_SIZE - 16), tile.y + 3, GRASS_HEIGHT)
+      .setDepth(GROUND_DETAIL_DEPTH)
+      .setFlipX(rng() < 0.5);
   }
 }

@@ -7,7 +7,7 @@ import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
 import { createPixelFxAnims, PIXEL_FX_SHEETS } from '../systems/Juice';
-import { KENNEY_SCENERY } from '../systems/PaperScenery';
+import { SCENERY_ART } from '../systems/PaperScenery';
 
 const BAR_WIDTH = 460;
 
@@ -111,8 +111,8 @@ export class Preloader extends Scene {
     this.load.image('stopwatch', 'powerups/stopwatch.webp');
     this.load.image('star', 'powerups/star.webp');
     this.load.image('level-background', 'ui/paper-bg.webp');
-    // Kenney scenery (see PaperScenery.drawKenneyScenery).
-    for (const { key, file } of KENNEY_SCENERY) this.load.image(key, file);
+    // Background-art scenery (see PaperScenery.drawScenery).
+    for (const { key, file } of SCENERY_ART) this.load.image(key, file);
 
     this.load.image('spikes', 'hazards/spikes.webp');
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
