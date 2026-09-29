@@ -19,10 +19,8 @@ import { EditorController } from '../editor/EditorController';
 import {
   boardGridConfig,
   drawGrid,
-  drawSketchRect,
   normalizeBoardRow,
   EDITOR_BOARD_ROWS,
-  INK_COLOR,
   PAPER_COLOR,
   type EditorTool,
 } from '../editor/GridSystem';
@@ -41,6 +39,10 @@ type EditorSceneData = {
 };
 
 const DEFAULT_SPAWN = { x: GRID_CELL_SIZE * 1.5, y: GROUND_TOP_Y };
+// Above every placed object's own depth (all near 0 — see PaperScenery's
+// depth constants) so the selection art never disappears behind a sprite.
+const SELECTION_DEPTH = 1;
+const SELECTION_BOX_SIZE = 64;
 
 // The mobile-first base level editor (spec section 12): tap-only
 // place/select/move/delete/undo/redo over a grid, plus Test (spec section
@@ -67,7 +69,11 @@ export class EditorScene extends Scene {
   private verifiedToken: string | undefined;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
-  private selectionGraphics!: Phaser.GameObjects.Graphics;
+  // The Kenney ui_select corner-bracket art, scaled over the selected
+  // object's 64x64 box — replaces the old drawSketchRect ink outline here
+  // (CurseScene's own pending/suggestion outlines still use that helper;
+  // see GridSystem.drawSketchRect's own comment).
+  private selectionHighlight!: Phaser.GameObjects.Image;
   private renderedObjects = new Map<string, Phaser.GameObjects.Sprite>();
   // A patrolling/rideable placed object's tween (see ObjectRegistry's
   // motionTweenConfigFor) — stopped and rebuilt alongside its sprite on
@@ -106,7 +112,11 @@ export class EditorScene extends Scene {
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
     this.gridGraphics = this.add.graphics();
-    this.selectionGraphics = this.add.graphics();
+    this.selectionHighlight = this.add
+      .image(0, 0, 'ui-select')
+      .setDisplaySize(SELECTION_BOX_SIZE, SELECTION_BOX_SIZE)
+      .setDepth(SELECTION_DEPTH)
+      .setVisible(false);
 
     this.board = this.rexBoard.add.board({
       grid: boardGridConfig(),
@@ -276,27 +286,20 @@ export class EditorScene extends Scene {
   }
 
   private refreshSelectionHighlight(): void {
-    this.selectionGraphics.clear();
     const selectedId = this.controller.getSelectedId();
-    if (!selectedId) {
-      return;
-    }
-    const selected = this.controller
-      .getObjects()
-      .find((o) => o.id === selectedId);
+    const selected = selectedId
+      ? this.controller.getObjects().find((o) => o.id === selectedId)
+      : undefined;
     if (!selected) {
+      this.selectionHighlight.setVisible(false);
       return;
     }
-    drawSketchRect(
-      this.selectionGraphics,
-      selected.x - 32,
-      selected.y - 62,
-      64,
-      64,
-      INK_COLOR,
-      1,
-      3
-    );
+    // Same 64x64 box the old drawSketchRect outline covered (x-32, y-62 as
+    // its top-left corner) — centered here instead, since Image positions
+    // from its own origin (0.5 by default) rather than a top-left corner.
+    this.selectionHighlight
+      .setPosition(selected.x, selected.y - 62 + SELECTION_BOX_SIZE / 2)
+      .setVisible(true);
   }
 
   private redrawGrid(): void {

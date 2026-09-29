@@ -43,9 +43,19 @@ export function saveBestProgress(levelId: string, version: number, fraction: num
 // to call setProgress() every frame, so that path stays cheap: it only
 // touches the DOM when the rounded percentage actually changes, and moves
 // the fill with `transform: scaleX` instead of `width` to avoid layout.
+// Kenney scribble digits (public/assets/kenney/ui/ui-num-<0-9>.webp) —
+// the attempt counter renders the number as a row of these instead of
+// text, one <img> per digit, rebuilt on every change since an attempt
+// number is a handful of updates per run, not a hot per-frame path (unlike
+// setProgress() below).
+function digitImageSrc(digit: string): string {
+  return `/assets/kenney/ui/ui-num-${digit}.webp`;
+}
+
 export class RunHud {
   private readonly root = requireElement('run-hud');
   private readonly attemptNumberEl = requireElement('run-hud-attempt-number');
+  private readonly attemptDigitsEl = requireElement('run-hud-attempt-digits');
   private readonly fillEl = requireElement('run-hud-progress-fill');
   private readonly bestMarkEl = requireElement('run-hud-progress-best');
   private readonly pctEl = requireElement('run-hud-progress-pct');
@@ -63,7 +73,20 @@ export class RunHud {
   setAttempt(n: number): void {
     if (n === this.lastAttempt) return;
     this.lastAttempt = n;
-    this.attemptNumberEl.textContent = String(n);
+    const digits = String(n);
+    // The digit images are decorative (aria-hidden — see game.html); this
+    // aria-label on the container is the one accessible text equivalent
+    // for the number itself.
+    this.attemptNumberEl.setAttribute('aria-label', digits);
+    this.attemptDigitsEl.replaceChildren(
+      ...digits.split('').map((digit) => {
+        const img = document.createElement('img');
+        img.className = 'run-hud-attempt-digit';
+        img.src = digitImageSrc(digit);
+        img.alt = '';
+        return img;
+      })
+    );
     // Restart the punch animation even if one is already mid-play: clearing
     // the class and reading offsetWidth forces a synchronous reflow before
     // it's re-added, which is what actually restarts a CSS animation on the

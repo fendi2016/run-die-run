@@ -148,6 +148,15 @@ export class Preloader extends Scene {
       frameHeight: 515,
     });
 
+    // Kenney UI pieces (CC0 kenney_scribble-platformer pack, PNG/Retina
+    // sources converted to lossless webp in public/assets/kenney/ui). Only
+    // the pieces actually drawn on the Phaser canvas belong here — the
+    // speech-bubble/pan-arrow/digit art (tasks elsewhere in this pass) is
+    // plain DOM/CSS and loads via its own <img src>/background-image, not
+    // this loader.
+    this.load.image('ui-hand', 'kenney/ui/ui-hand.webp');
+    this.load.image('ui-select', 'kenney/ui/ui-select.webp');
+
     // Sound effects (see Sfx.ts) — a failure here never fails the whole
     // load (onError above exempts 'audio' files).
     for (const key of SFX_KEYS) {

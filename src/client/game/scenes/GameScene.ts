@@ -61,6 +61,7 @@ import { RunResultOverlay } from '../../ui/RunResultOverlay';
 import { drawGroundDetail, drawPaperBackdrop } from '../systems/PaperScenery';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { TutorialHint } from '../../ui/TutorialHint';
+import { TutorialPointer } from '../systems/TutorialPointer';
 import { clearRateText } from '../../ui/levelStatsText';
 import {
   FINISH_RESTART_DELAY_MS,
@@ -77,7 +78,7 @@ import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { PhysicsInterpolation } from '../systems/PhysicsInterpolation';
 import { getRequestedLevelId } from '../levelSelection';
-import { TUTORIAL_LEVEL, hintAt, markTutorialDone } from '../levels/tutorial';
+import { TUTORIAL_LEVEL, hintAt, hintTargetAt, markTutorialDone } from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   playScribbleIn,
@@ -212,6 +213,7 @@ export class GameScene extends Scene {
   private tutorial = false;
   private returnTo: { levelId: string; title: string } | undefined;
   private tutorialHint!: TutorialHint;
+  private tutorialPointer!: TutorialPointer;
 
   // Realtime (spec section 29): subscribed only for a real (non-preview)
   // level, since a preview isn't published and has no live channel. Events
@@ -272,6 +274,7 @@ export class GameScene extends Scene {
     this.deathToast = new DeathToast();
     this.runHud = new RunHud();
     this.tutorialHint = new TutorialHint();
+    this.tutorialPointer = new TutorialPointer(this);
     this.events.on(JUMP_DOWN_EVENT, this.onJumpDownWhileDead, this);
     this.tapToStartPrompt = new TapToStartPrompt();
     this.controls = new GameplayControls({
@@ -344,7 +347,11 @@ export class GameScene extends Scene {
     // tap-to-start prompt's own single line (see startRun()), so this
     // stays hidden rather than doubling it up on screen.
     if (this.tutorial) {
-      this.tutorialHint.set(this.runStarted && !this.runEnded ? hintAt(this.player.sprite.x) : '');
+      const showingHints = this.runStarted && !this.runEnded;
+      this.tutorialHint.set(showingHints ? hintAt(this.player.sprite.x) : '');
+      this.tutorialPointer.show(
+        showingHints ? hintTargetAt(this.player.sprite.x) : undefined
+      );
     }
 
     if (this.runStarted && !this.runEnded && this.player.sprite.y > FALL_DEATH_Y) {
