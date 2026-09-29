@@ -1,6 +1,6 @@
 # Highscores — Design
 
-**Spec:** [`build for run die run.md`](../../build%20for%20run%20die%20run.md) doesn't cover this feature — it only specs per-level, time-based version leaderboards (section 9). Highscores is a new, separate system layered on top of the existing curse/trap-kill mechanic.
+**Spec:** [`sketchy.md`](../../sketchy.md) doesn't cover this feature — it only specs per-level, time-based version leaderboards (section 9). Highscores is a new, separate system layered on top of the existing curse/trap-kill mechanic.
 
 ## Summary
 

@@ -812,7 +812,7 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   assert.ok(isTrapKillResponse(firstBody));
   if (!isTrapKillResponse(firstBody)) return;
   assert.equal(firstBody.kills, 1);
-  assert.equal(firstBody.addedBy, 'cursed_seed');
+  assert.equal(firstBody.addedBy, 'sketchy_seed');
   assert.equal(firstBody.contributorTotalKills, 1);
 
   const second = await users.run('bob', () =>
@@ -828,7 +828,7 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   assert.equal(secondBody.contributorTotalKills, 2);
 
   assert.equal(await redis.get(trapKillsKey(candleId)), '2');
-  assert.equal(await redis.get(userContributionsKey('cursed_seed')), '2');
+  assert.equal(await redis.get(userContributionsKey('sketchy_seed')), '2');
 });
 
 await test('trap-kill attribution survives a curse that lands after the death, and rejects an unknown trap', async () => {
@@ -1364,9 +1364,9 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills', async () =>
   const leaderboardBody: unknown = await leaderboardResponse.json();
   assert.ok(isCursersLeaderboardResponse(leaderboardBody));
   if (!isCursersLeaderboardResponse(leaderboardBody)) return;
-  // cursed_seed (the candle's placeholder author) has 2 kills, bob's new
+  // sketchy_seed (the candle's placeholder author) has 2 kills, bob's new
   // saw has 1 — highest kills first.
-  assert.equal(leaderboardBody.topTen[0]?.username, 'cursed_seed');
+  assert.equal(leaderboardBody.topTen[0]?.username, 'sketchy_seed');
   assert.equal(leaderboardBody.topTen[0]?.kills, 2);
   assert.equal(leaderboardBody.topTen[1]?.username, 'bob');
   assert.equal(leaderboardBody.topTen[1]?.kills, 1);

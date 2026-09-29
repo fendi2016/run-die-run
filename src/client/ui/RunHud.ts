@@ -1,6 +1,6 @@
 import { requireElement } from './domUtils';
 
-const BEST_PROGRESS_KEY_PREFIX = 'cursed:best:';
+const BEST_PROGRESS_KEY_PREFIX = 'sketchy:best:';
 
 function bestProgressKey(levelId: string, version: number): string {
   return `${BEST_PROGRESS_KEY_PREFIX}${levelId}:${version}`;

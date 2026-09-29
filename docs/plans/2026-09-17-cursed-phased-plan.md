@@ -1,6 +1,6 @@
 # CURSED — Phased Build Plan
 
-**Spec:** [`build for run die run.md`](../../build%20for%20run%20die%20run.md)
+**Spec:** [`sketchy.md`](../../sketchy.md)
 
 This is a phased architecture/sequencing plan, not a bite-sized task-by-task
 implementation plan. It expands the spec's own section 38 ("Development

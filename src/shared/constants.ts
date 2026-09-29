@@ -51,21 +51,21 @@ export const EDITOR_SPAWN_BUFFER_CELLS = 2;
 // MainMenu.create() reads/clears it to jump straight past itself instead of
 // always landing on the menu, so "Play" on the splash means "play", not
 // "open a menu that also has a Play button".
-export const SPLASH_AUTOSTART_KEY = 'cursed:splash-autostart';
+export const SPLASH_AUTOSTART_KEY = 'sketchy:splash-autostart';
 export type SplashAutostart = 'game' | 'editor' | 'browse' | 'leaderboard' | 'stats';
 
 // The placeholder "creator" of the hand-authored seed levels (spec section
 // 38, Phase 3) — not a real Reddit account. Shared so the client's death
 // attribution UI (spec section 23) can recognize it and skip showing a
-// fake "Killed by u/cursed_seed's Candle" attribution for these
+// fake "Killed by u/sketchy_seed's Candle" attribution for these
 // not-yet-community-created levels.
-export const SEED_AUTHOR = 'cursed_seed';
+export const SEED_AUTHOR = 'sketchy_seed';
 
 // The playtest subreddit from devvit.json's `dev.subreddit`. Debug-only
 // affordances (the finish-line warp key) check this at runtime instead of
 // a Vite DEV flag — `devvit playtest` ships a production build too, so a
 // build-time flag would be off in the one place those tools are needed.
-export const DEV_SUBREDDIT = 'cursed_game_dev';
+export const DEV_SUBREDDIT = 'sketchy_game_dev';
 
 // Per-user daily caps on the two actions that write to Reddit on the
 // player's behalf (a new post per level, a comment per curse), so one

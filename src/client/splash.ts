@@ -7,7 +7,7 @@ import {
 } from '../shared/constants';
 import { isLevelStats } from '../shared/discoveryApi';
 import { isMyCursesResponse } from '../shared/myCursesApi';
-import { isCursedPostData } from '../shared/postData';
+import { isSketchyPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
@@ -48,7 +48,7 @@ for (const [id, target] of targets) {
 // today's Level of the Day). Fetched after the interactive content is
 // already up, so a slow/failed request never blocks PLAY.
 const rawPostData = currentPostData();
-const postData = isCursedPostData(rawPostData) ? rawPostData : undefined;
+const postData = isSketchyPostData(rawPostData) ? rawPostData : undefined;
 const levelId = postData?.levelId ?? HUB_LEVEL_ID;
 
 async function loadStats(): Promise<void> {

@@ -2,7 +2,7 @@
 // submitted (server-validated, spec section 19) since the per-version
 // leaderboard still tracks it internally for world-record detection (see
 // runs.ts's realtime `newWorldRecord` event) — but the response no longer
-// surfaces rank/personal-best/world-record/top-ten. CURSED is an auto-run
+// surfaces rank/personal-best/world-record/top-ten. SKETCHY is an auto-run
 // game (only input is jump timing), so time-based competition doesn't fit
 // the core loop; that display was deliberately cut, not left unbuilt.
 export type SubmitRunRequest = {

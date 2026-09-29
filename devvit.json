@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "cursed-game",
+  "name": "sketchy-game",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -65,7 +65,7 @@
     "dev": "vite build --watch"
   },
   "dev": {
-    "subreddit": "cursed_game_dev"
+    "subreddit": "sketchy_game_dev"
   },
   "scheduler": {
     "tasks": {

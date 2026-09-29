@@ -169,7 +169,7 @@ try {
   // Mirrors SEED_LEVELS['first-blood'] in src/server/core/seedLevels.ts.
   const starterPage = await browser.newPage({ viewport: { width: 844, height: 390 } });
   starterPage.on('pageerror', (error) => errors.push(error.message));
-  const fb = (id, type, x) => ({ id, type, x, y: 480, properties: {}, addedBy: 'cursed-seed', addedInVersion: 1 });
+  const fb = (id, type, x) => ({ id, type, x, y: 480, properties: {}, addedBy: 'sketchy-seed', addedInVersion: 1 });
   const fbObjects = [
     ...Array.from({ length: 25 }, (_, i) => fb(`g${i}`, 'ground', 30 + i * 60)),
     ...Array.from({ length: 28 }, (_, i) => fb(`h${i}`, 'ground', 1650 + i * 60)),
@@ -180,11 +180,11 @@ try {
   await starterPage.route('**/api/**', (route) =>
     new URL(route.request().url()).pathname === '/api/levels/first-blood'
       ? route.fulfill({ json: { levelId: 'first-blood', version: 1, parentVersion: null, objects: fbObjects,
-        contributorUsername: 'cursed-seed', verificationTimeMs: 1, createdAt: 0 } })
+        contributorUsername: 'sketchy-seed', verificationTimeMs: 1, createdAt: 0 } })
       : route.fulfill({ status: 404, body: '' }));
   await starterPage.goto(`http://127.0.0.1:${server.address().port}/game.html?level=first-blood`);
   await starterPage.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
-  await starterPage.evaluate(() => localStorage.setItem('cursed:tutorial-done', '1'));
+  await starterPage.evaluate(() => localStorage.setItem('sketchy:tutorial-done', '1'));
   await starterPage.click('#game-menu-play');
   await starterPage.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene')?.player);
   const starterRun = await starterPage.evaluate((plan) => {
@@ -230,7 +230,7 @@ try {
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/game.html${query}`);
     await page.waitForFunction(() => window.__PHASER_GAME__?.scene.isActive('MainMenu'));
-    if (tutorialDone) await page.evaluate(() => localStorage.setItem('cursed:tutorial-done', '1'));
+    if (tutorialDone) await page.evaluate(() => localStorage.setItem('sketchy:tutorial-done', '1'));
     await page.click('#game-menu-play');
     return page;
   };
@@ -342,7 +342,7 @@ try {
   await fresh.click('#editor-preview-back-btn');
   await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').tutorial === false);
   await fresh.waitForFunction(() => document.querySelector('#editor-preview-back').classList.contains('hidden'));
-  assert.equal(await fresh.evaluate(() => localStorage.getItem('cursed:tutorial-done')), '1');
+  assert.equal(await fresh.evaluate(() => localStorage.getItem('sketchy:tutorial-done')), '1');
   await fresh.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'real');
   await fresh.evaluate(() => window.__PHASER_GAME__.scene.start('MainMenu'));
   await fresh.click('#game-menu-play');

@@ -1,7 +1,7 @@
 import { context, reddit, redis } from '@devvit/web/server';
 import { isT3, type T3 } from '@devvit/web/shared';
 import { SEED_AUTHOR } from '../../shared/constants';
-import type { CursedPostData } from '../../shared/postData';
+import type { SketchyPostData } from '../../shared/postData';
 import { levelPostKey } from './redisKeys';
 
 type CreatedPost = { id: T3; url: string };
@@ -39,7 +39,7 @@ export async function createLevelPost(opts: {
     opts.daily !== undefined
       ? `SKETCHY Level of the Day #${opts.daily}: "${opts.title}" ${byline}`
       : `"${opts.title}" ${byline} — can you beat it?`;
-  const postData: CursedPostData =
+  const postData: SketchyPostData =
     opts.daily !== undefined
       ? { levelId: opts.levelId, daily: opts.daily }
       : { levelId: opts.levelId };

@@ -58,7 +58,7 @@ export async function testStageOne(page) {
     return { x: s.player.sprite.x, y: s.player.sprite.y, elapsed: s.runElapsedMs,
       hazard: s.movingObjectTweens[0].targets[0].x };
   });
-  await page.screenshot({ path: '/tmp/cursed-stage1-pause.png' });
+  await page.screenshot({ path: '/tmp/sketchy-stage1-pause.png' });
   const paused = await snapshot();
   await page.waitForTimeout(400);
   assert.deepEqual(await snapshot(), paused, 'pause freezes player, hazards, and score time');
@@ -178,7 +178,7 @@ export async function testStageOne(page) {
     const bounds = await page.locator('#run-result-menu').boundingBox();
     assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= viewport.width);
     assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= viewport.height);
-    await page.screenshot({ path: `/tmp/cursed-stage1-results-${viewport.width}.png` });
+    await page.screenshot({ path: `/tmp/sketchy-stage1-results-${viewport.width}.png` });
   }
   await page.click('#run-result-menu');
   await page.waitForFunction(() => window.__PHASER_GAME__.scene.isActive('MainMenu'));

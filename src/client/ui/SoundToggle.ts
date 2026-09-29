@@ -9,7 +9,7 @@ import { requireButton } from './domUtils';
 // iOS webviews, and the Reddit app is one.
 const MUSIC_URL = '/assets/music/evening-mood.m4a';
 const MUSIC_VOLUME = 0.35;
-const MUTED_KEY = 'cursed:sound-muted';
+const MUTED_KEY = 'sketchy:sound-muted';
 
 function readMuted(): boolean {
   try {
