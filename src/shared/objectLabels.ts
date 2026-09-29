@@ -10,6 +10,15 @@ const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
   ghost: 'Floater',
   fallingBlock: 'Falling Block',
   speedBoost: 'Speed Boost',
+  brickBlock: 'Brick Block',
+  stoneBlock: 'Stone Block',
+  crateBlock: 'Crate',
+  grassBlock: 'Grass Block',
+  sandBlock: 'Sand Block',
+  metalBlock: 'Metal Block',
+  bridge: 'Bridge',
+  spikes: 'Spikes',
+  cannon: 'Cannon',
 };
 
 // Shared (client + server) by DeathPanel's "Killed by u/X's Saw" attribution and

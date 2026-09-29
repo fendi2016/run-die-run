@@ -94,12 +94,11 @@ export class Preloader extends Scene {
         `tiles/platform/platform-top-center-${i}.webp`
       );
     }
-    // 8-frame spin animation (see ObjectRegistry.ensureHazardAnims), not a
-    // static image, unlike every other level-object texture here.
-    this.load.spritesheet('saw-spin', 'hazards/saw-spin.webp', {
-      frameWidth: 40,
-      frameHeight: 40,
-    });
+    // A single sawblade image, spun by angle (ObjectRegistry) instead of the
+    // old 8-frame sheet — kept at the old frame's exact 40x40 pixel size so
+    // the saw/movingSaw hitbox (derived from this texture's native size) is
+    // unchanged.
+    this.load.image('saw-spin', 'hazards/saw-spin.webp');
     // Animated 8-frame sheets (see ObjectRegistry.HAZARD_SPRITESHEETS); the
     // single-frame hazards/*.webp next to them are only the editor icons.
     for (const sheet of HAZARD_SPRITESHEETS) {
@@ -115,6 +114,24 @@ export class Preloader extends Scene {
     this.load.image('shield', 'powerups/shield.webp');
     this.load.image('speedBoost', 'powerups/speedBoost.webp');
     this.load.image('level-background', 'ui/paper-bg.webp');
+
+    // Kenney level objects (Kenney Scribble Platformer + its expansion pack,
+    // CC0 — see ObjectRegistry's TEXTURE_BY_TYPE for how each maps to an
+    // ObjectType). New full-cell terrain blocks and the bridge/plank behave
+    // exactly like ground/platform; spikes and cannon are new hazards.
+    this.load.image('block-brick', 'kenney/tiles/block-brick.webp');
+    this.load.image('block-stone', 'kenney/tiles/block-stone.webp');
+    this.load.image('block-crate', 'kenney/tiles/block-crate.webp');
+    this.load.image('block-grass', 'kenney/tiles/block-grass.webp');
+    this.load.image('block-sand', 'kenney/tiles/block-sand.webp');
+    this.load.image('block-metal', 'kenney/tiles/block-metal.webp');
+    this.load.image('block-bridge', 'kenney/tiles/block-bridge.webp');
+    this.load.image('spikes', 'kenney/hazards/spikes.webp');
+    this.load.image('cannon', 'kenney/hazards/cannon.webp');
+    // Not a level object of its own — spawned at runtime by a triggered
+    // cannon (GameScene/LevelLoader) — but loaded here alongside the rest of
+    // the Kenney art rather than scattered into a hazard-specific preload.
+    this.load.image('bullet', 'kenney/hazards/bullet.webp');
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
     for (const { key, file } of SCRIBBLE_FX) this.load.image(key, file);
 

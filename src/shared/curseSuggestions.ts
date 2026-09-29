@@ -1,6 +1,6 @@
 import { GRID_CELL_SIZE, GROUND_TOP_Y } from './constants';
 import { HAZARD_TYPES } from './hazards';
-import type { LevelObject, ObjectType } from './types';
+import { GROUND_LIKE_TYPES, PLATFORM_LIKE_TYPES, type LevelObject, type ObjectType } from './types';
 
 // The three traps offered to a first-time curser, and where to suggest
 // placing one. Suggestions are hints only — a curse can still go anywhere.
@@ -18,9 +18,14 @@ export function suggestCurseCells(
   const spawnX = objects.find((o) => o.type === 'spawn')?.x;
   const finishX = objects.find((o) => o.type === 'finish')?.x;
   if (spawnX === undefined || finishX === undefined) return [];
-  const groundXs = new Set(objects.filter((o) => o.type === 'ground').map((o) => o.x));
+  const groundXs = new Set(
+    objects.filter((o) => GROUND_LIKE_TYPES.has(o.type)).map((o) => o.x)
+  );
   const others = objects.filter(
-    (o) => HAZARD_TYPES.has(o.type) || o.type === 'platform' || o.type === 'movingPlatform'
+    (o) =>
+      HAZARD_TYPES.has(o.type) ||
+      PLATFORM_LIKE_TYPES.has(o.type) ||
+      o.type === 'movingPlatform'
   );
   const candidates = [...groundXs]
     .sort((a, b) => a - b)

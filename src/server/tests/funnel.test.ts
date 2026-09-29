@@ -95,3 +95,30 @@ await test('suggestions degrade to fewer (or none) on a cramped level', () => {
     ...[390, 510, 630, 750, 870].map((x) => obj(`h${x}`, 'saw', x))];
   assert.deepEqual(suggestCurseCells(packed, 3), []);
 });
+
+// Kenney level objects: the new full-cell terrain blocks behave exactly
+// like 'ground' and the bridge behaves exactly like 'platform' for every
+// consumer of GROUND_LIKE_TYPES/PLATFORM_LIKE_TYPES, not just ObjectRegistry
+// — the feed-card course preview and the curse-suggestion "open ground"
+// search must not silently drop a level built from the new blocks.
+await test('new terrain blocks silhouette like ground/platform in the course preview', () => {
+  const preview = buildCoursePreview(levelOf([
+    obj('b1', 'brickBlock', 30), obj('b2', 'stoneBlock', 90), obj('b3', 'crateBlock', 150),
+    obj('bridge', 'bridge', 300, GROUND_TOP_Y - 120),
+    obj('spikes', 'spikes', 210),
+    obj('cannon', 'cannon', 270),
+    obj('s', 'spawn', 30), obj('f', 'finish', 330),
+  ]));
+  assert.deepEqual(preview.ground, [[0, 180]]);
+  assert.deepEqual(preview.platforms, [{ x: 300, y: GROUND_TOP_Y - 120 }]);
+  assert.deepEqual(preview.hazards, [{ x: 210, y: GROUND_TOP_Y, type: 'spikes' }]);
+});
+
+await test('suggestions treat the new terrain blocks as open ground', () => {
+  const objects = [
+    ...groundTiles(0, 600).map((o) => ({ ...o, type: 'brickBlock' as const })),
+    obj('s', 'spawn', 90), obj('f', 'finish', 540),
+  ];
+  const cells = suggestCurseCells(objects, 1);
+  assert.equal(cells.length, 1);
+});

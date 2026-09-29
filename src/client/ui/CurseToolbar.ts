@@ -21,8 +21,11 @@ const TYPE_BUTTON_ENTRIES: [ObjectType, string][] = [
   ['candle', 'curse-type-candle'],
   ['bat', 'curse-type-bat'],
   ['ghost', 'curse-type-ghost'],
+  ['spikes', 'curse-type-spikes'],
+  ['cannon', 'curse-type-cannon'],
   ['platform', 'curse-type-platform'],
   ['movingPlatform', 'curse-type-movingPlatform'],
+  ['bridge', 'curse-type-bridge'],
   ['shield', 'curse-type-shield'],
   ['speedBoost', 'curse-type-speedBoost'],
 ];

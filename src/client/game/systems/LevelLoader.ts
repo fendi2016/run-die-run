@@ -1,6 +1,16 @@
 import * as Phaser from 'phaser';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
-import { FINISH_TRIGGER_HEIGHT_PX } from '../constants';
+import {
+  CANNON_BULLET_CULL_DISTANCE_PX,
+  CANNON_BULLET_DISPLAY_HEIGHT_PX,
+  CANNON_BULLET_HITBOX_HEIGHT_PX,
+  CANNON_BULLET_HITBOX_WIDTH_PX,
+  CANNON_BULLET_SPEED_PX,
+  CANNON_MUZZLE_OFFSET_X_PX,
+  CANNON_MUZZLE_OFFSET_Y_PX,
+  FINISH_TRIGGER_HEIGHT_PX,
+  HAZARD_TINT,
+} from '../constants';
 import type {
   LevelObject,
   LevelVersion,
@@ -21,6 +31,19 @@ import { GROUND_TILE_DEPTH } from './PaperScenery';
 // GameScene to drive and check on every tick.
 export type LoadedBat = {
   sprite: Phaser.GameObjects.Sprite;
+  triggered: boolean;
+};
+
+// A cannon that hasn't yet entered view and started firing. Same
+// "GameScene owns the per-frame view-entry decision, this loader owns the
+// physics" split as LoadedBat above (see triggerBatFlight's own comment) —
+// GameScene flips `triggered` and calls LoadedLevel.fireCannon on an
+// interval from that moment (see constants.CANNON_FIRE_INTERVAL_MS).
+export type LoadedCannon = {
+  sprite: Phaser.GameObjects.Sprite;
+  // The cannon LevelObject's id — attributed as the killer when one of its
+  // bullets hits the player, same as every other hazard.
+  objectId: string;
   triggered: boolean;
 };
 
@@ -46,6 +69,17 @@ export type LoadedLevel = {
   // per level), exposed so GameScene can play its celebration on it from onFinishReached — undefined for level data that
   // (invalidly) has none, rather than throwing.
   finishSprite: Phaser.GameObjects.Sprite | undefined;
+  // Cannons waiting to enter view — see LoadedCannon above.
+  cannons: LoadedCannon[];
+  // Spawns one bullet from `cannon`'s position, travelling left. GameScene
+  // calls this once on trigger and then on a fixed interval afterward (see
+  // CANNON_FIRE_INTERVAL_MS) — this function only owns the physics/cleanup
+  // wiring of one shot, never the timing decision, same split as
+  // triggerBatFlight.
+  fireCannon: (cannon: LoadedCannon) => void;
+  // Destroys any live bullet that's fallen far enough behind the player to
+  // be certainly off-screen — call once per frame from GameScene.update().
+  cullCannonBullets: () => void;
 };
 
 export type LevelLoaderCallbacks = {
@@ -98,6 +132,12 @@ export function loadLevel(
   const movingObjectTweens: Phaser.Tweens.Tween[] = [];
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
   const bats: LoadedBat[] = [];
+  const cannons: LoadedCannon[] = [];
+  // Live cannon bullets, culled once per frame by cullCannonBullets (see
+  // CANNON_BULLET_CULL_DISTANCE_PX) rather than tracked via camera bounds —
+  // player.x is always deterministic during a run, unlike the camera's own
+  // scrollX/worldView once zoom != 1 (see memory: zoom-pivot gotcha).
+  const liveBullets: Phaser.Physics.Arcade.Sprite[] = [];
   let finishSprite: Phaser.GameObjects.Sprite | undefined;
   const movementResets: (() => void)[] = [];
   // Static groups query Arcade's spatial index instead of testing every
@@ -127,6 +167,44 @@ export function loadLevel(
     callbacks.onPowerUpCollected(object.type, center.x, center.y);
   });
   scene.physics.add.overlap(player, finishes, callbacks.onFinishReached);
+
+  // Spawns one bullet from `cannon`'s position, travelling left — see
+  // LoadedLevel.fireCannon's own comment on the GameScene/loader split.
+  function fireCannon(cannon: LoadedCannon): void {
+    const bullet = scene.physics.add.sprite(
+      cannon.sprite.x - CANNON_MUZZLE_OFFSET_X_PX,
+      cannon.sprite.y - CANNON_MUZZLE_OFFSET_Y_PX,
+      'bullet'
+    );
+    bullet.setScale(CANNON_BULLET_DISPLAY_HEIGHT_PX / bullet.height);
+    if (HAZARD_TINT !== null) bullet.setTint(HAZARD_TINT);
+    if (bullet.body instanceof Phaser.Physics.Arcade.Body) {
+      bullet.body.setAllowGravity(false);
+      bullet.body.setSize(CANNON_BULLET_HITBOX_WIDTH_PX, CANNON_BULLET_HITBOX_HEIGHT_PX);
+      bullet.body.setVelocityX(-CANNON_BULLET_SPEED_PX);
+    }
+    liveBullets.push(bullet);
+    // Terrain stops a bullet dead — no ricochet, no piercing through.
+    scene.physics.add.collider(bullet, solids, () => bullet.destroy());
+    scene.physics.add.overlap(player, bullet, () => {
+      if (!bullet.active) return;
+      bullet.destroy();
+      callbacks.onHazardHit(cannon.objectId);
+    });
+  }
+
+  // See liveBullets' own comment on why this is player-position-relative
+  // rather than camera-bounds-relative.
+  function cullCannonBullets(): void {
+    for (let i = liveBullets.length - 1; i >= 0; i--) {
+      const bullet = liveBullets[i];
+      if (!bullet) continue;
+      if (!bullet.active || bullet.x < player.x - CANNON_BULLET_CULL_DISTANCE_PX) {
+        if (bullet.active) bullet.destroy();
+        liveBullets.splice(i, 1);
+      }
+    }
+  }
 
   // Ground and platform tiles auto-tile within their own type only (a
   // ground tile sitting beside a platform tile doesn't cap either one) —
@@ -238,6 +316,20 @@ export function loadLevel(
             );
           }
         }
+        if (object.type === 'cannon') {
+          // Solid like any other block (already added to `solids` above) —
+          // separately tracked here too so GameScene can detect the
+          // moment it enters view and start firing (see LoadedCannon).
+          const cannon: LoadedCannon = {
+            sprite: rendered,
+            objectId: object.id,
+            triggered: false,
+          };
+          cannons.push(cannon);
+          movementResets.push(() => {
+            cannon.triggered = false;
+          });
+        }
         break;
       case 'hazard': {
         if (object.type === 'bat') {
@@ -304,6 +396,11 @@ export function loadLevel(
   return {
     resetMovingObjects: () => {
       for (const reset of movementResets) reset();
+      // Bullets are runtime-only (never part of levelVersion.objects), so
+      // they're cleared here rather than via a per-object movementReset —
+      // a restart shouldn't leave a previous attempt's bullets on screen.
+      for (const bullet of liveBullets) bullet.destroy();
+      liveBullets.length = 0;
     },
     spawn,
     levelWidth: maxX + LEVEL_WIDTH_MARGIN,
@@ -311,5 +408,8 @@ export function loadLevel(
     powerUpImages,
     bats,
     finishSprite,
+    cannons,
+    fireCannon,
+    cullCannonBullets,
   };
 }
