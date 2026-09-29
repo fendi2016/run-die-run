@@ -227,8 +227,8 @@ body {
 /* Leaving your curse is the point of a clear: full width, first, loud. */
 #run-result-primary #run-result-curse-btn {
   flex-basis: 100%;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--go);
+  color: var(--go-ink);
 }
 
 #run-result-curse-hint {
@@ -242,13 +242,13 @@ body {
 .editor-btn-curse {
   padding: 18px 20px;
   font-size: 18px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--go);
+  color: var(--go-ink);
 }
 
 @media (hover: hover) {
-  .editor-btn-curse:hover:not(:disabled) {
-    background: #ef5350;
+  #run-result-primary .editor-btn-curse:hover:not(:disabled) {
+    background: var(--go-hover);
   }
 }
 

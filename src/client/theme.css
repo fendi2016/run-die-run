@@ -30,6 +30,10 @@
   --rule-blue-soft: rgba(61, 110, 165, 0.18);
   --accent: #e53935;
   --accent-ink: #fdf6f0;
+  /* The "do this" color: Leave Your Curse, the main action after a clear. */
+  --go: #2e9d44;
+  --go-hover: #38b350;
+  --go-ink: #fdfdf6;
   --highlighter: #ffe66d;
 
   --line: 2px;
