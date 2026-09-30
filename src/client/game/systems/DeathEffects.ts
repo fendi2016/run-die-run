@@ -185,82 +185,69 @@ const staplerStaple: DeathEffect = (scene, x, y, textureKey, displaySize) => {
 };
 
 const BAT_HIT_COLOR = 0xffffff;
-// bat-impact is a burst off a floor: spikes point up from a ring along its
-// frame's bottom edge. Anchored on that ring and turned 90° clockwise, it
-// bursts off the player's front, back toward where the bat came from.
-const BAT_IMPACT_BASE_Y = 0.9;
 
-// Rammed out of the level: a white impact flash, then the player is sent
-// cartwheeling back the way they came (bats dash in at the player from
-// ahead) in a cartoon arc that drops off-screen.
+// Rammed out of the level: a white hit-flash and a doodle WHAM where the
+// bat struck, then he cartwheels back the way he came (bats dash in from
+// ahead) in a quick arc and drops out of sight.
 const batKnockout: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
   body.setOrigin(0.5, 0.5);
   body.setY(y - displaySize / 2);
   body.setTint(BAT_HIT_COLOR).setTintMode(Phaser.TintModes.FILL);
-  scene.time.delayedCall(70, () => body.clearTint());
-  burstParticles(scene, x + displaySize / 3, y - displaySize / 2, BAT_HIT_COLOR, 16);
-  playPixelFx(scene, 'bat-impact', x + displaySize / 3, y - displaySize / 2, {
-    scale: 1.5,
-    angle: 90,
-    originY: BAT_IMPACT_BASE_Y,
+  scene.time.delayedCall(70, () => {
+    if (body.active) body.clearTint();
   });
+  burstParticles(scene, x + displaySize / 3, y - displaySize / 2, BAT_HIT_COLOR, 12);
+  playPixelFx(scene, 'shield-zap', x + displaySize / 3, y - displaySize / 2, { scale: 1.3 });
   scene.cameras.main.shake(110, 0.007);
 
-  scene.tweens.add({
-    targets: body,
-    x: x - 220,
-    angle: -900,
-    duration: 900,
-    ease: 'Linear',
-  });
+  scene.tweens.add({ targets: body, x: x - 180, angle: -540, duration: 500, ease: 'Linear' });
   scene.tweens.chain({
     targets: body,
     tweens: [
-      { y: body.y - 140, duration: 320, ease: 'Quad.easeOut' },
-      { y: body.y + 260, alpha: 0, duration: 580, ease: 'Quad.easeIn' },
+      { y: body.y - 110, duration: 200, ease: 'Quad.easeOut' },
+      { y: body.y + 150, alpha: 0, duration: 300, ease: 'Quad.easeIn' },
     ],
     onComplete: () => body.destroy(),
   });
 };
 
 const GHOST_BODY_TINT = 0x7c7c94;
-const GHOST_SOUL_TINT = 0xbfe8ff;
+const GHOST_SOUL_TINT = 0xd6f0ff;
 const GHOST_WISP_COLOR = 0xb07cff;
 
 // Soul snatched: the body greys out and keels over backwards, lifeless,
-// while a pale see-through copy of the player drifts up out of it, swaying,
-// and fades away.
+// while a pale see-through copy of him drifts up out of it, swaying, and
+// fades, with a little skull puff.
 const ghostSoulDrain: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
   body.setTint(GHOST_BODY_TINT);
   scene.tweens.chain({
     targets: body,
     tweens: [
-      { angle: -90, duration: 380, ease: 'Bounce.easeOut' },
-      { alpha: 0, delay: 350, duration: 300 },
+      { angle: -90, duration: 240, ease: 'Bounce.easeOut' },
+      { alpha: 0, delay: 100, duration: 180 },
     ],
     onComplete: () => body.destroy(),
   });
 
+  // Normal blend: additive vanishes on the white paper.
   const soul = playerStandIn(scene, x, y, textureKey, displaySize);
   soul.setTint(GHOST_SOUL_TINT);
-  soul.setBlendMode(Phaser.BlendModes.ADD);
-  soul.setAlpha(0.75);
-  scene.tweens.add({ targets: soul, x: x + 12, duration: 180, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
+  soul.setAlpha(0.6);
+  scene.tweens.add({ targets: soul, x: x + 10, duration: 120, yoyo: true, repeat: 1, ease: 'Sine.easeInOut' });
   scene.tweens.add({
     targets: soul,
-    y: y - 150,
+    y: y - 110,
     alpha: 0,
-    scaleX: soul.scaleX * 0.8,
-    scaleY: soul.scaleY * 1.15,
-    duration: 1000,
+    scaleX: soul.scaleX * 0.85,
+    scaleY: soul.scaleY * 1.12,
+    duration: 500,
     ease: 'Sine.easeOut',
     onComplete: () => soul.destroy(),
   });
-  burstParticles(scene, x, y - displaySize / 2, GHOST_WISP_COLOR, 14);
-  // A skull puffs out of the body as the soul leaves it.
-  playPixelFx(scene, 'ghost-skull-smoke', x, y - displaySize * 0.75, { scale: 2 });
+  burstParticles(scene, x, y - displaySize / 2, GHOST_WISP_COLOR, 10);
+  playPixelFx(scene, 'ghost-skull-smoke', x, y - displaySize * 0.75, { scale: 1.2 });
   scene.cameras.main.shake(80, 0.003);
 };
 

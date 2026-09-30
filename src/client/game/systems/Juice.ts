@@ -202,7 +202,6 @@ export const PIXEL_FX_SHEETS: readonly {
   // Hazard deaths (DeathEffects) — pixel art
   { key: 'blood-splatter', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // burst_splatter_001 red
   { key: 'blood-spray', frameWidth: 48, frameHeight: 48, frameRate: 20, pixel: true }, // directional_splatter_003 red, mirrored to spray up-left
-  { key: 'bat-impact', frameWidth: 80, frameHeight: 80, frameRate: 15, pixel: true }, // directional_impact_004 yellow
   { key: 'ghost-skull-smoke', frameWidth: 64, frameHeight: 64, frameRate: 15, pixel: true }, // stylized_skull_smoke_burst_001 white
   // Movement and power-ups (Player, GameScene, LevelLoader)
   { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 14 }, // Particle1, mirrored to both sides
