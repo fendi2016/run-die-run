@@ -33,7 +33,6 @@ import {
 import {
   isRealtimeEvent,
   levelRealtimeChannel,
-  type NewWorldRecordEvent,
   type VersionPublishedEvent,
 } from '../../../shared/realtimeApi';
 import {
@@ -258,7 +257,6 @@ export class GameScene extends Scene {
   // a run" rule (spec section 29) is enforced by only ever flushing this
   // buffer from `cleanup()`, never from `onMessage` directly.
   private pendingVersionPublished: VersionPublishedEvent | undefined;
-  private pendingWorldRecord: NewWorldRecordEvent | undefined;
   // For the share sheet's copy ("... after 23 deaths") and target post.
   private deathsThisLevel = 0;
   private levelStats: LevelStats | undefined;
@@ -300,7 +298,6 @@ export class GameScene extends Scene {
     this.finishSprite = undefined;
     this.finishCameraX = undefined;
     this.pendingVersionPublished = undefined;
-    this.pendingWorldRecord = undefined;
     this.deathsThisLevel = 0;
     this.levelStats = undefined;
   }
@@ -683,7 +680,7 @@ export class GameScene extends Scene {
     PreviewBackButton.instance().show();
   }
 
-  // A live version-published/world-record toast is strictly cosmetic — it
+  // A live version-published toast is strictly cosmetic — it
   // must never be able to stop a level from actually loading, so a failure
   // here (a bad channel name, the realtime plugin unavailable, whatever)
   // only logs, exactly like every other non-critical network call in this
@@ -696,11 +693,7 @@ export class GameScene extends Scene {
           if (!isRealtimeEvent(data)) {
             return;
           }
-          if (data.type === 'versionPublished') {
-            this.pendingVersionPublished = data;
-          } else {
-            this.pendingWorldRecord = data;
-          }
+          this.pendingVersionPublished = data;
         },
       });
     } catch (error) {
@@ -717,12 +710,6 @@ export class GameScene extends Scene {
       const { authorUsername, addedType } = this.pendingVersionPublished;
       RealtimeToast.instance().enqueue(
         `VERSION LIVE — u/${authorUsername} added a ${labelFor(addedType)}`
-      );
-    }
-    if (this.pendingWorldRecord) {
-      const { username, timeMs } = this.pendingWorldRecord;
-      RealtimeToast.instance().enqueue(
-        `NEW WORLD RECORD — u/${username}: ${(timeMs / 1000).toFixed(3)}s`
       );
     }
   }

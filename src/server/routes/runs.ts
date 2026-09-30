@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { context, realtime, redis } from '@devvit/web/server';
-import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
+import { context, redis } from '@devvit/web/server';
 import {
   queueDiscoveryActivity,
   refreshDiscoveryIndexSafely,
@@ -149,7 +148,7 @@ runs.post('/', async (c) => {
   const clearField = `${levelId}:${version}`;
   const streaksKey = streaksLeaderboardKey();
 
-  const { isNewWorldRecord, streak, isNewStreakIncrease } = await withTransaction(
+  const { streak, isNewStreakIncrease } = await withTransaction(
     [leaderboardKey, dedupeKey, clearedKey, streaksKey],
     async (tx) => {
       // Independent reads against unrelated keys — read them all up front
@@ -158,13 +157,11 @@ runs.post('/', async (c) => {
       const [
         previousSubmission,
         existingScore,
-        previousWorldRecordTop,
         alreadyCleared,
         currentStreak,
       ] = await Promise.all([
         redis.get(dedupeKey),
         redis.zScore(leaderboardKey, username),
-        redis.zRange(leaderboardKey, 0, 0, { by: 'rank' }),
         redis.hGet(clearedKey, clearField).then((value) => value !== undefined),
         redis.hLen(clearedKey),
       ]);
@@ -172,7 +169,6 @@ runs.post('/', async (c) => {
       if (body.submissionId && isDuplicate && previousSubmission !== fingerprint) {
         throw new HTTPException(409, { message: 'Submission ID already belongs to another clear' });
       }
-      const previousWorldRecordMs = previousWorldRecordTop[0]?.score;
 
       if (!isDuplicate) {
         await queueDiscoveryActivity(tx, levelId, username, true);
@@ -200,7 +196,6 @@ runs.post('/', async (c) => {
         return {
           commit: !isDuplicate,
           value: {
-            isNewWorldRecord: false,
             streak,
             isNewStreakIncrease,
           },
@@ -210,9 +205,6 @@ runs.post('/', async (c) => {
       return {
         commit: true,
         value: {
-          isNewWorldRecord:
-            !isDuplicate &&
-            (previousWorldRecordMs === undefined || timeMs < previousWorldRecordMs),
           streak,
           isNewStreakIncrease,
         },
@@ -223,18 +215,6 @@ runs.post('/', async (c) => {
   await refreshDiscoveryIndexSafely(levelId);
   // A clear got past every other player's trap in this version.
   await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
-
-  if (isNewWorldRecord) {
-    const event: NewWorldRecordEvent = {
-      type: 'newWorldRecord',
-      levelId,
-      username,
-      timeMs,
-    };
-    // Best-effort: a dropped realtime notice never invalidates a real,
-    // already-committed run submission.
-    await realtime.send(levelRealtimeChannel(levelId), event).catch(() => undefined);
-  }
 
   return c.json<SubmitRunResponse>({
     timeMs,

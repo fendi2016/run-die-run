@@ -19,7 +19,6 @@ import {
 } from '../core/redisKeys';
 import { cursePlacedFields } from '../services/TrapStatsService';
 import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY } from '../../shared/constants';
-import { announceCurse } from '../core/announcements';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { withTransaction } from '../core/transactions';
 import { getCurrentLevelVersion } from '../services/LevelService';
@@ -411,14 +410,6 @@ curse.post('/publish', async (c) => {
     await realtime
       .send(levelRealtimeChannel(result.levelId), event)
       .catch(() => undefined);
-    await announceCurse({
-      levelId: result.levelId,
-      version: result.version,
-      username,
-      addedType: newObject.type,
-      removedPlatform: removedObjectId !== undefined,
-      extended: extension !== undefined,
-    });
   }
 
   return c.json<PublishCurseResponse>(

@@ -1,7 +1,6 @@
 import type { ObjectType } from './types';
 
-// Devvit Realtime (spec section 29): live "new version published" / "new
-// world record" notices, scoped to one channel per level so a player only
+// Devvit Realtime (spec section 29): live "new version published" notices, scoped to one channel per level so a player only
 // hears about the level they're currently on. Shared between server (sends)
 // and client (subscribes) so the channel-naming scheme and message shapes
 // can't drift between the two sides.
@@ -22,14 +21,7 @@ export type VersionPublishedEvent = {
   addedType: ObjectType;
 };
 
-export type NewWorldRecordEvent = {
-  type: 'newWorldRecord';
-  levelId: string;
-  username: string;
-  timeMs: number;
-};
-
-export type RealtimeEvent = VersionPublishedEvent | NewWorldRecordEvent;
+export type RealtimeEvent = VersionPublishedEvent;
 
 export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
   if (typeof value !== 'object' || value === null || !('type' in value)) {
@@ -45,16 +37,6 @@ export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
       typeof value.authorUsername === 'string' &&
       'addedType' in value &&
       typeof value.addedType === 'string'
-    );
-  }
-  if (value.type === 'newWorldRecord') {
-    return (
-      'levelId' in value &&
-      typeof value.levelId === 'string' &&
-      'username' in value &&
-      typeof value.username === 'string' &&
-      'timeMs' in value &&
-      typeof value.timeMs === 'number'
     );
   }
   return false;

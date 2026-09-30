@@ -1367,46 +1367,20 @@ await test('clearing a version for the first time grows the streak; a replay doe
   assert.equal(replayBody.isNewStreakIncrease, false);
 });
 
-await test('a new world record fires a Realtime event, a slower clear does not', async () => {
+await test('a record-setting clear sends no live notice (clear times are not a competition)', async () => {
   await getCurrentLevelVersion('meat-grinder');
-  await users.run('bob', () =>
-    runs.request(
-      '/',
-      post({ levelId: 'meat-grinder', version: 1, timeMs: 5000 })
-    )
-  );
-  assert.equal(realtimeSent.length, 1);
-  assert.equal(realtimeSent[0]?.channel, 'level_meat_grinder_events');
-  assert.deepEqual(realtimeSent[0]?.message, {
-    type: 'newWorldRecord',
-    levelId: 'meat-grinder',
-    username: 'bob',
-    timeMs: 5000,
-  });
-
-  await users.run('alice', () =>
-    runs.request(
-      '/',
-      post({ levelId: 'meat-grinder', version: 1, timeMs: 6000 })
-    )
-  );
-  assert.equal(realtimeSent.length, 1, 'a slower clear is not a new record');
-
-  await users.run('alice', () =>
-    runs.request(
-      '/',
-      post({ levelId: 'meat-grinder', version: 1, timeMs: 2000 })
-    )
-  );
-  assert.equal(realtimeSent.length, 2);
-  assert.equal(
-    (realtimeSent[1]?.message as { username?: string }).username,
-    'alice'
-  );
+  for (const [username, timeMs] of [['bob', 5000], ['alice', 2000]] as const) {
+    await users.run(username, () =>
+      runs.request('/', post({ levelId: 'meat-grinder', version: 1, timeMs }))
+    );
+  }
+  assert.equal(realtimeSent.length, 0);
 });
 
 await test('curse publish fires a versionPublished Realtime event on the level channel', async () => {
+  const { levelPostKey } = await import('../core/redisKeys');
   await getCurrentLevelVersion('meat-grinder');
+  set(levelPostKey('meat-grinder'), 't3_level');
   const { body: proposeBody } = await proposeCurse('bob', 'meat-grinder', {
     id: 'ignored', type: 'candle', x: 700, y: 480,
   });
@@ -1424,6 +1398,8 @@ await test('curse publish fires a versionPublished Realtime event on the level c
     authorUsername: 'bob',
     addedType: 'candle',
   });
+  // No comment on the level's post: with many players cursing, it's spam.
+  assert.equal(redditCalls.filter((call) => call.method === 'submitComment').length, 0);
 });
 
 await test('the global TOP CURSERS leaderboard ranks by trap kills', async () => {
