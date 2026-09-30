@@ -192,6 +192,8 @@ const TAP_TO_START_MESSAGE = 'Tap to start · hold to jump higher';
 
 export class GameScene extends Scene {
   private player: Player | undefined;
+  // Re-pins the camera-fixed clouds after a zoom change (see drawScenery).
+  private layoutScenery: (() => void) | undefined;
   private resultOverlay!: RunResultOverlay;
   private deathToast!: DeathToast;
   private runHud!: RunHud;
@@ -566,6 +568,7 @@ export class GameScene extends Scene {
     this.cameras.main.setZoom(
       (this.scale.height / LOGICAL_HEIGHT) * this.zoomBoost()
     );
+    this.layoutScenery?.();
   }
 
   // Landscape only: a portrait screen is already narrow in world px, and
@@ -775,7 +778,7 @@ export class GameScene extends Scene {
       .setScrollFactor(1, 1)
       .setDepth(-1);
     drawPaperBackdrop(this, this.levelWidth);
-    drawScenery(this);
+    this.layoutScenery = drawScenery(this);
 
     // The spawn pencil case the player comes out of, just to his left —
     // above the background, behind the player and every level object.
@@ -1560,6 +1563,7 @@ export class GameScene extends Scene {
     this.tapToStartPrompt.hide();
     this.player?.destroy();
     this.scale.off('resize', this.applyResponsiveZoom, this);
+    this.layoutScenery = undefined;
     this.scale.off('resize', this.onResizeWhileFinished, this);
     PreviewBackButton.instance().hide();
     if (this.levelVersion) {

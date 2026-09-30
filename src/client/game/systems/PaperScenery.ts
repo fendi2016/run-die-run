@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../../../shared/constants';
+import { LOGICAL_HEIGHT } from '../../../shared/constants';
 
 // Set dressing for a run: one backdrop, the same on every level — ruled
 // notebook paper (with grain and a margin rule where the page begins) and
@@ -99,13 +99,28 @@ export const SCENERY_ART: { key: string; file: string }[] = CLOUDS.map(([name]) 
   file: `background/${name}.webp`,
 }));
 
-export function drawScenery(scene: Phaser.Scene): void {
-  for (const [name, fx, fy, width] of CLOUDS) {
-    const cloud = scene.add
-      .image(fx * LOGICAL_WIDTH, fy * LOGICAL_HEIGHT, cloudKey(name))
-      .setScrollFactor(0)
-      .setDepth(CLOUD_DEPTH)
-      .setAlpha(0.85);
-    cloud.setScale(width / cloud.width);
-  }
+// Pinned clouds still go through the camera's zoom, which pivots on the
+// view's centre — so a cloud placed at raw screen-fraction coordinates
+// gets pushed off the edges once zoom != 1. Place them by inverting that
+// pivot instead, and re-run it (the returned function) whenever the zoom
+// or the screen size changes.
+export function drawScenery(scene: Phaser.Scene): () => void {
+  const clouds = CLOUDS.map(([name, fx, fy, width]) => ({
+    fx,
+    fy,
+    width,
+    image: scene.add.image(0, 0, cloudKey(name)).setScrollFactor(0).setDepth(CLOUD_DEPTH).setAlpha(0.85),
+  }));
+  const layout = (): void => {
+    const camera = scene.cameras.main;
+    const { width: viewW, height: viewH, zoom } = camera;
+    // Same on-screen size as on a 960x540 view, scaled with the screen.
+    const screenScale = viewH / LOGICAL_HEIGHT;
+    for (const { fx, fy, width, image } of clouds) {
+      image.setPosition((fx * viewW - viewW / 2) / zoom + viewW / 2, (fy * viewH - viewH / 2) / zoom + viewH / 2);
+      image.setScale((width * screenScale) / zoom / image.width);
+    }
+  };
+  layout();
+  return layout;
 }
