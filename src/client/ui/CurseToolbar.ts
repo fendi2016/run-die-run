@@ -107,13 +107,14 @@ export class CurseToolbar {
       button.classList.toggle('active', c === category);
     }
     this.setTypesForCategory(category);
-    // Extend/Remove only make sense once Platform is the active category —
-    // they live right beside its type tiles and stay hidden otherwise,
-    // rather than cluttering the hazard/power-up screens with buttons that
-    // don't apply there.
-    const showPlatformActions = category === 'platform';
-    this.extendBtn.classList.toggle('hidden', !showPlatformActions);
-    this.removeBtn.classList.toggle('hidden', !showPlatformActions);
+    // They live right beside the type tiles: Extend under Platform only,
+    // Erase under Hazard and Platform (what it can take out), neither under
+    // Power-Up, where they don't apply.
+    this.extendBtn.classList.toggle('hidden', category !== 'platform');
+    this.removeBtn.classList.toggle(
+      'hidden',
+      category !== 'platform' && category !== 'hazard'
+    );
   }
 
   setTypesForCategory(category: CurseCategory | undefined): void {

@@ -3,7 +3,7 @@ import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
 import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
-  CURSE_CATEGORY_TYPES,
+  CURSE_ERASABLE_TYPES,
   isProposeCurseResponse,
   type CurseCategory,
   type DraftObject,
@@ -33,6 +33,8 @@ import {
   PAPER_COLOR,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
+import { nearestTappedId } from '../editor/tapHit';
+import { labelFor } from '../../../shared/objectLabels';
 import {
   motionTweenConfigFor,
   renderLevelObject,
@@ -42,7 +44,6 @@ import {
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
 import { attachAmbience } from '../systems/TrapAmbience';
-import { PLATFORM_DISPLAY_HEIGHT_PX } from '../constants';
 
 // curse-strike's impact sits near its frame's bottom (~112 of 128px); it
 // lands on the placed curse's base. Both effects draw above the board,
@@ -63,24 +64,17 @@ type CurseSceneData = {
   message?: string;
 };
 
-// The same "platform" family the curse UI's own category picker already
-// groups together (shared/editorApi.ts) — reused here rather than a second
-// hardcoded list, so a removable base-level object is always exactly
-// whatever the platform category can also place.
-const REMOVABLE_PLATFORM_TYPES = new Set<ObjectType>(
-  CURSE_CATEGORY_TYPES.platform
-);
-
 // The curse flow's placement screen (spec sections 14-15): a deliberately
 // smaller component than EditorScene. It renders the level's currently
 // published objects read-only — nothing here can select, move, or delete
-// them, except one add-on: tapping an existing platform/movingPlatform
-// marks it for removal (see toggleRemoveTarget) — and lets the player
-// place exactly one new object from a restricted category set before
-// proving it's beatable in the real GameScene (spec section 16). Removing
-// a platform is always alongside placing that object, never a substitute
-// for it, same "the leaderboard is gauged by curse kills" reasoning
-// pendingExtendTiles's own comment gives for Extend Level.
+// them, except one add-on: Erase, then tapping an existing trap or
+// platform marks it to come out (see toggleRemoveTarget) — and lets the
+// player place exactly one new object from a restricted category set
+// before proving it's beatable in the real GameScene (spec section 16).
+// Erasing is always alongside placing that object, never a substitute for
+// it (a swap: their trap out, yours in), same "the leaderboard is gauged
+// by curse kills" reasoning pendingExtendTiles's own comment gives for
+// Extend Level.
 export class CurseScene extends Scene {
   private rexBoard!: BoardPlugin;
   private board!: BoardPlugin.Board;
@@ -103,16 +97,20 @@ export class CurseScene extends Scene {
   // the pending object is placed past the level's current end
   // (growExtensionToReach) — never shrinks except via Clear.
   private pendingExtendTiles = 0;
-  // The id of an existing base-level platform/movingPlatform marked for
-  // removal (see toggleRemoveTarget) — at most one at a time, toggled by
-  // tapping it again or switched by tapping a different removable object,
-  // mirroring pendingExtendTiles's own "exactly one add-on" scope. Reset to
-  // undefined (never removed) except via Clear.
+  // The id of an existing base-level trap or platform marked to be erased
+  // (see toggleRemoveTarget) — at most one at a time, toggled by tapping it
+  // again or switched by tapping a different erasable object, mirroring
+  // pendingExtendTiles's own "exactly one add-on" scope. Reset to
+  // undefined (never erased) except via Clear.
   private pendingRemoveId: string | undefined;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
   private baseImages: Phaser.GameObjects.Sprite[] = [];
+  // The erasable ones among baseImages, by object id, for Erase's lenient
+  // tap (built-in traps aren't all on grid cells, and a mace ball hangs a
+  // cell below where it's stored).
+  private erasableImages = new Map<string, Phaser.GameObjects.Sprite>();
   private extensionImages: Phaser.GameObjects.Sprite[] = [];
   // Patrol/drift/rideable tweens for the objects above (see ObjectRegistry's
   // motionTweenConfigFor) — a bat/ghost/movingSaw/movingPlatform in the base
@@ -301,7 +299,7 @@ export class CurseScene extends Scene {
   }
 
   private onBoardTileTap(
-    _tap: unknown,
+    pointer: Phaser.Input.Pointer,
     tileXY: { x: number; y: number }
   ): void {
     if (this.panZoom.shouldIgnoreTap()) return;
@@ -312,12 +310,14 @@ export class CurseScene extends Scene {
     // With a curse type picked, a tap always places it — anywhere, even
     // on top of an existing platform or object; Prove It is what decides
     // whether the result is allowed. With no type picked (e.g. after the
-    // Remove button, see showRemoveHint), tapping a platform marks it for
-    // removal instead.
+    // Erase button, see showRemoveHint), tapping a trap or platform marks
+    // it to be erased instead.
     if (!this.selectedType) {
-      const removable = this.removablePlatformAt(world.x, world.y);
-      if (removable) {
-        this.toggleRemoveTarget(removable);
+      const tapped = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      const id = nearestTappedId(this.erasableImages, tapped.x, tapped.y);
+      const erasable = this.baseLevel.objects.find((o) => o.id === id);
+      if (erasable) {
+        this.toggleRemoveTarget(erasable);
         return;
       }
       this.toolbar.showMessage('Choose a curse type first.');
@@ -337,15 +337,9 @@ export class CurseScene extends Scene {
     }
   }
 
-  private removablePlatformAt(x: number, y: number): LevelObject | undefined {
-    return (this.baseLevel?.objects ?? []).find(
-      (o) => REMOVABLE_PLATFORM_TYPES.has(o.type) && o.x === x && o.y === y
-    );
-  }
-
-  // Tapping the same marked platform again un-marks it; tapping a
-  // different removable object switches the target — only one removal is
-  // ever pending, same "exactly one add-on" scope as pendingExtendTiles.
+  // Tapping the same marked object again un-marks it; tapping a different
+  // erasable object switches the target — only one erase is ever pending,
+  // same "exactly one add-on" scope as pendingExtendTiles.
   private toggleRemoveTarget(object: LevelObject): void {
     if (this.proposalRequest) return;
     if (this.pendingRemoveId === object.id) {
@@ -353,12 +347,13 @@ export class CurseScene extends Scene {
       this.toolbar.hideMessage();
     } else {
       this.pendingRemoveId = object.id;
-      playPixelFx(this, 'smoke-poof', object.x, object.y + PLATFORM_DISPLAY_HEIGHT_PX / 2, {
+      const at = this.erasableImages.get(object.id)?.getCenter() ?? object;
+      playPixelFx(this, 'smoke-poof', at.x, at.y, {
         scale: 1,
         depth: CURSE_FX_DEPTH,
       });
       this.toolbar.showMessage(
-        "Platform marked for removal — now place a curse, then prove it's possible."
+        `${labelFor(object.type)} marked to erase — now place your curse, then prove it's possible.`
       );
     }
     this.updateClearEnabled();
@@ -366,18 +361,17 @@ export class CurseScene extends Scene {
     this.updateProveEnabled();
   }
 
-  // The Remove button (only visible under the Platform category, next to
-  // its type tiles) doesn't itself know which platform to remove — that's
-  // picked by tapping one. A tap with a curse type picked places the curse
-  // instead (see onBoardTileTap), so this drops the type selection (any
-  // curse already placed stays put) to make the next platform tap a
-  // removal.
+  // The Erase button (under the Hazard and Platform categories, next to
+  // their type tiles) doesn't itself know what to erase — that's picked by
+  // tapping it. A tap with a curse type picked places the curse instead
+  // (see onBoardTileTap), so this drops the type selection (any curse
+  // already placed stays put) to make the next tap pick what to erase.
   private showRemoveHint(): void {
     if (this.proposalRequest) return;
     this.selectedType = undefined;
     this.toolbar.setActiveType(undefined);
     this.toolbar.showMessage(
-      'Tap an existing platform on the board to mark it for removal.'
+      "Tap a trap or platform to erase it. You still place a curse of your own."
     );
   }
 
@@ -467,6 +461,7 @@ export class CurseScene extends Scene {
       image.destroy();
     }
     this.baseImages = [];
+    this.erasableImages = new Map();
     const relocatingFinish = this.pendingExtendTiles > 0;
     const neighborsOf = terrainNeighborsIn(this.baseLevel?.objects ?? []);
     for (const object of this.baseLevel?.objects ?? []) {
@@ -486,6 +481,7 @@ export class CurseScene extends Scene {
           image.setAlpha(0.45);
         }
         this.baseImages.push(image);
+        if (CURSE_ERASABLE_TYPES.has(object.type)) this.erasableImages.set(object.id, image);
         const tweenConfig = motionTweenConfigFor(image, object);
         if (tweenConfig) {
           this.baseMotionTweens.push(this.tweens.add(tweenConfig));

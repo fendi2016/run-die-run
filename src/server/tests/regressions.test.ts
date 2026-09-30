@@ -1474,6 +1474,47 @@ await test('every 10th curse posts one digest comment on the level thread', asyn
   assert.match(options.text, /from u\/c0, u\/c1, u\/c2 and 7 others/);
 });
 
+await test('a curse can erase a trap as it places its own (a swap), never ground, spawn or finish', async () => {
+  const base = await getCurrentLevelVersion('meat-grinder');
+  const erase = async (id: string | undefined) =>
+    users.run('bob', async () => {
+      const response = await curse.request('/propose', post({
+        levelId: 'meat-grinder',
+        object: { id: 'ignored', type: 'saw', x: 1270, y: 480 },
+        removeObjectId: id,
+      }));
+      const body: unknown = await response.json();
+      assert.ok(isProposeCurseResponse(body));
+      return body;
+    });
+  for (const type of ['ground', 'spawn', 'finish'] as const) {
+    const body = await erase(base?.objects.find((o) => o.type === type)?.id);
+    assert.equal(body.status, 'error', `${type} must not be erasable`);
+  }
+
+  const stapler = base?.objects.find((o) => o.type === 'candle');
+  const body = await erase(stapler?.id);
+  assert.equal(body.status, 'ok');
+  if (body.status !== 'ok' || !stapler) return;
+  await markCandidateVerified('bob', body.candidateToken, 2000);
+  await publishCurse('bob', body.candidateToken);
+
+  const after = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(after?.version, 2);
+  assert.equal(after?.objects.some((o) => o.id === stapler.id), false);
+  assert.equal(after?.objects.filter((o) => o.addedBy === 'bob' && o.type === 'saw').length, 1);
+  const event = realtimeSent.find((e) => e.channel === 'level_meat_grinder_events');
+  assert.deepEqual(event?.message, {
+    type: 'versionPublished',
+    levelId: 'meat-grinder',
+    version: 2,
+    authorUsername: 'bob',
+    addedType: 'saw',
+    erasedType: 'candle',
+    erasedFrom: stapler.addedBy,
+  });
+});
+
 await test('the curse digest skips extension ground and handles a lone curser', async () => {
   const { curseMilestoneComment, isCurseMilestone } = await import('../core/announcements');
   assert.deepEqual([1, 10, 11, 21, 22].map(isCurseMilestone), [false, false, true, true, false]);

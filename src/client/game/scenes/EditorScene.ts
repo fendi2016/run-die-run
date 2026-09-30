@@ -25,6 +25,7 @@ import {
   type EditorTool,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
+import { nearestTappedId } from '../editor/tapHit';
 import {
   motionTweenConfigFor,
   renderLevelObject,
@@ -45,11 +46,6 @@ const DEFAULT_SPAWN = { x: GRID_CELL_SIZE * 1.5, y: GROUND_TOP_Y };
 // depth constants) so the selection art never disappears behind a sprite.
 const SELECTION_DEPTH = 1;
 const SELECTION_BOX_SIZE = 64;
-
-// Erase leniency, in world px: how far outside an object's drawn bounds a
-// tap still hits it, and how close to its center counts from any side.
-const ERASE_TAP_PADDING_PX = GRID_CELL_SIZE * 0.35;
-const ERASE_TAP_RADIUS_PX = GRID_CELL_SIZE * 1.1;
 
 // The mobile-first base level editor (spec section 12): tap-only
 // place/select/move/delete/undo/redo over a grid, plus Test (spec section
@@ -237,7 +233,7 @@ export class EditorScene extends Scene {
   private handleEraseTap(x: number, y: number, tapX: number, tapY: number): void {
     let spawnTapped = false;
     this.applyMutation(() => {
-      const id = this.controller.topObjectIdAt(x, y) ?? this.nearestRenderedObjectId(tapX, tapY);
+      const id = this.controller.topObjectIdAt(x, y) ?? nearestTappedId(this.renderedObjects, tapX, tapY);
       if (id === undefined) return false;
       const erased = this.controller.eraseById(id);
       if (erased === 'spawn') {
@@ -250,25 +246,6 @@ export class EditorScene extends Scene {
       return true;
     }, 'Nothing to erase there.');
     if (spawnTapped) this.toolbar.showMessage('Every level needs a spawn. Use Select to move it.');
-  }
-
-  // Erase fallback when the tapped cell is empty: an object drawn under the
-  // tap (padded — a mace ball hangs a cell below the cell it's stored in),
-  // else the closest object center within about a cell.
-  private nearestRenderedObjectId(x: number, y: number): string | undefined {
-    let best: { id: string; distance: number } | undefined;
-    for (const [id, image] of this.renderedObjects) {
-      const bounds = image.getBounds();
-      const center = image.getCenter();
-      const distance = Math.hypot(x - center.x, y - center.y);
-      const pad = ERASE_TAP_PADDING_PX;
-      const underTap =
-        x >= bounds.left - pad && x <= bounds.right + pad &&
-        y >= bounds.top - pad && y <= bounds.bottom + pad;
-      const hit = underTap || distance <= ERASE_TAP_RADIUS_PX;
-      if (hit && (!best || distance < best.distance)) best = { id, distance };
-    }
-    return best?.id;
   }
 
   // A puff of smoke where a removed object was. Drawn above the objects,

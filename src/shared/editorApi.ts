@@ -31,6 +31,14 @@ export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
   powerUp: ['shield', 'speedBoost', 'wings', 'stopwatch'],
 };
 
+// What a curse's Erase add-on may take out of the level: any trap or
+// platform (so a curse can swap someone's trap for your own), never ground,
+// power-ups, the spawn or the finish.
+export const CURSE_ERASABLE_TYPES: ReadonlySet<ObjectType> = new Set<ObjectType>([
+  ...CURSE_CATEGORY_TYPES.hazard,
+  ...CURSE_CATEGORY_TYPES.platform,
+]);
+
 // Wire contract for the base level editor's test/publish flow (spec
 // sections 12-13, 20). The server never trusts a client-computed "I beat
 // it" claim in isolation: `candidateToken` ties one exact object
@@ -194,12 +202,12 @@ export type ProposeCurseRequest = {
   // itself from the current published objects rather than trusting
   // client-sent positions.
   extendByTiles?: number;
-  // The id of an existing platform/movingPlatform to remove — another
-  // optional add-on alongside `object`, never a substitute, same reasoning
-  // as extendByTiles above. Only an id: the server looks the object up in
-  // the current published level and validates its type itself (must be
-  // one of CURSE_CATEGORY_TYPES.platform) rather than trusting the client
-  // on *what* it's removing.
+  // The id of an existing trap or platform to erase — another optional
+  // add-on alongside `object`, never a substitute, same reasoning as
+  // extendByTiles above. Only an id: the server looks the object up in the
+  // current published level and validates its type itself (must be in
+  // CURSE_ERASABLE_TYPES) rather than trusting the client on *what* it's
+  // erasing.
   removeObjectId?: string;
 };
 

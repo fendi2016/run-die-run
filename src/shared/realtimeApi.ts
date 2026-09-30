@@ -19,6 +19,10 @@ export type VersionPublishedEvent = {
   version: number;
   authorUsername: string;
   addedType: ObjectType;
+  // Set when the curse also erased something: what it was and who put it
+  // there, so a swap reads as one ("erased u/bob's Stapler").
+  erasedType?: ObjectType;
+  erasedFrom?: string;
 };
 
 export type RealtimeEvent = VersionPublishedEvent;
@@ -36,7 +40,9 @@ export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
       'authorUsername' in value &&
       typeof value.authorUsername === 'string' &&
       'addedType' in value &&
-      typeof value.addedType === 'string'
+      typeof value.addedType === 'string' &&
+      (!('erasedType' in value) || typeof value.erasedType === 'string') &&
+      (!('erasedFrom' in value) || typeof value.erasedFrom === 'string')
     );
   }
   return false;

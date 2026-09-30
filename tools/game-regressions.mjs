@@ -254,11 +254,12 @@ try {
   await post.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('GameScene').levelVersion?.levelId === 'real');
   await post.close();
 
-  // A player's first curse is guided: three picks, glowing suggestions,
-  // and placement still allowed anywhere. Anyone with a curse gets the
-  // normal palette.
+  // The curse builder opens on Hazards with the full palette. Erase sits
+  // beside the type tiles: with no type picked, a tap on an existing trap
+  // (even one off the grid, like a built-in stapler) marks it to come out,
+  // and placing a curse still works after.
   const guidedLevel = funnelLevel('cursable');
-  guidedLevel.objects = [fb('spawn', 'spawn', 90), fb('finish', 'finish', 2310),
+  guidedLevel.objects = [fb('spawn', 'spawn', 90), fb('finish', 'finish', 2310), fb('stapler', 'candle', 400),
     ...Array.from({ length: 40 }, (_, i) => fb(`g${i}`, 'ground', 30 + i * 60))];
   const cursePage = async (curses) => {
     const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
@@ -276,32 +277,32 @@ try {
     await page.waitForFunction(() => window.__PHASER_GAME__.scene.getScene('CurseScene')?.baseLevel);
     return page;
   };
-  const guidedPage = await cursePage([]);
-  await guidedPage.waitForSelector('#curse-more-options', { state: 'visible' });
-  const visibleTypes = await guidedPage.evaluate(() =>
-    [...document.querySelectorAll('[id^="curse-type-"]')].filter((b) => !b.classList.contains('hidden')).map((b) => b.id).sort());
-  assert.deepEqual(visibleTypes, ['curse-type-candle', 'curse-type-ghost', 'curse-type-saw']);
-  assert.equal(await guidedPage.isVisible('#curse-category-hazard'), false);
-  const suggestionCount = await guidedPage.evaluate(() => window.__PHASER_GAME__.scene.getScene('CurseScene').suggestions.length);
-  assert.ok(suggestionCount >= 1 && suggestionCount <= 3, `suggestions: ${suggestionCount}`);
-  await guidedPage.click('#curse-type-candle');
-  const placed = await guidedPage.evaluate(() => {
+  const builderPage = await cursePage([]);
+  await builderPage.waitForSelector('#curse-category-hazard', { state: 'visible' });
+  assert.equal(await builderPage.isVisible('#curse-type-candle'), true);
+  assert.equal(await builderPage.isVisible('#curse-remove'), true, 'Erase shows under Hazards');
+  await builderPage.click('#curse-remove');
+  const marked = await builderPage.evaluate(() => {
     const scene = window.__PHASER_GAME__.scene.getScene('CurseScene');
-    const taken = new Set(scene.suggestions.map((s) => s.x));
-    const tileX = [...Array(38).keys()].find((i) => !taken.has(30 + i * 60) && i > 6);
-    scene.onBoardTileTap({}, { x: tileX, y: 5 });
-    return scene.pending;
+    // A tap a little off the stapler (x 400 is off the grid), as a thumb
+    // would. Screen point found by inverting getWorldPoint, which is linear.
+    const cam = scene.cameras.main;
+    const origin = cam.getWorldPoint(0, 0);
+    const unit = cam.getWorldPoint(100, 100);
+    const toScreen = (w, o, u) => ((w - o) / (u - o)) * 100;
+    const pointer = { x: toScreen(412, origin.x, unit.x), y: toScreen(470, origin.y, unit.y) };
+    scene.onBoardTileTap(pointer, { x: 6, y: 7 });
+    return scene.pendingRemoveId;
   });
-  assert.ok(placed, 'a non-suggested cell still takes the curse');
-  await guidedPage.click('#curse-more-options');
-  assert.equal(await guidedPage.isVisible('#curse-category-hazard'), true);
-  await guidedPage.close();
-  const veteranPage = await cursePage([{ objectId: 'o', levelId: 'x', levelTitle: 'X', type: 'saw', placedAt: 1,
-    caught: 0, passed: 0, newCaught: 0, newPassed: 0 }]);
-  await veteranPage.waitForTimeout(300);
-  assert.equal(await veteranPage.isVisible('#curse-more-options'), false);
-  assert.equal(await veteranPage.isVisible('#curse-category-hazard'), true);
-  await veteranPage.close();
+  assert.equal(marked, 'stapler', 'a tap near the stapler marks it to erase');
+  await builderPage.click('#curse-type-candle');
+  const placed = await builderPage.evaluate(() => {
+    const scene = window.__PHASER_GAME__.scene.getScene('CurseScene');
+    scene.onBoardTileTap({}, { x: 12, y: 5 });
+    return scene.pending !== undefined && scene.pendingRemoveId === 'stapler';
+  });
+  assert.ok(placed, 'the curse still goes in alongside the erase');
+  await builderPage.close();
 
   // First Play on a device runs the tutorial; Skip remembers that and
   // carries on to the requested level, and later Plays go straight there.

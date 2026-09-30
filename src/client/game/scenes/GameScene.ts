@@ -719,9 +719,12 @@ export class GameScene extends Scene {
   // screen comes next via RealtimeToast, not here.
   private flushRealtimeEvents(): void {
     if (this.pendingVersionPublished) {
-      const { authorUsername, addedType } = this.pendingVersionPublished;
+      const { authorUsername, addedType, erasedType, erasedFrom } = this.pendingVersionPublished;
+      const whose =
+        erasedFrom === undefined || erasedFrom === SEED_AUTHOR ? 'a' : `u/${erasedFrom}'s`;
+      const erased = erasedType ? ` erased ${whose} ${labelFor(erasedType)} and` : '';
       RealtimeToast.instance().enqueue(
-        `VERSION LIVE — u/${authorUsername} added a ${labelFor(addedType)}`
+        `VERSION LIVE — u/${authorUsername}${erased} added a ${labelFor(addedType)}`
       );
     }
   }

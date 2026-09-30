@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { context, realtime, redis } from '@devvit/web/server';
 import {
   CURSE_CATEGORY_TYPES,
+  CURSE_ERASABLE_TYPES,
   isDraftObject,
   type CurseEligibilityResponse,
   type DraftObject,
@@ -39,10 +40,6 @@ type ErrorResponse = {
 
 const CURSE_TYPES = new Set(Object.values(CURSE_CATEGORY_TYPES).flat());
 
-// The only types `removeObjectId` may ever point at — the same "platform"
-// family the curse category picker itself groups together, reused rather
-// than a second hardcoded list.
-const REMOVABLE_TYPES = new Set(CURSE_CATEGORY_TYPES.platform);
 
 function isProposeCurseBody(value: unknown): value is {
   levelId: string;
@@ -141,8 +138,9 @@ curse.get('/eligibility/:levelId', async (c) => {
 // than the base editor: exactly one new trap, chosen from a restricted
 // category set, added on top of an existing published configuration it
 // cannot otherwise touch — plus two optional add-ons, an extend (ground
-// fill + relocated finish, shared/levelExtend.ts) and a platform removal,
-// both always alongside the trap, never a substitute for it, since the
+// fill + relocated finish, shared/levelExtend.ts) and an Erase (one trap or
+// platform taken out, so a curse can swap someone's trap for yours), both
+// always alongside the trap, never a substitute for it, since the
 // leaderboard's kill attribution depends on every curse placing one.
 curse.post('/propose', async (c) => {
   const { username } = context;
@@ -221,13 +219,12 @@ curse.post('/propose', async (c) => {
 
   // Never trusted for *what* it is beyond the id (see
   // ProposeCurseRequest.removeObjectId's own comment) — looked up in this
-  // level's own objects and checked against the same "platform" type set
-  // the curse category picker itself offers, so the client can't smuggle
-  // in the removal of a hazard, the spawn, or the finish portal.
+  // level's own objects and checked against CURSE_ERASABLE_TYPES, so the
+  // client can't smuggle in the removal of ground, the spawn, or the finish.
   let removedObjectId: string | undefined;
   if (body.removeObjectId) {
     const target = baseObjects.find((o) => o.id === body.removeObjectId);
-    if (!target || !REMOVABLE_TYPES.has(target.type)) {
+    if (!target || !CURSE_ERASABLE_TYPES.has(target.type)) {
       return c.json<ProposeCurseResponse>({
         status: 'error',
         errors: ['That object cannot be removed.'],
@@ -448,12 +445,14 @@ curse.post('/publish', async (c) => {
     // editor's first publish, which has no one subscribed yet) — this is
     // the one place spec section 29's "new version published"/"new
     // community addition" notice actually has a live audience to reach.
+    const erased = baseObjects.find((o) => o.id === removedObjectId);
     const event: VersionPublishedEvent = {
       type: 'versionPublished',
       levelId: result.levelId,
       version: result.version,
       authorUsername: username,
       addedType: newObject.type,
+      ...(erased ? { erasedType: erased.type, erasedFrom: erased.addedBy } : {}),
     };
     await realtime
       .send(levelRealtimeChannel(result.levelId), event)
