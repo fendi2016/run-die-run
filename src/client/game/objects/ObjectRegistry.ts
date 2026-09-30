@@ -712,6 +712,41 @@ export function renderLevelObject(
   return sprite;
 }
 
+// The spawn art is ~540px wide but the editors draw it in one 60px tile.
+// WebGL shrinks that ~9x with a plain linear filter (no mipmaps: the art
+// isn't power-of-two), which smears it into a blur. So the editors use a
+// copy pre-shrunk once at load by halving steps on a 2D canvas, sized so
+// the GPU only scales it by ~2x or less at any editor zoom.
+const SPAWN_ICON_TEXTURE_KEY = 'spawn-marker-icon';
+const SPAWN_ICON_TEXTURE_LONG_SIDE_PX = SPAWN_ICON_SIZE * 2.5;
+
+export function createSpawnIconTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(SPAWN_ICON_TEXTURE_KEY)) return;
+  const source = scene.textures.get('spawn-marker').getSourceImage();
+  if (!(source instanceof HTMLImageElement || source instanceof HTMLCanvasElement)) return;
+  let width = source.width;
+  let height = source.height;
+  const target = SPAWN_ICON_TEXTURE_LONG_SIDE_PX / Math.max(width, height);
+  if (target >= 1) return;
+  const finalWidth = Math.round(width * target);
+  const finalHeight = Math.round(height * target);
+  let current: HTMLCanvasElement | undefined;
+  while (width > finalWidth || height > finalHeight) {
+    width = Math.max(finalWidth, Math.round(width / 2));
+    height = Math.max(finalHeight, Math.round(height / 2));
+    const step = document.createElement('canvas');
+    step.width = width;
+    step.height = height;
+    const ctx = step.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(current ?? source, 0, 0, width, height);
+    current = step;
+  }
+  if (current) scene.textures.addCanvas(SPAWN_ICON_TEXTURE_KEY, current);
+}
+
 // Editor/curse-preview-only marker for a spawn point — renderLevelObject
 // deliberately renders nothing for 'spawn' at runtime (LevelLoader reads
 // its position directly), but the editors still need *some* visual so
@@ -722,7 +757,8 @@ export function renderSpawnMarker(
   x: number,
   y: number
 ): Phaser.GameObjects.Sprite {
-  const marker = scene.add.sprite(x, y, 'spawn-marker').setOrigin(0.5, 1).setAlpha(0.85);
+  const key = scene.textures.exists(SPAWN_ICON_TEXTURE_KEY) ? SPAWN_ICON_TEXTURE_KEY : 'spawn-marker';
+  const marker = scene.add.sprite(x, y, key).setOrigin(0.5, 1).setAlpha(0.85);
   // The pencil case is wider than tall, so fit whichever side is longer.
   marker.setScale(SPAWN_ICON_SIZE / Math.max(marker.width, marker.height));
   return marker;

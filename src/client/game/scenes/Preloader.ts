@@ -2,7 +2,11 @@ import { SCRIBBLE_FX } from '../systems/DeathEffects';
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
-import { HAZARD_SPRITESHEETS, TERRAIN_TEXTURE_FILES } from '../objects/ObjectRegistry';
+import {
+  createSpawnIconTexture,
+  HAZARD_SPRITESHEETS,
+  TERRAIN_TEXTURE_FILES,
+} from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
@@ -179,6 +183,7 @@ export class Preloader extends Scene {
       return;
     }
     createPixelFxAnims(this);
+    createSpawnIconTexture(this);
 
     //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
     //  For example, you can define global animations here, so we can use them in other scenes.
