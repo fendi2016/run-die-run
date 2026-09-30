@@ -1,16 +1,13 @@
 import { GROUND_TOP_Y } from './constants';
 import type { CoursePreview } from './coursePreview';
-import type { ObjectType } from './types';
 
-// The feed card's course silhouette. Scaled horizontally to the strip, but
+// A Browse card's course silhouette. Scaled horizontally to the card, but
 // markers keep a fixed on-screen size so a 90-column level still shows
-// every trap at 360px. Numbers and fixed colors only — never level text —
-// so the markup is safe to assign with innerHTML.
+// every trap at 360px. Shapes carry class names (cp-ground, cp-platform,
+// cp-hazard, cp-finish) and get their colors from the page's CSS, so they
+// follow the notebook theme. Numbers and fixed class names only — never
+// level text — so the markup is safe to assign with innerHTML.
 const TOP_Y = GROUND_TOP_Y - 240; // highest point drawn (platforms, flyers)
-const HAZARD_COLORS: Partial<Record<ObjectType, string>> = {
-  candle: '#ffb347', saw: '#d9d9d9', movingSaw: '#d9d9d9', bat: '#b36bff', ghost: '#e0f7ff', fallingBlock: '#8a7f99',
-  ceilingSpikes: '#d9d9d9', spikeMine: '#e53935', electricMine: '#4fc3f7', mace: '#8a8a8a',
-};
 const MARKER_R = 3.5;
 
 export function renderCoursePreviewSvg(preview: CoursePreview, widthPx: number, heightPx: number): string {
@@ -21,14 +18,14 @@ export function renderCoursePreviewSvg(preview: CoursePreview, widthPx: number, 
   const sy = (y: number) => Math.max(MARKER_R, Math.min(groundY, groundY - ((GROUND_TOP_Y - y) / (GROUND_TOP_Y - TOP_Y)) * (groundY - MARKER_R))).toFixed(1);
   const parts: string[] = [];
   for (const [from, to] of preview.ground) {
-    parts.push(`<rect x="${sx(from)}" y="${groundY}" width="${(Math.max(0, to - from) * scaleX).toFixed(1)}" height="6" fill="#39ff88"/>`);
+    parts.push(`<rect class="cp-ground" x="${sx(from)}" y="${groundY}" width="${(Math.max(0, to - from) * scaleX).toFixed(1)}" height="6"/>`);
   }
   for (const p of preview.platforms) {
-    parts.push(`<rect x="${sx(p.x - 30)}" y="${sy(p.y)}" width="${(60 * scaleX).toFixed(1)}" height="3" fill="#6f8f7a"/>`);
+    parts.push(`<rect class="cp-platform" x="${sx(p.x - 30)}" y="${sy(p.y)}" width="${(60 * scaleX).toFixed(1)}" height="3"/>`);
   }
   for (const h of preview.hazards) {
-    parts.push(`<circle cx="${sx(h.x)}" cy="${(Number(sy(h.y)) - MARKER_R).toFixed(1)}" r="${MARKER_R}" fill="${HAZARD_COLORS[h.type] ?? '#ff3b5c'}" stroke="#000" stroke-width="1"/>`);
+    parts.push(`<circle class="cp-hazard" cx="${sx(h.x)}" cy="${(Number(sy(h.y)) - MARKER_R).toFixed(1)}" r="${MARKER_R}"/>`);
   }
-  parts.push(`<rect x="${sx(preview.finishX)}" y="${groundY - 14}" width="3" height="14" fill="#ffd166"/>`);
+  parts.push(`<rect class="cp-finish" x="${sx(preview.finishX)}" y="${groundY - 14}" width="3" height="14"/>`);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}" aria-hidden="true">${parts.join('')}</svg>`;
 }

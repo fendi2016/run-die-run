@@ -4,10 +4,13 @@ import {
   type DiscoverySort,
   type LevelSummary,
 } from '../../shared/discoveryApi';
+import { isCoursePreview, type CoursePreview } from '../../shared/coursePreview';
+import { renderCoursePreviewSvg } from '../../shared/coursePreviewSvg';
 import { withTimeout } from '../net';
 import { requireButton, requireElement } from './domUtils';
 
 const SORTS: DiscoverySort[] = ['trending', 'deadliest', 'speedrun', 'new'];
+const PREVIEW_HEIGHT_PX = 30;
 
 export type DiscoveryOverlayHandlers = {
   onSelectLevel: (levelId: string) => void;
@@ -37,6 +40,20 @@ export class DiscoveryOverlay {
   private readonly messageEl = requireElement('discovery-message');
   private readonly listEl = requireElement('discovery-list');
   private readonly sortButtons: HTMLButtonElement[];
+  // Each card's course silhouette is fetched when the card scrolls into
+  // view, so a page of 30 levels doesn't fire 30 requests up front; cached
+  // per level version for the next time the list is shown.
+  private readonly previews = new Map<string, Promise<CoursePreview | undefined>>();
+  private readonly previewObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || !(entry.target instanceof HTMLElement)) continue;
+        this.previewObserver.unobserve(entry.target);
+        void this.fillPreview(entry.target);
+      }
+    },
+    { rootMargin: '200px' }
+  );
 
   private constructor() {
     requireButton('discovery-back').onclick = () => this.hide();
@@ -84,6 +101,7 @@ export class DiscoveryOverlay {
     const token = ++this.requestToken;
     if (cursor === 0) {
       this.messageEl.textContent = 'Loading levels…';
+      this.previewObserver.disconnect();
       this.listEl.replaceChildren();
     }
     try {
@@ -150,6 +168,13 @@ export class DiscoveryOverlay {
     meta.textContent = `by u/${level.creatorUsername} · v${level.version}`;
     card.appendChild(meta);
 
+    const preview = document.createElement('div');
+    preview.className = 'discovery-card-preview';
+    preview.dataset.levelId = level.levelId;
+    preview.dataset.version = String(level.version);
+    card.appendChild(preview);
+    this.previewObserver.observe(preview);
+
     const stats = document.createElement('div');
     stats.className = 'discovery-card-stats';
     const completion =
@@ -170,5 +195,32 @@ export class DiscoveryOverlay {
     card.appendChild(stats);
 
     return card;
+  }
+
+  // A failed or slow preview just leaves the strip empty; the card still
+  // works.
+  private async fillPreview(el: HTMLElement): Promise<void> {
+    const { levelId, version } = el.dataset;
+    if (!levelId) return;
+    const key = `${levelId}:${version ?? ''}`;
+    let request = this.previews.get(key);
+    if (!request) {
+      request = fetch(`/api/levels/${encodeURIComponent(levelId)}/preview`, {
+        signal: AbortSignal.timeout(8000),
+      })
+        .then(async (response) => {
+          const body: unknown = await response.json();
+          return response.ok && isCoursePreview(body) ? body : undefined;
+        })
+        .catch(() => undefined);
+      this.previews.set(key, request);
+    }
+    const preview = await request;
+    if (!preview) {
+      this.previews.delete(key);
+      return;
+    }
+    // Numbers and fixed class names only (see renderCoursePreviewSvg).
+    el.innerHTML = renderCoursePreviewSvg(preview, el.clientWidth || 300, PREVIEW_HEIGHT_PX);
   }
 }
