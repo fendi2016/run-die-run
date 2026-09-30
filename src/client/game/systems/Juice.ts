@@ -549,8 +549,9 @@ export function playSharpenerDive(
 
   // `tip` is where the pencil's point is; placeTip() draws him there and
   // hides whatever has gone past the hole.
-  // He usually trips the finish sensor already level with the hole, so
-  // start the tip short of it (never cropped on its first frame).
+  // The finish sensor sits in front of the sharpener, so he starts short
+  // of the hole; the clamp is a guard for a dev warp straight onto it
+  // (never cropped on its first frame).
   const tip = { x: Math.min(from.x + DIVE_LENGTH * 0.35, mouthX - 12), y: from.y - PLAYER_SIZE * 0.5 };
   const pencil = scene.add
     .image(tip.x, tip.y, DIVE_TEXTURE)

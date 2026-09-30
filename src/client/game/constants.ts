@@ -46,6 +46,9 @@ export const FINISH_RESTART_DELAY_MS = 2500;
 // generous margin above that. The visible gate sprite itself is left
 // untouched; only the overlap sensor is taller.
 export const FINISH_TRIGGER_HEIGHT_PX = 320;
+// The finish sensor starts this far in front of the sharpener's left edge,
+// so the run ends with the pencil short of it and the dive carries him in.
+export const FINISH_TRIGGER_LEAD_PX = 30;
 
 // How far from the left edge of the screen the player sits while running,
 // so there's always more upcoming level geometry visible than trailing.

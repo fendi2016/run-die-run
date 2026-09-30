@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { GRID_CELL_SIZE } from '../../../shared/constants';
 import {
   FINISH_TRIGGER_HEIGHT_PX,
+  FINISH_TRIGGER_LEAD_PX,
 } from '../constants';
 import type {
   LevelObject,
@@ -243,12 +244,15 @@ export function loadLevel(
         // it, off the end of the level, and falls to their death instead of
         // finishing. A taller invisible sensor, anchored to the same ground
         // baseline, catches every pass regardless of jump height. It starts
-        // at the sharpener's center and is one cell wide, so the player
-        // stops in front of it.
+        // FINISH_TRIGGER_LEAD_PX in front of the sharpener, so the run ends
+        // before the pencil touches it (the dive carries him the rest of the
+        // way in), and runs one cell past its center.
+        const sensorLeft = object.x - rendered.displayWidth / 2 - FINISH_TRIGGER_LEAD_PX;
+        const sensorRight = object.x + GRID_CELL_SIZE;
         const sensor = scene.add.zone(
-          object.x + GRID_CELL_SIZE / 2,
+          (sensorLeft + sensorRight) / 2,
           object.y - FINISH_TRIGGER_HEIGHT_PX / 2,
-          GRID_CELL_SIZE,
+          sensorRight - sensorLeft,
           FINISH_TRIGGER_HEIGHT_PX
         );
         scene.physics.add.existing(sensor, true);
