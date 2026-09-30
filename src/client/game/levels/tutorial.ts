@@ -14,10 +14,10 @@ export const TUTORIAL_LEVEL_ID = 'tutorial';
 
 const TUTORIAL_DONE_KEY = 'sketchy:tutorial-done';
 
-// 240px: a quick tap only makes it from the very edge, a held jump has
-// about three times the room (checked in a headless timing sweep).
+// 180px: a held jump's arc (~220px) clears it with room to spare on the
+// takeoff; at the old 240px only about 0.2s of takeoff timing worked.
 const GAP_START_X = 1260;
-const GAP_END_X = 1500;
+const GAP_END_X = 1440;
 const LEVEL_END_X = 3060;
 
 function object(id: string, type: ObjectType, x: number, y = GROUND_TOP_Y): LevelObject {
@@ -86,7 +86,7 @@ export const TUTORIAL_HINTS: TutorialHintEntry[] = [
   {
     fromX: 2680,
     toX: LEVEL_END_X,
-    text: 'Reach the gate, then leave your own curse!',
+    text: 'Dive into the sharpener, then leave your own curse!',
     targetObjectId: 'finish',
   },
 ];
