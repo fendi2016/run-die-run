@@ -376,11 +376,11 @@ function crusherLift(phase: number): number {
   return 1 - t * t;
 }
 
-// The mace art (hazards/mace-*.webp) shares one 225x256 canvas: the bolt the
+// The mace art (hazards/mace-*.webp) shares one 233x266 canvas: the bolt the
 // chain hangs from, and the ball's center, in that canvas's pixels.
-const MACE_CANVAS = { width: 225, height: 256 };
-const MACE_BOLT = { x: 42, y: 24 };
-const MACE_BALL_OFFSET = { x: 125 - MACE_BOLT.x, y: 185 - MACE_BOLT.y };
+const MACE_CANVAS = { width: 233, height: 266 };
+const MACE_BOLT = { x: 46.6, y: 23.7 };
+const MACE_BALL_OFFSET = { x: 147.7 - MACE_BOLT.x, y: 174 - MACE_BOLT.y };
 // The art draws the chain swung out to the right; rotating by this much
 // makes it hang straight down.
 const MACE_REST_ANGLE_DEG = Phaser.Math.RadToDeg(Math.atan2(MACE_BALL_OFFSET.x, MACE_BALL_OFFSET.y));
