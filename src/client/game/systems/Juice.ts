@@ -437,9 +437,9 @@ export function destroyElectricShield(
 const HYPERSPEED_ANIM_KEY = 'hyperspeed-lines';
 const HYPERSPEED_FRAME_RATE = 24;
 // Small enough to read as a trail behind the player rather than a burst
-// that engulfs them (the source frame is 517x515 — full size dwarfed even
+// that engulfs them (the source frame is 259x258 — full size dwarfed even
 // the player's own 80px sprite).
-const HYPERSPEED_SCALE = 0.22;
+const HYPERSPEED_SCALE = 0.44;
 const HYPERSPEED_FADE_IN_MS = 120;
 const HYPERSPEED_FADE_OUT_MS = 220;
 const HYPERSPEED_ALPHA = 0.85;

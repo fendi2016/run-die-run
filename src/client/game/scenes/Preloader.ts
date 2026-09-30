@@ -138,14 +138,16 @@ export class Preloader extends Scene {
     // death VFX above — trimming it would cut the rotation off mid-spin).
     // hyperspeed-lines is trimmed to 18 of its 30 frames (same "no visual
     // loss, just less file" reasoning as death-explosion — the streak
-    // pattern has no fade arc to preserve, just cycles).
+    // pattern has no fade arc to preserve, just cycles), and its frames are
+    // halved from the pack's 517x515 — it's drawn ~114 px wide, so the
+    // full-size sheet was 19 MB of GPU memory for detail nobody sees.
     this.load.spritesheet('shield-electric', 'vfx/shield-electric.webp', {
       frameWidth: 265,
       frameHeight: 265,
     });
     this.load.spritesheet('hyperspeed-lines', 'vfx/hyperspeed-lines.webp', {
-      frameWidth: 517,
-      frameHeight: 515,
+      frameWidth: 259,
+      frameHeight: 258,
     });
 
     // Kenney UI pieces (CC0 kenney_scribble-platformer pack, PNG/Retina
