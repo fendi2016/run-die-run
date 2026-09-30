@@ -76,10 +76,6 @@ export const CURSES_PER_DAY = 30;
 // to wait for someone else to curse it between each of theirs.
 export const CURSES_PER_LEVEL = 3;
 
-// A level's thread gets one comment per this many curses, summing them up
-// (a comment on every curse flooded busy threads).
-export const CURSE_COMMENT_EVERY = 10;
-
 // How many entries a leaderboard listing (per-level times, or the global
 // Clear Streaks board) returns.
 export const LEADERBOARD_TOP_N = 10;
