@@ -27,10 +27,8 @@ const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
   spikeMine: 'Spike Mine',
   electricMine: 'Zapper',
   mace: 'Swinging Mace',
-  crusher: 'Crusher',
   wings: 'Wings',
   stopwatch: 'Stopwatch',
-  star: 'Star',
 };
 
 // Shared (client + server) by DeathPanel's "Killed by u/X's Saw" attribution and

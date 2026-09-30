@@ -32,13 +32,11 @@ export const PLACEABLE_TYPES = [
   'spikeMine',
   'electricMine',
   'mace',
-  'crusher',
   'movingPlatform',
   'shield',
   'speedBoost',
   'wings',
   'stopwatch',
-  'star',
   'spawn',
   'finish',
 ] as const;

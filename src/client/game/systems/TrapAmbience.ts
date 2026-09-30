@@ -4,7 +4,6 @@ import type { LevelObject } from '../../../shared/types';
 // All ambience needs of an object: what it is and where it was placed.
 type PlacedObject = Pick<LevelObject, 'type' | 'x' | 'y'>;
 import {
-  CRUSHER_SLAM_EVENT,
   STAPLER_SNAP_EVENT,
   ZAPPER_SWITCH_EVENT,
   maceHitboxOf,
@@ -153,21 +152,6 @@ function attachTrapAmbience(
         }
       });
       sprite.once(Phaser.GameObjects.Events.DESTROY, () => crackle.destroy());
-      break;
-    }
-    case 'crusher': {
-      sprite.on(CRUSHER_SLAM_EVENT, () => {
-        if (!isShowing(scene, sprite)) return;
-        const halfWidth = sprite.displayWidth / 2;
-        for (const side of [-1, 1]) {
-          playPixelFx(scene, 'smoke-poof', object.x + side * halfWidth, object.y - 6, {
-            scale: 0.6,
-            depth: sprite.depth + 0.1,
-          });
-        }
-        const camera = scene.cameras.main;
-        if (Math.abs(object.x - camera.midPoint.x) < 260) camera.shake(110, 0.004);
-      });
       break;
     }
     case 'mace': {

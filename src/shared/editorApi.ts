@@ -17,7 +17,7 @@ export type CurseCategory = 'hazard' | 'platform' | 'powerUp';
 export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
   hazard: [
     'candle', 'saw', 'movingSaw', 'bat', 'ghost', 'spikes',
-    'ceilingSpikes', 'spikeMine', 'electricMine', 'mace', 'crusher',
+    'ceilingSpikes', 'spikeMine', 'electricMine', 'mace',
   ],
   // 'bridge' and the other PLATFORM_LIKE_TYPES behave exactly like
   // 'platform' (see ObjectRegistry) and are
@@ -28,7 +28,7 @@ export const CURSE_CATEGORY_TYPES: Record<CurseCategory, ObjectType[]> = {
     'platform', 'movingPlatform', 'bridge', 'rulerPlatform', 'eraserPlatform',
     'notebookPlatform', 'tapedPlatform', 'paperclipPlatform',
   ],
-  powerUp: ['shield', 'speedBoost', 'wings', 'stopwatch', 'star'],
+  powerUp: ['shield', 'speedBoost', 'wings', 'stopwatch'],
 };
 
 // Wire contract for the base level editor's test/publish flow (spec

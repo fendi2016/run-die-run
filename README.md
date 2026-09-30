@@ -16,7 +16,7 @@ no trap is ever impossible. They just keep getting worse.
 
 1. **Clear a level.**
 2. **Leave your curse.** Place one trap anywhere you like: a stapler, a
-   saw, a bat, a ghost, spikes, a mine, a mace or a crusher.
+   saw, a bat, a ghost, spikes, a mine or a mace.
 3. **Prove it.** Beat the level with your trap in it. Only then does your
    version go live.
 4. **Watch it work.** Your trap is credited with every player it catches,
@@ -30,8 +30,8 @@ Next Level unlocks once you've left your curse. Cursing is the game.
   publish it. It gets its own post in the subreddit.
 - **Browse:** find levels by Trending, Deadliest, Speedrun or New.
 - **Level of the Day:** a new featured level is posted every day.
-- **Power-ups:** Shield, Speed Boost, Wings (an extra mid-air jump),
-  Stopwatch and Star.
+- **Power-ups:** Shield, Speed Boost, Wings (an extra mid-air jump) and
+  Stopwatch.
 - **First Blood:** a gentle starter level for first-time players, which
   can't be cursed.
 

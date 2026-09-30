@@ -426,20 +426,6 @@ export function attachElectricShield(
   return shield;
 }
 
-// Looping sparkles around the player for as long as the Star lasts. Like
-// attachElectricShield, the caller owns it: Player repositions it every
-// frame and destroys it when the Star runs out.
-export function attachStarSparkle(
-  scene: Phaser.Scene,
-  x: number,
-  y: number
-): Phaser.GameObjects.Sprite {
-  const sparkle = scene.add.sprite(x, y, 'pickup-shimmer', 0).setName('star-aura');
-  sparkle.setScale(1.15).setTint(0xffd84a);
-  sparkle.play('pickup-shimmer');
-  return sparkle;
-}
-
 // A quick pop-and-fade rather than an instant destroy() — reads as the
 // shield breaking instead of just vanishing.
 export function destroyElectricShield(

@@ -16,7 +16,6 @@ import type { ObjectType } from '../../../shared/types';
 //   deathMine     400 Sounds Pack Retro/explosion_medium
 //   deathZap      400 Sounds Pack Machines/razor_buzz (cut to 0.7s)
 //   deathMace     Combat Sounds/metal_punch_finisher_07
-//   deathCrush    Combat Sounds/body_hit_finisher_42
 //   sharpenGrind   400 Sounds Pack Machines/drill_whizz (cut to 1.3s)
 //   sharpenSquelch 400 Sounds Pack Combat and Gore/squelching_2 (cut to 0.6s)
 //   sharpenTwang   400 Sounds Pack Other/elastic_twang
@@ -34,7 +33,6 @@ export const SFX_KEYS = [
   'deathMine',
   'deathZap',
   'deathMace',
-  'deathCrush',
   'sharpenGrind',
   'sharpenSquelch',
   'sharpenTwang',
@@ -54,7 +52,6 @@ export const SFX_FILES: Record<SfxKey, string> = {
   deathMine: 'sfx/death_mine.wav',
   deathZap: 'sfx/death_zap.wav',
   deathMace: 'sfx/death_mace.wav',
-  deathCrush: 'sfx/death_crush.wav',
   sharpenGrind: 'sfx/sharpen_grind.wav',
   sharpenSquelch: 'sfx/sharpen_squelch.wav',
   sharpenTwang: 'sfx/sharpen_twang.wav',
@@ -74,7 +71,6 @@ export const DEATH_SFX_BY_TYPE: Partial<Record<ObjectType, SfxKey>> = {
   spikeMine: 'deathMine',
   electricMine: 'deathZap',
   mace: 'deathMace',
-  crusher: 'deathCrush',
 };
 
 // Every file is normalized to the same peak, so these set the mix.
@@ -88,7 +84,6 @@ const VOLUME: Record<SfxKey, number> = {
   deathMine: 0.45,
   deathZap: 0.4,
   deathMace: 0.5,
-  deathCrush: 0.5,
   sharpenGrind: 0.35,
   sharpenSquelch: 0.5,
   sharpenTwang: 0.45,

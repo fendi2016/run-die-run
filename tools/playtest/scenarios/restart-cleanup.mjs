@@ -5,7 +5,7 @@ export default async function ({ page, errors, harness }) {
   const level = [{ type: 'spawn', x: 90, y: 480 }, { type: 'finish', x: 1500, y: 480 },
     { id: 'trap', type: 'spikes', x: 1400, y: 480 }, { id: 'sw', type: 'stopwatch', x: 1300, y: 400 },
     ...harness.groundTiles(30)];
-  for (const type of ['spikes', 'mace', 'crusher', 'electricMine']) {
+  for (const type of ['spikes', 'mace', 'electricMine']) {
     level[2].type = type;
     await harness.startLevel(page, level);
     await page.keyboard.press('Space');

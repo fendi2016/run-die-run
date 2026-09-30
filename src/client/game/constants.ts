@@ -71,8 +71,6 @@ export const SPEED_BOOST_DURATION_MS = 1400;
 // Stopwatch: every moving trap runs at this fraction of its speed for a while.
 export const SLOW_TIME_SCALE = 0.4;
 export const SLOW_TIME_DURATION_MS = 4000;
-// Star: every trap is harmless for this long (falling still kills).
-export const STAR_DURATION_MS = 5000;
 // Amplitude/period of a Moving Saw's deterministic back-and-forth path.
 export const MOVING_SAW_AMPLITUDE_PX = 90;
 export const MOVING_SAW_PERIOD_MS = 900;
@@ -146,11 +144,6 @@ export const MACE_PIVOT_INSET_PX = 10;
 export const MACE_SWING_DEG = 60;
 export const MACE_PERIOD_MS = 2200;
 export const MACE_HITBOX_PX = 28;
-// Crusher: sits on its surface, lifts up, hangs there, then slams down.
-export const CRUSHER_DISPLAY_HEIGHT_PX = 70;
-export const CRUSHER_HITBOX_WIDTH_PX = 52;
-export const CRUSHER_LIFT_PX = 150;
-export const CRUSHER_PERIOD_MS = 2600;
 // Power-up pickups all share one pickup box this tall; the art is drawn
 // at POWERUP_ART_SCALE of it, so it sits a little inside its hitbox.
 export const POWERUP_DISPLAY_HEIGHT_PX = 56;

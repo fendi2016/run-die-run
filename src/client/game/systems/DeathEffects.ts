@@ -377,23 +377,6 @@ const maceWhack: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   });
 };
 
-// Flattened into a pencil pancake, with dust puffing out both sides.
-const crusherFlatten: DeathEffect = (scene, x, y, textureKey, displaySize) => {
-  const body = playerStandIn(scene, x, y, textureKey, displaySize);
-  playPixelFx(scene, 'smoke-poof', x - displaySize * 0.55, y - 12, { scale: 1.1 });
-  playPixelFx(scene, 'smoke-poof', x + displaySize * 0.55, y - 12, { scale: 1.1 });
-  scene.cameras.main.shake(120, 0.012);
-  scene.tweens.chain({
-    targets: body,
-    tweens: [
-      { scaleY: body.scaleY * 0.26, scaleX: body.scaleX * 1.5, duration: 60, ease: 'Quad.easeIn' },
-      { scaleY: body.scaleY * 0.32, duration: 90, yoyo: true, ease: 'Quad.easeOut' },
-      { alpha: 0, delay: 120, duration: 200 },
-    ],
-    onComplete: () => body.destroy(),
-  });
-};
-
 const DEATH_EFFECT_BY_TYPE: Partial<Record<ObjectType, DeathEffect>> = {
   saw: sawSlice,
   movingSaw: sawSlice,
@@ -405,7 +388,6 @@ const DEATH_EFFECT_BY_TYPE: Partial<Record<ObjectType, DeathEffect>> = {
   spikeMine: mineBlast,
   electricMine: zapperFry,
   mace: maceWhack,
-  crusher: crusherFlatten,
 };
 
 export function playDeathEffect(

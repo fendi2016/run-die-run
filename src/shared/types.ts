@@ -43,10 +43,8 @@ export const OBJECT_TYPES = [
   'spikeMine',
   'electricMine',
   'mace',
-  'crusher',
   'wings',
   'stopwatch',
-  'star',
 ] as const;
 export type ObjectType = (typeof OBJECT_TYPES)[number];
 

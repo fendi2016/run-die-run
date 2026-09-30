@@ -2,7 +2,7 @@
 // own sound, and leaves nothing behind.
 export default async function ({ page, errors, harness }) {
   const sounds = { spikes: 'deathSpikes', ceilingSpikes: 'deathCeiling', spikeMine: 'deathMine',
-    electricMine: 'deathZap', mace: 'deathMace', crusher: 'deathCrush', candle: 'deathStaple', bat: 'death', ghost: 'death' };
+    electricMine: 'deathZap', mace: 'deathMace', candle: 'deathStaple', bat: 'death', ghost: 'death' };
   for (const [type, sound] of Object.entries(sounds)) {
     await harness.startLevel(page, [
       { type: 'spawn', x: 90, y: 480 }, { type: 'finish', x: 1500, y: 480 },

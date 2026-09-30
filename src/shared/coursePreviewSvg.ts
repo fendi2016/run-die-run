@@ -9,7 +9,7 @@ import type { ObjectType } from './types';
 const TOP_Y = GROUND_TOP_Y - 240; // highest point drawn (platforms, flyers)
 const HAZARD_COLORS: Partial<Record<ObjectType, string>> = {
   candle: '#ffb347', saw: '#d9d9d9', movingSaw: '#d9d9d9', bat: '#b36bff', ghost: '#e0f7ff', fallingBlock: '#8a7f99',
-  ceilingSpikes: '#d9d9d9', spikeMine: '#e53935', electricMine: '#4fc3f7', mace: '#8a8a8a', crusher: '#ffd166',
+  ceilingSpikes: '#d9d9d9', spikeMine: '#e53935', electricMine: '#4fc3f7', mace: '#8a8a8a',
 };
 const MARKER_R = 3.5;
 

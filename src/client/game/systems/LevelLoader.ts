@@ -11,7 +11,6 @@ import type {
 } from '../../../shared/types';
 import {
   categoryOf,
-  crusherHitboxOf,
   maceHitboxOf,
   motionTweenConfigFor,
   renderLevelObject,
@@ -234,9 +233,8 @@ export function loadLevel(
           registerMovingTween(scene.tweens.add(hazardTween), rendered);
         }
         // A mace only kills with its ball, which has its own small hitbox
-        // following the swing (see ObjectRegistry.renderMace); a crusher's
-        // hitbox is its whole column, which grows and shrinks.
-        const hitbox = maceHitboxOf(rendered) ?? crusherHitboxOf(rendered) ?? rendered;
+        // following the swing (see ObjectRegistry.renderMace).
+        const hitbox = maceHitboxOf(rendered) ?? rendered;
         if (hitbox !== rendered) sourceObjects.set(hitbox, object);
         hazards.add(hitbox);
         attachAmbience(scene, rendered, object);

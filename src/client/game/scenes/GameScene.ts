@@ -118,7 +118,6 @@ const POWER_UP_POP_COLOR: Partial<Record<ObjectType, number>> = {
   speedBoost: 0xffa64d,
   wings: 0xfff1c2,
   stopwatch: 0x9fb2ff,
-  star: 0xffdd3d,
 };
 const SLOW_TIME_TINT = 0xa9d4ff;
 const SPAWN_SCRIBBLE_WIDTH = PLAYER_SIZE * 0.6;
@@ -1113,9 +1112,6 @@ export class GameScene extends Scene {
         break;
       case 'stopwatch':
         this.slowTime();
-        break;
-      case 'star':
-        this.player.grantStar();
         break;
       default:
         break;

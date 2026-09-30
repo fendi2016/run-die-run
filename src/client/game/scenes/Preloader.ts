@@ -99,8 +99,6 @@ export class Preloader extends Scene {
     this.load.image('electric-mine', 'hazards/electric-mine.webp');
     this.load.image('mace-swing', 'hazards/mace-swing.webp');
     this.load.image('mace-beam', 'hazards/mace-beam.webp');
-    this.load.image('crusher', 'hazards/crusher.webp');
-    this.load.image('crusher-springs', 'hazards/crusher-springs.webp');
     // Animated 8-frame sheets (see ObjectRegistry.HAZARD_SPRITESHEETS); the
     // single-frame hazards/*.webp next to them are only the editor icons.
     for (const sheet of HAZARD_SPRITESHEETS) {
@@ -117,7 +115,6 @@ export class Preloader extends Scene {
     this.load.image('speedBoost', 'powerups/speedBoost.webp');
     this.load.image('wings', 'powerups/wings.webp');
     this.load.image('stopwatch', 'powerups/stopwatch.webp');
-    this.load.image('star', 'powerups/star.webp');
     this.load.image('level-background', 'ui/paper-bg.webp');
     // Background-art scenery (see PaperScenery.drawScenery).
     for (const { key, file } of SCENERY_ART) this.load.image(key, file);
