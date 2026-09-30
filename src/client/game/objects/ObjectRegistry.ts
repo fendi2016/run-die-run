@@ -298,10 +298,17 @@ function slowTintOf(object: TintableObject): number | undefined {
 }
 
 // Resyncs a static body after its sprite moved (or changed pose) —
-// harmless in the editor boards, where nothing collides.
+// harmless in the editor boards, where nothing collides. StaticBody.reset
+// places the box at the sprite's *rotated* top-left, so a spinning Moving
+// Gear's hitbox wobbled with its spin, and since the spin never restarts
+// with the run, each attempt met a differently placed gear. The box is
+// taken unrotated, the same as a still Gear's.
 export function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
   if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    const rotation = sprite.rotation;
+    sprite.rotation = 0;
     sprite.body.reset();
+    sprite.rotation = rotation;
   }
 }
 

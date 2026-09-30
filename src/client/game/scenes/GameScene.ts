@@ -309,6 +309,13 @@ export class GameScene extends Scene {
 
   create(): void {
     ensurePlaceholderTextures(this);
+    // Tweens move the traps (gears, maces, zappers, floaters, moving
+    // platforms), but Phaser's TweenManager times itself off the wall clock
+    // while physics moves the pencil by the game loop's frame delta. On a
+    // hitch the two drift apart, so the same inputs met the traps at a
+    // different point on a slow phone than on the device that proved the
+    // curse. Run this scene's tweens on the loop's delta, like physics.
+    this.tweens.getDelta = () => this.game.loop.delta;
     this.cameras.main.setBackgroundColor(0xfbf8ef);
     this.applyResponsiveZoom();
     this.scale.on('resize', this.applyResponsiveZoom, this);
@@ -550,9 +557,8 @@ export class GameScene extends Scene {
     this.input.keyboard?.resetKeys();
     this.paused = false;
     this.controls.hideDialog();
-    // Phaser's TweenManager uses wall time independently of scene delta.
-    // Consume the paused interval without stepping hazards or effects.
-    this.tweens.getDelta(true);
+    // Tweens run on the loop's delta (see create()), so the paused
+    // interval never reaches them; nothing to flush.
     this.sys.resume();
   }
 

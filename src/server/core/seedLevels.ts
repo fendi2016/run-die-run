@@ -148,8 +148,11 @@ const lateForClass = meatGrinderPlus('late-for-class', [
 const popQuiz = meatGrinderPlus('pop-quiz', [
   add('stopwatch', 1250), add('electricMine', 2650), add('spikeMine', 2900),
 ]);
+// A mace's swing is at the same point every time the pencil reaches a given
+// x (the run speed never changes), so the low one sits where that point
+// leaves a fair gap; at x 2650 it was all but impossible.
 const detention = meatGrinderPlus('detention', [
-  add('mace', 2250, HIGH), add('mace', 2650, LOW), add('candle', 2900),
+  add('mace', 1700, HIGH), add('candle', 2650), add('mace', 2850, LOW),
 ]);
 const marginOfError = meatGrinderPlus('margin-of-error', [
   add('bat', 1250, LOW), add('bat', 2650, LOW), add('ghost', 2900, GROUND_TOP_Y - 180),
@@ -160,7 +163,7 @@ const groupProject = meatGrinderPlus('group-project', [
 ]);
 const finalExam = meatGrinderPlus('final-exam', [
   add('bat', 1250, LOW), add('ceilingSpikes', 1620, HIGH), add('ceilingSpikes', 1680, HIGH),
-  add('mace', 2650, LOW), add('electricMine', 2900),
+  add('candle', 2650), add('mace', 2850, LOW),
 ]);
 
 const LAUNCH_SET = [
