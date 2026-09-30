@@ -1343,32 +1343,6 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   color: var(--ink-soft);
 }
 
-/* The course silhouette (renderCoursePreviewSvg), filled in when the card
-   scrolls into view; the height is held so cards don't jump when it lands. */
-.discovery-card-preview {
-  height: 30px;
-}
-
-.discovery-card-preview svg {
-  display: block;
-  width: 100%;
-}
-
-.cp-ground,
-.cp-finish {
-  fill: var(--ink);
-}
-
-.cp-platform {
-  fill: var(--ink-soft);
-}
-
-.cp-hazard {
-  fill: var(--accent);
-  stroke: var(--ink);
-  stroke-width: 1;
-}
-
 .discovery-card-stats {
   display: flex;
   flex-wrap: wrap;
