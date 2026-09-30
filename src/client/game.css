@@ -672,6 +672,10 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 /* Below the 44px button row (`max(12px, safe-area) + 44px` tall) plus a
    gap, regardless of how large the safe-area inset is — never overlapping
    #sound-toggle/#gameplay-menu rather than trying to dodge them sideways. */
+#run-hud-progress-row.hidden {
+  display: none;
+}
+
 #run-hud-progress-row {
   position: absolute;
   top: calc(max(12px, env(safe-area-inset-top)) + 44px + 8px);

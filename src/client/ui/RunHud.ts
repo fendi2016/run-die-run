@@ -38,6 +38,7 @@ export function saveBestProgress(levelId: string, version: number, fraction: num
 
 // Gameplay HUD: an attempt counter (top-left) and a thin level-progress bar
 // across the top of the screen, with a tick marking the best-so-far point.
+// The progress bar is currently switched off (see SHOW_PROGRESS_BAR).
 // Entirely `pointer-events: none` — taps anywhere on the gameplay area are
 // the jump input, same as #run-result/#death-panel. GameScene is expected
 // to call setProgress() every frame, so that path stays cheap: it only
@@ -52,6 +53,13 @@ function digitImageSrc(digit: string): string {
   return `/assets/kenney/ui/ui-num-${digit}.webp`;
 }
 
+// The level-progress bar is switched OFF on purpose (user request,
+// 2026-09-29: "I don't want it in the game"). Its markup, CSS and the
+// setProgress()/setBest() code below are kept so it can come back by
+// flipping this flag. Best-progress is still saved (GameScene uses it for
+// the First Blood offer); it just isn't drawn.
+const SHOW_PROGRESS_BAR = false;
+
 export class RunHud {
   private readonly root = requireElement('run-hud');
   private readonly attemptNumberEl = requireElement('run-hud-attempt-number');
@@ -59,11 +67,13 @@ export class RunHud {
   private readonly fillEl = requireElement('run-hud-progress-fill');
   private readonly bestMarkEl = requireElement('run-hud-progress-best');
   private readonly pctEl = requireElement('run-hud-progress-pct');
+  private readonly progressRowEl = requireElement('run-hud-progress-row');
   private lastAttempt: number | undefined;
   private lastPercent = -1;
 
   show(): void {
     this.root.classList.remove('hidden');
+    this.progressRowEl.classList.toggle('hidden', !SHOW_PROGRESS_BAR);
   }
 
   hide(): void {
@@ -97,6 +107,7 @@ export class RunHud {
   }
 
   setProgress(fraction: number): void {
+    if (!SHOW_PROGRESS_BAR) return;
     const clamped = Math.min(1, Math.max(0, fraction));
     const percent = Math.round(clamped * 100);
     if (percent === this.lastPercent) return;
@@ -106,6 +117,7 @@ export class RunHud {
   }
 
   setBest(fraction: number | null): void {
+    if (!SHOW_PROGRESS_BAR) return;
     if (fraction === null) {
       this.bestMarkEl.classList.add('hidden');
       return;
