@@ -1,7 +1,7 @@
 # Rebuilds both menu backgrounds (feed card + expanded menu share them via
-# src/client/menu.css) from the in-game art: notebook paper, clouds, the
-# ground tiles, the pencil case and the sharpener, with the hero pencil
-# from ~/Desktop/Assets/pencil sprites/better idle.png.
+# src/client/menu.css) from the in-game art: notebook paper, a few clouds,
+# and a paper ledge (the platform tiles) just under the hero pencil's
+# shoes, with the pencil from ~/Desktop/Assets/pencil sprites/better idle.png.
 # usage: python3 tools/compose-menu-art.py
 #
 # The pencil must stay exactly where the CSS layout expects him (the Play
@@ -22,21 +22,18 @@ LAYOUTS = {
         size=(1672, 941),
         pencil_box=(326, 206, 520, 799),
         ground_y=775,
-        rows=1,
         # Kept clear of the title/Play group (right of centre, top half).
         title_zone=(640, 0, 1450, 420),
         # (cloud, centre x, centre y, width), as fractions of the image.
-        clouds=[('cloud-a', 0.10, 0.12, 0.17), ('cloud-d', 0.30, 0.10, 0.10), ('cloud-c', 0.93, 0.52, 0.11)],
-        sharpener=True,
+        clouds=[('cloud-a', 0.10, 0.12, 0.17), ('cloud-d', 0.30, 0.09, 0.10), ('cloud-c', 0.93, 0.15, 0.10)],
     ),
     'menu-background-portrait': dict(
         size=(900, 1614),
         pencil_box=(341, 677, 554, 1303),
         ground_y=1285,
-        rows=2,
-        title_zone=(150, 0, 750, 560),
-        clouds=[('cloud-a', 0.14, 0.45, 0.30), ('cloud-b', 0.86, 0.41, 0.30)],
-        sharpener=False,
+        # The group is centred on top, about 55% wide; clouds go either side.
+        title_zone=(200, 0, 700, 720),
+        clouds=[('cloud-a', 0.11, 0.24, 0.20), ('cloud-b', 0.89, 0.30, 0.20)],
     ),
 }
 
@@ -62,7 +59,7 @@ def body_box(im):
     return xs.min(), ys.min(), xs.max(), ys.max()
 
 
-def compose(name, size, pencil_box, ground_y, rows, title_zone, clouds, sharpener):
+def compose(name, size, pencil_box, ground_y, title_zone, clouds):
     W, H = size
     out = Image.new('RGBA', size)
     paper = fit_h(load('ui/paper-bg.webp'), H)
@@ -77,17 +74,6 @@ def compose(name, size, pencil_box, ground_y, rows, title_zone, clouds, sharpene
         assert not overlaps((*box, box[0] + cloud.width, box[1] + cloud.height), title_zone), key
         out.alpha_composite(cloud, box)
 
-    tile_h = round((H - ground_y) / rows)
-    ends = [fit_h(load(f'paper/tiles/ground-{s}.webp'), tile_h) for s in ('left', 'right')]
-    centers = [fit_h(load(f'paper/tiles/ground-center-{i}.webp'), tile_h) for i in (1, 2, 3)]
-    for r in range(rows):
-        y, x, i = ground_y + r * tile_h, 0, 0
-        while x < W:
-            tile = ends[0] if x == 0 else centers[(i + r) % 3]
-            out.alpha_composite(tile, (x, y))
-            x += tile.width
-            i += 1
-
     body_h = pencil_box[3] - pencil_box[1]
     hero_src = Image.open(HERO).convert('RGBA')
     sx0, sy0, sx1, sy1 = body_box(hero_src)
@@ -96,23 +82,28 @@ def compose(name, size, pencil_box, ground_y, rows, title_zone, clouds, sharpene
     cx = (pencil_box[0] + pencil_box[2]) / 2
     hero_pos = (round(cx - (sx0 + sx1) / 2 * scale), round(pencil_box[1] - sy0 * scale))
 
-    # The pencil case stands left of him, as at a level's spawn, sized to
-    # fit the gap between him and the edge.
-    solid_cols = np.where((np.array(hero_src.getchannel('A')) > 128).any(axis=0))[0]
-    hero_left = hero_pos[0] + round(solid_cols.min() * scale)
-    case_src = load('markers/spawn.webp')
-    case_h = min(round(body_h * 0.3), round((hero_left - 40) * case_src.height / case_src.width))
-    case = fit_h(case_src, case_h)
-    out.alpha_composite(case, (hero_left - 16 - case.width, ground_y - case.height + 8))
-    if sharpener:
-        sharp = fit_h(load('markers/finish.webp'), round(body_h * 0.34))
-        out.alpha_composite(sharp, (W - 50 - sharp.width, ground_y - sharp.height + 8))
+    # A three-piece paper ledge just under his shoes (the solid pixels in
+    # the bottom tenth of the pencil), with a little overhang each side.
+    solid = np.array(hero.getchannel('A')) > 128
+    feet_rows = solid[int(hero.height * 0.9):]
+    feet_cols = np.where(feet_rows.any(axis=0))[0]
+    feet_left, feet_right = hero_pos[0] + feet_cols.min(), hero_pos[0] + feet_cols.max()
+    ledge_w = (feet_right - feet_left) + 90
+    pieces = [load(f'paper/tiles/platform-{s}.webp') for s in ('left', 'center-1', 'right')]
+    piece_h = round(ledge_w / 3 * pieces[0].height / pieces[0].width)
+    pieces = [fit_h(p, piece_h) for p in pieces]
+    # Overlapped a little so the torn edges don't leave a seam.
+    overlap = round(piece_h * 0.08)
+    x = round((feet_left + feet_right) / 2 - (sum(p.width for p in pieces) - 2 * overlap) / 2)
+    for piece in pieces:
+        out.alpha_composite(piece, (x, ground_y - 6))
+        x += piece.width - overlap
 
     out.alpha_composite(hero, hero_pos)
     with tempfile.NamedTemporaryFile(suffix='.png') as tmp:
         out.convert('RGB').save(tmp.name)
         subprocess.run(['cwebp', '-quiet', '-q', '88', tmp.name, '-o', str(A / f'ui/{name}.webp')], check=True)
-    # Re-measure around where he should be (the case, sharpener and tiles
+    # Re-measure around where he should be (the ledge tiles
     # have yellows/reds of their own).
     x0, y0, x1, y1 = pencil_box
     region = (x0 - 40, y0 - 40, x1 + 40, y1 + 20)
