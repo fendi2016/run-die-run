@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { FINISH_DISPLAY_HEIGHT_PX, PLAYER_DISPLAY_WIDTH_SCALE, PLAYER_SIZE } from '../constants';
 import { playSfx } from './Sfx';
+import type { PlayerPose } from '../entities/Player';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
 // death, celebration on finish) — a one-shot particle burst using the
@@ -484,8 +485,9 @@ export function stopFinishGateAnimation(
   resetFinishGate(sprite);
 }
 
-// Clear-screen finish: the pencil launches himself tip-first, in one low
-// arc, straight into the hole on the sharpener's upper-left face and
+// Clear-screen finish: the pencil launches himself tip-first — tipping
+// over from his running pose into the dive as he hops — in one low arc,
+// straight into the hole on the sharpener's upper-left face and
 // slides in, vanishing at the hole while it rumbles and spits shavings.
 // Then the gag: the sharpener gulps, squirts three fountains of cartoon
 // blood out of its lid slot, and spits his eraser out, which falls off the
@@ -502,7 +504,18 @@ const DIVE_ERASER = { x: 42, y: 104, cropWidth: 84 };
 // slides along it.
 const DIVE_SLOPE = (DIVE_TIP.y - 93) / DIVE_TIP.x;
 const DIVE_LENGTH = PLAYER_SIZE * 1.15;
-const DIVE_ARC_MS = 300;
+// The hop from where he stopped to lined up on the hole; he tips over from
+// upright into the dive during the first DIVE_TURN_SHARE of it.
+const DIVE_ARC_MS = 440;
+const DIVE_TURN_SHARE = 0.8;
+// The running pose fades into the dive art over this long as he tips.
+const DIVE_CROSSFADE_MS = 160;
+// The dive art's axis, eraser to tip, and the middle he turns about.
+const DIVE_AXIS_DEG = Phaser.Math.RadToDeg(Math.atan2(DIVE_TIP.y - DIVE_ERASER.y, DIVE_TIP.x - DIVE_ERASER.x));
+const DIVE_MIDDLE = { x: (DIVE_TIP.x + DIVE_ERASER.x) / 2, y: (DIVE_TIP.y + DIVE_ERASER.y) / 2 };
+// Turned by this much the dive art stands upright, tip down, like the
+// running pose.
+const DIVE_UPRIGHT_DEG = 90 - DIVE_AXIS_DEG;
 const DIVE_ARC_LIFT = 40;
 const DIVE_SLIDE_MS = 620;
 const DIVE_GRIND_MS = 300;
@@ -520,7 +533,7 @@ export type SharpenerDive = { destroy: () => void };
 
 export function playSharpenerDive(
   scene: Phaser.Scene,
-  from: { x: number; y: number },
+  from: PlayerPose,
   sharpener: Phaser.GameObjects.Sprite,
   onInside: () => void
 ): SharpenerDive {
@@ -539,16 +552,14 @@ export function playSharpenerDive(
 
   // `tip` is where the pencil's point is; placeTip() draws him there and
   // hides whatever has gone past the hole.
-  // The finish sensor sits in front of the sharpener, so he starts short
-  // of the hole; the clamp is a guard for a dev warp straight onto it
-  // (never cropped on its first frame).
-  const tip = { x: Math.min(from.x + DIVE_LENGTH * 0.35, mouthX - 12), y: from.y - PLAYER_SIZE * 0.5 };
+  const tip = { x: 0, y: 0 };
   const pencil = scene.add
-    .image(tip.x, tip.y, DIVE_TEXTURE)
+    .image(0, 0, DIVE_TEXTURE)
     .setName('sharpener-dive')
     .setOrigin(DIVE_TIP.x / DIVE_FRAME.width, DIVE_TIP.y / DIVE_FRAME.height)
     .setScale(diveScale)
-    .setDepth(depth);
+    .setDepth(depth)
+    .setAlpha(0);
   const placeTip = () => {
     pencil.setPosition(tip.x, tip.y);
     const left = tip.x - pencil.displayWidth * pencil.originX;
@@ -654,39 +665,86 @@ export function playSharpenerDive(
     timers.push(scene.time.addEvent({ delay: 110, repeat: 4, callback: shavings }));
   };
 
-  // One low arc from where he stopped to just short of the hole, lined up
-  // on its slope, then the slide in. (onUpdate on each tween: a chain's
-  // own onUpdate never fires.)
+  // In flight he turns about his middle: `flight` is where that middle is
+  // and how far he's turned (DIVE_UPRIGHT_DEG = standing, 0 = diving).
+  const middleToTip = { x: (DIVE_TIP.x - DIVE_MIDDLE.x) * diveScale, y: (DIVE_TIP.y - DIVE_MIDDLE.y) * diveScale };
   const lineUp = { x: mouthX - dir.x * DIVE_LENGTH * 0.3, y: mouthY - dir.y * DIVE_LENGTH * 0.3 };
-  const apexY = Math.min(tip.y, lineUp.y) - DIVE_ARC_LIFT;
-  scene.tweens.add({ targets: tip, x: lineUp.x, duration: DIVE_ARC_MS, ease: 'Sine.easeInOut', onUpdate: placeTip });
-  scene.tweens.chain({
-    targets: tip,
-    tweens: [
-      { y: apexY, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeOut', onUpdate: placeTip },
-      { y: lineUp.y, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeIn', onUpdate: placeTip },
-      {
-        x: mouthX + dir.x * DIVE_LENGTH,
-        y: mouthY + dir.y * DIVE_LENGTH,
-        duration: DIVE_SLIDE_MS,
-        ease: 'Sine.easeIn',
-        onStart: grind,
-        onUpdate: placeTip,
-      },
-    ],
-    onComplete: () => {
-      placeTip();
-      pencil.setVisible(false);
-      scene.cameras.main.shake(DIVE_GRIND_MS, 0.003);
-      shavings();
-      later(DIVE_GRIND_MS, gulpAndSpurt);
-    },
+  const flightEnd = { x: lineUp.x - middleToTip.x, y: lineUp.y - middleToTip.y };
+  // He stops short of the sharpener; the clamp guards a dev warp that puts
+  // him right on it.
+  const flight = {
+    x: Math.min(from.x, flightEnd.x - DIVE_LENGTH * 0.5),
+    y: from.y - from.height / 2,
+    angle: DIVE_UPRIGHT_DEG,
+  };
+  // The running pose he takes off from, fading out as he tips over.
+  const runner = scene.add
+    .image(flight.x, flight.y, from.textureKey, from.frameName)
+    .setDisplaySize(from.width, from.height)
+    .setDepth(depth);
+  spawned.push(runner);
+  const fly = () => {
+    const turned = Phaser.Math.Rotate({ ...middleToTip }, Phaser.Math.DegToRad(flight.angle));
+    tip.x = flight.x + turned.x;
+    tip.y = flight.y + turned.y;
+    pencil.setAngle(flight.angle);
+    runner.setPosition(flight.x, flight.y).setAngle(flight.angle - DIVE_UPRIGHT_DEG);
+    placeTip();
+  };
+  fly();
+  scene.tweens.add({ targets: pencil, alpha: 1, duration: DIVE_CROSSFADE_MS, ease: 'Quad.easeOut' });
+  scene.tweens.add({
+    targets: runner,
+    alpha: 0,
+    duration: DIVE_CROSSFADE_MS,
+    ease: 'Quad.easeIn',
+    onComplete: () => runner.setVisible(false),
   });
+  scene.tweens.add({
+    targets: flight,
+    angle: 0,
+    duration: DIVE_ARC_MS * DIVE_TURN_SHARE,
+    ease: 'Sine.easeInOut',
+    onUpdate: fly,
+  });
+  scene.tweens.add({ targets: flight, x: flightEnd.x, duration: DIVE_ARC_MS, ease: 'Sine.easeInOut', onUpdate: fly });
+  // (onUpdate on each tween: a chain's own onUpdate never fires.)
+  const apexY = Math.min(flight.y, flightEnd.y) - DIVE_ARC_LIFT;
+  scene.tweens.chain({
+    targets: flight,
+    tweens: [
+      { y: apexY, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeOut', onUpdate: fly },
+      { y: flightEnd.y, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeIn', onUpdate: fly },
+    ],
+    onComplete: slideIn,
+  });
+
+  // Lined up on the hole's slope: the slide in.
+  function slideIn(): void {
+    flight.angle = 0;
+    fly();
+    scene.tweens.add({
+      targets: tip,
+      x: mouthX + dir.x * DIVE_LENGTH,
+      y: mouthY + dir.y * DIVE_LENGTH,
+      duration: DIVE_SLIDE_MS,
+      ease: 'Sine.easeIn',
+      onStart: grind,
+      onUpdate: placeTip,
+      onComplete: () => {
+        placeTip();
+        pencil.setVisible(false);
+        scene.cameras.main.shake(DIVE_GRIND_MS, 0.003);
+        shavings();
+        later(DIVE_GRIND_MS, gulpAndSpurt);
+      },
+    });
+  }
 
   return {
     destroy: () => {
       for (const timer of timers) timer.remove();
-      scene.tweens.killTweensOf([pencil, tip, ...spawned]);
+      scene.tweens.killTweensOf([pencil, tip, flight, ...spawned]);
       pencil.destroy();
       for (const object of spawned) object.destroy();
       stopFinishGateAnimation(scene, sharpener);

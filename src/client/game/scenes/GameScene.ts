@@ -826,7 +826,7 @@ export class GameScene extends Scene {
       return;
     }
     this.runEnded = true;
-    const { x, y } = this.player.sprite;
+    const pose = this.player.poseSnapshot();
     this.player.freeze();
     this.recordBestProgress(1);
     this.runHud.hide();
@@ -836,7 +836,7 @@ export class GameScene extends Scene {
     if (this.finishSprite) {
       const finish = this.finishSprite;
       this.sharpenerDive?.destroy();
-      this.sharpenerDive = playSharpenerDive(this, { x, y }, finish, () =>
+      this.sharpenerDive = playSharpenerDive(this, pose, finish, () =>
         this.playFinishFireworks(finish)
       );
     }

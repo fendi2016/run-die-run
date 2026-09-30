@@ -280,6 +280,15 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
   }
 }
 
+export type PlayerPose = {
+  textureKey: string;
+  frameName: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export class Player {
   readonly sprite: Phaser.Physics.Arcade.Sprite;
 
@@ -744,6 +753,20 @@ export class Player {
   // Called once, when the finish line is reached (GameScene.onFinishReached).
   // The finish animation (Juice.playSharpenerDive) runs on a stand-in, so
   // the real pencil just stops and hides; reset() shows it again.
+  // What the pencil looks like right now, for a stand-in to pick up from
+  // (the finish dive). Bottom-center anchored, like the display itself.
+  poseSnapshot(): PlayerPose {
+    const display = this.display;
+    return {
+      textureKey: display.texture.key,
+      frameName: display.frame.name,
+      x: display.x,
+      y: display.y,
+      width: display.displayWidth,
+      height: display.displayHeight,
+    };
+  }
+
   freeze(): void {
     this.alive = false;
     this.clearEffectSprites();
