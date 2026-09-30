@@ -61,7 +61,7 @@ import { drawScenery, drawPaperBackdrop } from '../systems/PaperScenery';
 import { TapToStartPrompt } from '../../ui/TapToStartPrompt';
 import { TutorialHint } from '../../ui/TutorialHint';
 import { TutorialPointer } from '../systems/TutorialPointer';
-import { clearRateText } from '../../ui/levelStatsText';
+import { clearRateText } from '../../../shared/levelStatsText';
 import {
   FINISH_RESTART_DELAY_MS,
   RESPAWN_DELAY_MS,

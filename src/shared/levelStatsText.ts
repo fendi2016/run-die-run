@@ -1,7 +1,7 @@
-import type { LevelStats } from '../../shared/discoveryApi';
+import type { LevelStats } from './discoveryApi';
 
-// Shared by the feed card (splash) and the in-game menu so both describe a
-// level the same way.
+// Shared by the feed card (splash), the in-game menu and the server's curse
+// milestone comments so all three describe a level the same way.
 export function clearRateText(stats: LevelStats): string {
   if (stats.attempts === 0) return 'No runs yet';
   const rate = (stats.clears / stats.attempts) * 100;

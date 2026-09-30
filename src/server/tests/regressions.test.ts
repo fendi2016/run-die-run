@@ -1398,8 +1398,57 @@ await test('curse publish fires a versionPublished Realtime event on the level c
     authorUsername: 'bob',
     addedType: 'candle',
   });
-  // No comment on the level's post: with many players cursing, it's spam.
+  // No comment on the level's post for a single curse: with many players
+  // cursing, it's spam. Only every CURSE_COMMENT_EVERY-th one gets a digest.
   assert.equal(redditCalls.filter((call) => call.method === 'submitComment').length, 0);
+});
+
+await test('every 10th curse posts one digest comment on the level thread', async () => {
+  const { levelPostKey } = await import('../core/redisKeys');
+  await getCurrentLevelVersion('meat-grinder');
+  set(levelPostKey('meat-grinder'), 't3_level');
+  const cursers = ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'];
+  for (const [i, name] of cursers.entries()) {
+    const type = i < 6 ? 'candle' : 'saw';
+    const { body } = await proposeCurse(name, 'meat-grinder', {
+      id: 'ignored', type, x: 900 + i * 120, y: 480,
+    });
+    assert.ok(body.status === 'ok');
+    if (body.status !== 'ok') return;
+    await markCandidateVerified(name, body.candidateToken, 2000);
+    await publishCurse(name, body.candidateToken);
+    const comments = redditCalls.filter((call) => call.method === 'submitComment');
+    assert.equal(comments.length, i === 9 ? 1 : 0, `after curse ${i + 1}`);
+  }
+
+  const comment = redditCalls.find((call) => call.method === 'submitComment');
+  const options: unknown = comment?.options;
+  assert.ok(
+    typeof options === 'object' && options !== null &&
+      'id' in options && 'text' in options && typeof options.text === 'string'
+  );
+  assert.equal(options.id, 't3_level');
+  assert.match(options.text, /"Meat Grinder" just took its 10th curse/);
+  assert.match(options.text, /Stapler ×6, Gear ×4/);
+  assert.match(options.text, /from u\/c0, u\/c1, u\/c2 and 7 others/);
+});
+
+await test('the curse digest skips extension ground and handles a lone curser', async () => {
+  const { curseMilestoneComment, isCurseMilestone } = await import('../core/announcements');
+  assert.deepEqual([1, 10, 11, 21, 22].map(isCurseMilestone), [false, false, true, true, false]);
+  const text = curseMilestoneComment({
+    title: 'Saw Hell',
+    version: 21,
+    objects: [
+      { id: 'old', type: 'saw', x: 0, y: 0, properties: {}, addedBy: 'old', addedInVersion: 11 },
+      { id: 'g', type: 'ground', x: 0, y: 0, properties: {}, addedBy: 'amy', addedInVersion: 15 },
+      { id: 'm', type: 'mace', x: 0, y: 0, properties: {}, addedBy: 'amy', addedInVersion: 15 },
+    ],
+    stats: { title: 'Saw Hell', creatorUsername: 'x', version: 21, attempts: 200, clears: 3, difficulty: 'NIGHTMARE' },
+  });
+  assert.match(text, /just took its 20th curse/);
+  assert.match(text, /The last 10: Swinging Mace — from u\/amy\./);
+  assert.match(text, /1\.5% clear rate/);
 });
 
 await test('the global TOP CURSERS leaderboard ranks by trap kills', async () => {

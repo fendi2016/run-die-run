@@ -67,11 +67,14 @@ export const SEED_AUTHOR = 'sketchy_seed';
 // build-time flag would be off in the one place those tools are needed.
 export const DEV_SUBREDDIT = 'sketchy_game_dev';
 
-// Per-user daily caps on the two actions that write to Reddit on the
-// player's behalf (a new post per level, a comment per curse), so one
-// account can't flood the subreddit.
+// Per-user daily caps on publishing levels (each one is a new post) and
+// cursing, so one account can't flood the subreddit.
 export const LEVEL_PUBLISHES_PER_DAY = 10;
 export const CURSES_PER_DAY = 30;
+
+// A level's thread gets one comment per this many curses, summing them up
+// (a comment on every curse flooded busy threads).
+export const CURSE_COMMENT_EVERY = 10;
 
 // How many entries a leaderboard listing (per-level times, or the global
 // Clear Streaks board) returns.
