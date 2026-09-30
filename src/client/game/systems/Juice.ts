@@ -214,6 +214,17 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15, pixel: true }, // round_firework_burst_002 yellow
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // lightning_strike_001 violet
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Puff
+  // Trap deaths (DeathEffects) — Super Pixel Effects, packed by tools/pack-fx.py
+  { key: 'mine-explosion', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // symmetrical_explosion_001 orange
+  { key: 'zap-burst', frameWidth: 64, frameHeight: 64, frameRate: 24, pixel: true }, // lightning_burst_001 violet
+  { key: 'whack-impact', frameWidth: 96, frameHeight: 96, frameRate: 20, pixel: true }, // symmetrical_impact_003 yellow
+  { key: 'crush-dust', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // symmetrical_smoke_burst_001 brown
+  // Power-up pickups and auras (GameScene, Player) — Super Pixel Effects
+  { key: 'shield-up', frameWidth: 128, frameHeight: 128, frameRate: 24, pixel: true }, // spell_defense_up_001 blue
+  { key: 'haste-burst', frameWidth: 128, frameHeight: 128, frameRate: 30, pixel: true }, // spell_haste_001 green
+  { key: 'wings-burst', frameWidth: 256, frameHeight: 144, frameRate: 20, pixel: true }, // round_light_burst_001 yellow
+  { key: 'time-warp', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // scifi_warp_001 green
+  { key: 'star-sparkle', frameWidth: 96, frameHeight: 96, frameRate: 20, pixel: true, loop: true }, // status_sparkling_001 yellow
 ];
 
 // Anims are global, so this runs once, from Preloader.
