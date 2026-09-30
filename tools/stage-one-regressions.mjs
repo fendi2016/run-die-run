@@ -23,11 +23,19 @@ export async function testStageOne(page) {
     else await route.fulfill({ json: { ...level, levelId: new URL(route.request().url()).pathname.split('/').at(-1) } }).catch(() => {});
   });
   let discoveryMode = 'two';
+  const listed = () => (discoveryMode === 'two' ? ['first', 'second'] : ['first']);
   await page.route('**/api/discovery/levels?*', (route) =>
     route.fulfill(discoveryMode === 'failure' ? { status: 503, json: {} } : {
-      json: { levels: (discoveryMode === 'two' ? ['first', 'second'] : ['first']).map(summary) },
+      json: { levels: listed().map(summary), nextCursor: null },
     })
   );
+  // Next Level: the level after `after` in the listing, wrapping round.
+  await page.route('**/api/discovery/next?*', (route) => {
+    if (discoveryMode === 'failure') return route.fulfill({ status: 503, json: {} });
+    const after = new URL(route.request().url()).searchParams.get('after');
+    const levelId = listed().find((id) => id !== after);
+    return route.fulfill({ json: { next: levelId ? { levelId, title: levelId } : null } });
+  });
   const start = async (id = 'first') => {
     await page.evaluate((levelId) => {
       const game = window.__PHASER_GAME__;

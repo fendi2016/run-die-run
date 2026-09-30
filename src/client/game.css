@@ -1262,6 +1262,19 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   display: none;
 }
 
+/* Loads the next page of the current sort, at the bottom of the list. */
+.discovery-more {
+  flex-shrink: 0;
+  align-self: center;
+  flex-direction: row;
+  min-height: 36px;
+  padding: 6px 18px;
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 #discovery-list {
   flex: 1;
   min-height: 0;

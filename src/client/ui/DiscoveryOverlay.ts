@@ -75,32 +75,63 @@ export class DiscoveryOverlay {
     }
   }
 
-  private async load(): Promise<void> {
+  // cursor 0 starts the list over; a later page (the More button's
+  // nextCursor) appends to it.
+  private async load(cursor = 0): Promise<void> {
     this.request?.abort();
     const request = new AbortController();
     this.request = request;
     const token = ++this.requestToken;
-    this.messageEl.textContent = 'Loading levels…';
-    this.listEl.replaceChildren();
+    if (cursor === 0) {
+      this.messageEl.textContent = 'Loading levels…';
+      this.listEl.replaceChildren();
+    }
     try {
-      const response = await fetch(`/api/discovery/levels?sort=${this.sort}`, {
-        signal: withTimeout(request.signal, 15000),
-      });
+      const response = await fetch(
+        `/api/discovery/levels?sort=${this.sort}&cursor=${cursor}`,
+        { signal: withTimeout(request.signal, 15000) }
+      );
       const body: unknown = await response.json();
       if (token !== this.requestToken) return;
       if (!response.ok || !isDiscoveryResponse(body)) {
         throw new Error('Invalid discovery response');
       }
-      this.renderLevels(body.levels);
+      this.renderLevels(body.levels, cursor, body.nextCursor);
     } catch {
       if (token !== this.requestToken) return;
-      this.messageEl.textContent = 'Could not load levels. Tap Retry.';
+      if (cursor === 0) {
+        this.messageEl.textContent = 'Could not load levels. Tap Retry.';
+      } else {
+        this.renderMoreButton(cursor, 'Could not load more. Tap to retry.');
+      }
     }
   }
 
-  private renderLevels(levels: LevelSummary[]): void {
-    this.messageEl.textContent = levels.length === 0 ? 'No published levels yet.' : '';
-    this.listEl.replaceChildren(...levels.map((level) => this.buildCard(level)));
+  private renderLevels(
+    levels: LevelSummary[],
+    cursor: number,
+    nextCursor: number | null
+  ): void {
+    this.listEl.querySelector('.discovery-more')?.remove();
+    if (cursor === 0) {
+      this.messageEl.textContent = levels.length === 0 ? 'No published levels yet.' : '';
+    }
+    this.listEl.append(...levels.map((level) => this.buildCard(level)));
+    if (nextCursor !== null) this.renderMoreButton(nextCursor, 'More levels');
+  }
+
+  private renderMoreButton(cursor: number, label: string): void {
+    this.listEl.querySelector('.discovery-more')?.remove();
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'editor-btn discovery-more';
+    more.textContent = label;
+    more.onclick = () => {
+      more.disabled = true;
+      more.textContent = 'Loading…';
+      void this.load(cursor);
+    };
+    this.listEl.appendChild(more);
   }
 
   private buildCard(level: LevelSummary): HTMLButtonElement {

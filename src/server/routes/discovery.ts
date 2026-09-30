@@ -1,35 +1,43 @@
 import { Hono } from 'hono';
 import {
   isDiscoverySort,
-  type DiscoverySort,
   type DiscoveryResponse,
-  type LevelSummary,
+  type NextLevelResponse,
 } from '../../shared/discoveryApi';
 import { resolveLevelId } from '../services/DailyService';
-import { discoverLevels, getLevelStats } from '../services/DiscoveryService';
+import {
+  discoverLevels,
+  getLevelStats,
+  nextNewestLevel,
+} from '../services/DiscoveryService';
 
 export const discovery = new Hono();
 
-// discoverLevels reads every level's counters, and it runs on every Browse
-// open and after every clear (Next Level). A short per-instance cache keeps
-// that from scaling with player count; 15s of staleness is invisible in a
+// Pages are cheap now (ordering comes from the sort indexes, only the
+// page's own levels are read in full), but Browse opens and Next Level
+// after every clear still add up across players. A short per-instance
+// cache per page keeps that flat; 15s of staleness is invisible in a
 // browse list. In memory rather than Redis: each warm serverless instance
 // keeps its own copy, and nothing needs to invalidate it.
 const CACHE_TTL_MS = 15_000;
-const cache = new Map<DiscoverySort, { at: number; levels: Promise<LevelSummary[]> }>();
+const cache = new Map<string, { at: number; page: Promise<DiscoveryResponse> }>();
 
 export function clearDiscoveryCache(): void {
   cache.clear();
 }
 
-function cachedLevels(sort: DiscoverySort): Promise<LevelSummary[]> {
-  const hit = cache.get(sort);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.levels;
-  const levels = discoverLevels(sort);
-  cache.set(sort, { at: Date.now(), levels });
+function cachedPage(
+  sort: Parameters<typeof discoverLevels>[0],
+  cursor: number
+): Promise<DiscoveryResponse> {
+  const key = `${sort}:${cursor}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.page;
+  const page = discoverLevels(sort, cursor);
+  cache.set(key, { at: Date.now(), page });
   // A failed read must not be served from cache for the rest of the TTL.
-  levels.catch(() => cache.delete(sort));
-  return levels;
+  page.catch(() => cache.delete(key));
+  return page;
 }
 discovery.get('/stats/:levelId', async (c) => {
   const stats = await getLevelStats(await resolveLevelId(c.req.param('levelId')));
@@ -40,5 +48,12 @@ discovery.get('/levels', async (c) => {
   const sort = c.req.query('sort') ?? 'trending';
   if (!isDiscoverySort(sort))
     return c.json({ status: 'error', message: 'Unknown discovery sort' }, 400);
-  return c.json<DiscoveryResponse>({ levels: await cachedLevels(sort) });
+  const cursor = Number(c.req.query('cursor') ?? 0);
+  if (!Number.isSafeInteger(cursor) || cursor < 0)
+    return c.json({ status: 'error', message: 'Invalid cursor' }, 400);
+  return c.json<DiscoveryResponse>(await cachedPage(sort, cursor));
+});
+discovery.get('/next', async (c) => {
+  const next = await nextNewestLevel(c.req.query('after') ?? '');
+  return c.json<NextLevelResponse>({ next: next ?? null });
 });

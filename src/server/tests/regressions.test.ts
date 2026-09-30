@@ -79,6 +79,8 @@ const redis = {
     keys.filter((key) => values.has(key) || scores.has(key) || hashes.has(key))
       .length,
   zScore: async (key: string, member: string) => scores.get(key)?.get(member),
+  zAdd: async (key: string, ...members: { member: string; score: number }[]) =>
+    members.reduce((added, member) => added + zAdd(key, member), 0),
   zRank: async (key: string, member: string) =>
     [...(scores.get(key) ?? [])]
       .sort((a, b) => a[1] - b[1])
@@ -604,7 +606,9 @@ await test('simultaneous curses against the same parent version: only one publis
 });
 
 const { discovery } = await import('../routes/discovery');
-const { difficultyFor } = await import('../services/DiscoveryService');
+const { difficultyFor, refreshDiscoveryIndex, DISCOVERY_PAGE_SIZE } = await import(
+  '../services/DiscoveryService'
+);
 const { isDiscoveryResponse } = await import('../../shared/discoveryApi');
 const {
   allLevelsByDateKey,
@@ -613,6 +617,7 @@ const {
   levelDailyPlayersKey,
   levelDailyClearsKey,
   levelCurrentVersionKey,
+  levelMetaKey,
 } = await import('../core/redisKeys');
 
 // Always a fresh read: the route caches results for 15s (routes/
@@ -762,6 +767,8 @@ await test('speedrun uses only current-version records and trending includes fre
     JSON.stringify({ ...base, version: 2, parentVersion: 1 })
   );
   set(levelCurrentVersionKey('meat-grinder'), '2');
+  // A raw version bump, so re-score it the way the curse route does.
+  await refreshDiscoveryIndex('meat-grinder');
   assert.equal((await browse('speedrun'))[0]?.levelId, secondLevelId);
   const trending = await browse();
   assert.equal(trending[0]?.levelId, 'meat-grinder');
@@ -783,6 +790,66 @@ await test('speedrun uses only current-version records and trending includes fre
       ?.trendingScore,
     0
   );
+});
+
+// A level stored straight into Redis, as a pre-index deploy left it.
+function storeLevel(levelId: string, createdAt: number) {
+  set(levelMetaKey(levelId), JSON.stringify({ title: levelId, creatorUsername: 'maker', createdAt }));
+  set(levelCurrentVersionKey(levelId), '1');
+  set(levelVersionKey(levelId, 1), JSON.stringify({
+    levelId, version: 1, parentVersion: null, contributorUsername: 'maker',
+    verificationTimeMs: 1000, createdAt,
+    objects: objects.map((o) => ({ ...o, properties: {}, addedBy: 'maker', addedInVersion: 1 })),
+  }));
+  zAdd(allLevelsByDateKey(), { member: levelId, score: createdAt });
+}
+
+await test('discovery backfills its indexes once and pages without reading every level', async () => {
+  const total = DISCOVERY_PAGE_SIZE + 5;
+  for (let i = 0; i < total; i++) storeLevel(`level-${i}`, Date.now() + i);
+  clearDiscoveryCache();
+  const first = await discovery.request('/levels?sort=new');
+  const firstBody: unknown = await first.json();
+  assert.ok(isDiscoveryResponse(firstBody));
+  assert.equal(firstBody.levels.length, DISCOVERY_PAGE_SIZE);
+  assert.equal(firstBody.levels[0]?.levelId, `level-${total - 1}`);
+  assert.equal(firstBody.nextCursor, DISCOVERY_PAGE_SIZE);
+
+  // With the indexes built, a page reads only its own levels' meta.
+  const get = mock.method(redis, 'get');
+  try {
+    clearDiscoveryCache();
+    const second = await discovery.request(`/levels?sort=new&cursor=${DISCOVERY_PAGE_SIZE}`);
+    const secondBody: unknown = await second.json();
+    assert.ok(isDiscoveryResponse(secondBody));
+    // The rest of the stored levels, then the two seeds (oldest).
+    assert.equal(secondBody.levels.length, total + 2 - DISCOVERY_PAGE_SIZE);
+    assert.equal(secondBody.nextCursor, null);
+    const metaReads = get.mock.calls.filter((call) => String(call.arguments[0]).endsWith(':meta'));
+    assert.equal(metaReads.length, secondBody.levels.length);
+  } finally {
+    get.mock.restore();
+  }
+  assert.equal((await discovery.request('/levels?sort=new&cursor=-1')).status, 400);
+  assert.equal((await discovery.request('/levels?sort=new&cursor=x')).status, 400);
+});
+
+await test('next level follows newest-first order and wraps round', async () => {
+  const { isNextLevelResponse } = await import('../../shared/discoveryApi');
+  storeLevel('older', Date.now() - 1000);
+  storeLevel('newer', Date.now());
+  const next = async (after: string) => {
+    const body: unknown = await (await discovery.request(`/next?after=${after}`)).json();
+    assert.ok(isNextLevelResponse(body));
+    return body.next?.levelId;
+  };
+  assert.equal(await next('newer'), 'older');
+  // Past the oldest level it wraps to the newest.
+  const order = [];
+  let current = 'newer';
+  for (let i = 0; i < 4; i++) order.push((current = (await next(current)) ?? ''));
+  assert.equal(order.at(-1), 'newer');
+  assert.equal(await next('unknown-level'), 'newer');
 });
 
 await test('discovery wire guard rejects malformed cards', () => {

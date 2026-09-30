@@ -7,6 +7,9 @@ import type {
 } from '../../shared/discoveryApi';
 import {
   allLevelsByDateKey,
+  discoveryIndexKey,
+  discoveryIndexVersionKey,
+  discoveryTrendingKey,
   levelAttemptsKey,
   levelClearsKey,
   levelCurrentVersionKey,
@@ -115,84 +118,222 @@ export async function getLevelStats(
   return postId ? { ...stats, postId } : stats;
 }
 
-export async function discoverLevels(
-  sort: DiscoverySort
-): Promise<LevelSummary[]> {
+// Browse pages are this many cards; the client asks for the next page.
+export const DISCOVERY_PAGE_SIZE = 30;
+// Bumping this rebuilds every index from the level data on the next read.
+const DISCOVERY_INDEX_VERSION = '1';
+// Sentinel scores for the ascending sorts: unplayed levels sort after every
+// real completion rate (0..1), levels without a record after every time.
+const UNPLAYED_SCORE = 2;
+const NO_RECORD_SCORE = Number.MAX_SAFE_INTEGER;
+
+const today = (): number => Math.floor(Date.now() / DAY_MS);
+
+async function summarizeLevel(
+  levelId: string,
+  day: number
+): Promise<LevelSummary | undefined> {
+  const level = await getCurrentLevelVersion(levelId);
+  if (!level) return undefined;
+  const [rawMeta, rawAttempts, rawClears, players, dailyClears, records] =
+    await Promise.all([
+      redis.get(levelMetaKey(levelId)),
+      redis.get(levelAttemptsKey(levelId)),
+      redis.get(levelClearsKey(levelId)),
+      redis.zRange(levelDailyPlayersKey(levelId, day), 0, -1, {
+        by: 'rank',
+      }),
+      redis.get(levelDailyClearsKey(levelId, day)),
+      redis.zRange(versionLeaderboardKey(levelId, level.version), 0, 0, {
+        by: 'rank',
+      }),
+    ]);
+  const meta = metadata(rawMeta);
+  const seed = SEED_LEVELS[levelId];
+  if (!meta && !seed) return undefined;
+  const attempts = Number(rawAttempts ?? 0);
+  const clears = Number(rawClears ?? 0);
+  return {
+    levelId,
+    title: levelDisplayTitle(levelId, meta?.title),
+    creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
+    createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
+    version: level.version,
+    attempts,
+    clears,
+    difficulty: difficultyFor(attempts, clears),
+    completionRate: attempts === 0 ? 0 : clears / attempts,
+    worldRecordMs: records[0]?.score ?? null,
+    // Reading the current version here includes curses without adding a second publish-time write.
+    trendingScore:
+      players.length +
+      players.reduce((total, entry) => total + entry.score, 0) +
+      Number(dailyClears ?? 0) +
+      level.version -
+      1,
+  };
+}
+
+// Runs `task` over `items` with at most six in flight, keeping input order.
+async function mapBounded<T, R>(
+  items: readonly T[],
+  task: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  // One shared iterator: each worker takes the next unclaimed item.
+  const pending = items.entries();
+  await Promise.all(
+    Array.from({ length: Math.min(6, items.length) }, async () => {
+      for (const [index, item] of pending) results[index] = await task(item);
+    })
+  );
+  return results;
+}
+
+async function writeIndexes(summary: LevelSummary, day: number): Promise<void> {
+  const member = summary.levelId;
+  await Promise.all([
+    redis.zAdd(discoveryIndexKey('createdAt'), {
+      member,
+      score: summary.createdAt,
+    }),
+    redis.zAdd(discoveryIndexKey('deadliest'), {
+      member,
+      score: summary.attempts === 0 ? UNPLAYED_SCORE : summary.completionRate,
+    }),
+    redis.zAdd(discoveryIndexKey('speedrun'), {
+      member,
+      score: summary.worldRecordMs ?? NO_RECORD_SCORE,
+    }),
+    redis.zAdd(discoveryIndexKey('curses'), {
+      member,
+      score: summary.version - 1,
+    }),
+    redis.zAdd(discoveryTrendingKey(day), {
+      member,
+      score: summary.trendingScore,
+    }),
+  ]);
+  await redis.expire(discoveryTrendingKey(day), (2 * DAY_MS) / 1000);
+}
+
+// Re-score one level in every Browse index. Call after anything that
+// changes what a listing shows for it: a publish, a curse, or a run.
+export async function refreshDiscoveryIndex(levelId: string): Promise<void> {
+  const day = today();
+  const summary = await summarizeLevel(levelId, day);
+  if (summary) await writeIndexes(summary, day);
+}
+
+// The same, but for callers that must not fail once their own write has
+// committed — a stale Browse position is better than an error.
+export async function refreshDiscoveryIndexSafely(
+  levelId: string
+): Promise<void> {
+  try {
+    await refreshDiscoveryIndex(levelId);
+  } catch (error) {
+    console.error(`Discovery index refresh failed for ${levelId}`, error);
+  }
+}
+
+// One-time backfill (and schema upgrade): scores every level from its data.
+// This is the old full scan, so it only runs when the indexes are missing.
+async function ensureDiscoveryIndexes(): Promise<void> {
+  if ((await redis.get(discoveryIndexVersionKey())) === DISCOVERY_INDEX_VERSION)
+    return;
   const indexed = await redis.zRange(allLevelsByDateKey(), 0, -1, {
     by: 'rank',
   });
-  const ids = new Set([
-    ...Object.keys(SEED_LEVELS),
-    ...indexed.map((entry) => entry.member),
-  ]);
-  const day = Math.floor(Date.now() / DAY_MS);
-  // Bound fan-out as the catalog grows; each worker issues at most six
-  // independent Redis reads at once. Preserve global sorting below.
-  const pending = [...ids].values();
-  const perLevel: (LevelSummary | undefined)[] = [];
-  const summarize = async (
-    levelId: string
-  ): Promise<LevelSummary | undefined> => {
-    const level = await getCurrentLevelVersion(levelId);
-    if (!level) return undefined;
-    const [rawMeta, rawAttempts, rawClears, players, dailyClears, records] =
-      await Promise.all([
-        redis.get(levelMetaKey(levelId)),
-        redis.get(levelAttemptsKey(levelId)),
-        redis.get(levelClearsKey(levelId)),
-        redis.zRange(levelDailyPlayersKey(levelId, day), 0, -1, {
-          by: 'rank',
-        }),
-        redis.get(levelDailyClearsKey(levelId, day)),
-        redis.zRange(versionLeaderboardKey(levelId, level.version), 0, 0, {
-          by: 'rank',
-        }),
-      ]);
-    const meta = metadata(rawMeta);
-    const seed = SEED_LEVELS[levelId];
-    if (!meta && !seed) return undefined;
-    const attempts = Number(rawAttempts ?? 0);
-    const clears = Number(rawClears ?? 0);
-    return {
-      levelId,
-      title: levelDisplayTitle(levelId, meta?.title),
-      creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
-      createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
-      version: level.version,
-      attempts,
-      clears,
-      difficulty: difficultyFor(attempts, clears),
-      completionRate: attempts === 0 ? 0 : clears / attempts,
-      worldRecordMs: records[0]?.score ?? null,
-      // Reading the current version here includes curses without adding a second publish-time write.
-      trendingScore:
-        players.length +
-        players.reduce((total, entry) => total + entry.score, 0) +
-        Number(dailyClears ?? 0) +
-        level.version -
-        1,
-    };
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(6, ids.size) }, async () => {
-      for (const levelId of pending) perLevel.push(await summarize(levelId));
-    })
-  );
-  const summaries = perLevel.filter((summary) => summary !== undefined);
-  return summaries.sort((a, b) => {
-    let order = 0;
-    if (sort === 'new') order = b.createdAt - a.createdAt;
-    if (sort === 'trending') order = b.trendingScore - a.trendingScore;
-    if (sort === 'deadliest')
-      order =
-        Number(a.attempts === 0) - Number(b.attempts === 0) ||
-        a.completionRate - b.completionRate;
-    if (sort === 'speedrun')
-      order = (a.worldRecordMs ?? Infinity) - (b.worldRecordMs ?? Infinity);
+  const ids = [
+    ...new Set([
+      ...Object.keys(SEED_LEVELS),
+      ...indexed.map((entry) => entry.member),
+    ]),
+  ];
+  const day = today();
+  await mapBounded(ids, async (levelId) => {
+    const summary = await summarizeLevel(levelId, day);
+    if (summary) await writeIndexes(summary, day);
+  });
+  await redis.set(discoveryIndexVersionKey(), DISCOVERY_INDEX_VERSION);
+}
+
+async function indexScores(key: string): Promise<Map<string, number>> {
+  const entries = await redis.zRange(key, 0, -1, { by: 'rank' });
+  return new Map(entries.map((entry) => [entry.member, entry.score]));
+}
+
+// Every indexed level id in `sort` order. Reads only index members and
+// scores (no per-level keys); ties fall back to newest first, then id.
+export async function orderedLevelIds(sort: DiscoverySort): Promise<string[]> {
+  await ensureDiscoveryIndexes();
+  const createdAt = await indexScores(discoveryIndexKey('createdAt'));
+  let score: (levelId: string) => number;
+  let descending: boolean;
+  if (sort === 'new') {
+    score = (levelId) => createdAt.get(levelId) ?? 0;
+    descending = true;
+  } else if (sort === 'trending') {
+    // A level played today carries its full score in today's set; every
+    // other level's trending score is just its curse count.
+    const [curses, active] = await Promise.all([
+      indexScores(discoveryIndexKey('curses')),
+      indexScores(discoveryTrendingKey(today())),
+    ]);
+    score = (levelId) => active.get(levelId) ?? curses.get(levelId) ?? 0;
+    descending = true;
+  } else {
+    const scores = await indexScores(discoveryIndexKey(sort));
+    const fallback = sort === 'deadliest' ? UNPLAYED_SCORE : NO_RECORD_SCORE;
+    score = (levelId) => scores.get(levelId) ?? fallback;
+    descending = false;
+  }
+  return [...createdAt.keys()].sort((a, b) => {
+    const order = descending ? score(b) - score(a) : score(a) - score(b);
     return (
-      order || b.createdAt - a.createdAt || a.levelId.localeCompare(b.levelId)
+      order ||
+      (createdAt.get(b) ?? 0) - (createdAt.get(a) ?? 0) ||
+      a.localeCompare(b)
     );
   });
+}
+
+// One Browse page: ordering comes from the indexes, and only the page's
+// own levels are read in full.
+export async function discoverLevels(
+  sort: DiscoverySort,
+  cursor = 0
+): Promise<{ levels: LevelSummary[]; nextCursor: number | null }> {
+  const ids = await orderedLevelIds(sort);
+  const end = cursor + DISCOVERY_PAGE_SIZE;
+  const day = today();
+  const page = await mapBounded(ids.slice(cursor, end), (levelId) =>
+    summarizeLevel(levelId, day)
+  );
+  return {
+    levels: page.filter((summary) => summary !== undefined),
+    nextCursor: end < ids.length ? end : null,
+  };
+}
+
+// Next Level after a clear: the level after `levelId` in the newest-first
+// order, wrapping round, or undefined when there's no other level.
+export async function nextNewestLevel(
+  levelId: string
+): Promise<{ levelId: string; title: string } | undefined> {
+  const ids = await orderedLevelIds('new');
+  const index = ids.indexOf(levelId);
+  const candidates = ids
+    .slice(index + 1)
+    .concat(ids.slice(0, Math.max(0, index)))
+    .filter((id) => id !== levelId);
+  // A few tries only: an id whose level data is gone is skipped.
+  for (const id of candidates.slice(0, 5)) {
+    const stats = await getLevelStats(id);
+    if (stats) return { levelId: id, title: stats.title };
+  }
+  return undefined;
 }
 
 // Dev/moderator tool: zero a built-in level's attempt/clear counters (and
@@ -213,5 +354,6 @@ export async function resetBuiltInLevelStats(): Promise<string[]> {
       )
     )
   );
+  await Promise.all(levelIds.map((levelId) => refreshDiscoveryIndex(levelId)));
   return levelIds;
 }

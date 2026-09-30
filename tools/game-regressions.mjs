@@ -358,7 +358,10 @@ try {
       route.fulfill({ json: { ...resultLevel, levelId: new URL(route.request().url()).pathname.split('/').at(-1) } }).catch(() => {})
     );
     await page.route('**/api/discovery/levels?*', (route) =>
-      route.fulfill({ json: { levels: ['result-actions', 'second'].map(summary) } })
+      route.fulfill({ json: { levels: ['result-actions', 'second'].map(summary), nextCursor: null } })
+    );
+    await page.route('**/api/discovery/next?*', (route) =>
+      route.fulfill({ json: { next: { levelId: 'second', title: 'second' } } })
     );
     await page.route('**/api/runs', (route) => {
       const request = route.request().postDataJSON();
@@ -407,6 +410,7 @@ try {
     await page.setViewportSize({ width: 960, height: 540 });
     await page.unroute('**/api/levels/*');
     await page.unroute('**/api/discovery/levels?*');
+    await page.unroute('**/api/discovery/next?*');
     await page.unroute('**/api/runs');
   }
 

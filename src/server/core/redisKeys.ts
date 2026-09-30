@@ -78,6 +78,21 @@ export const levelDailyPlayersKey = (levelId: string, day: number): string =>
 export const levelDailyClearsKey = (levelId: string, day: number): string =>
   `level:${levelId}:discovery:${day}:clears`;
 
+// Browse's sort indexes (DiscoveryService): one sorted set per ordering,
+// levelId -> that sort's score, kept current as levels are played, cursed
+// and published so a listing reads ids instead of every level's counters.
+// `createdAt` also covers the seed levels (allLevelsByDateKey doesn't).
+// Trending's daily part lives in its own per-day set, so it resets at the
+// UTC day boundary without a rewrite of every level.
+export type DiscoveryIndex = 'createdAt' | 'deadliest' | 'speedrun' | 'curses';
+export const discoveryIndexKey = (index: DiscoveryIndex): string =>
+  `discovery:index:${index}`;
+export const discoveryTrendingKey = (day: number): string =>
+  `discovery:index:trending:${day}`;
+// Schema version of the indexes above; a mismatch triggers a one-time
+// backfill from the level data.
+export const discoveryIndexVersionKey = (): string => 'discovery:index:version';
+
 // A short-lived marker so a retried/duplicate `POST /api/runs` for the
 // exact same (level, version, player, time) doesn't double-count an
 // attempt/clear in Discovery's stats — the leaderboard write itself is

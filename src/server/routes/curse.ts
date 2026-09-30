@@ -23,6 +23,7 @@ import { announceCurse } from '../core/announcements';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { withTransaction } from '../core/transactions';
 import { getCurrentLevelVersion } from '../services/LevelService';
+import { refreshDiscoveryIndexSafely } from '../services/DiscoveryService';
 import {
   createCurseCandidate,
   getCandidate,
@@ -394,6 +395,7 @@ curse.post('/publish', async (c) => {
   );
 
   if (result.status === 'ok') {
+    await refreshDiscoveryIndexSafely(result.levelId);
     await recordDailyUse('curse', username);
     // A curse always lands on an already-live level (unlike the base
     // editor's first publish, which has no one subscribed yet) — this is

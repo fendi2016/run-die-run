@@ -7,7 +7,7 @@ import {
   dailyFeaturedKey,
   dailyLastPostedDayKey,
 } from '../core/redisKeys';
-import { discoverLevels } from './DiscoveryService';
+import { getLevelStats, orderedLevelIds } from './DiscoveryService';
 import { pickLevelOfTheDay } from '../core/dailyPick';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,12 +26,14 @@ export async function postLevelOfTheDay(force: boolean): Promise<DailyPostResult
     return { status: 'skipped', reason: 'Already posted today' };
   }
 
-  const [levels, featured] = await Promise.all([
-    discoverLevels('trending'),
+  const [levelIds, featured] = await Promise.all([
+    orderedLevelIds('trending'),
     redis.hGetAll(dailyFeaturedKey()),
   ]);
-  const pick = pickLevelOfTheDay(levels, featured);
-  if (!pick) return { status: 'skipped', reason: 'No levels to feature' };
+  const pickId = pickLevelOfTheDay(levelIds, featured);
+  const stats = pickId ? await getLevelStats(pickId) : undefined;
+  if (!pickId || !stats) return { status: 'skipped', reason: 'No levels to feature' };
+  const pick = { levelId: pickId, ...stats };
 
   const number = Number((await redis.get(dailyCountKey())) ?? 0) + 1;
   const post = await createLevelPost({

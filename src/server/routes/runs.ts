@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { context, realtime, redis } from '@devvit/web/server';
 import { levelRealtimeChannel, type NewWorldRecordEvent } from '../../shared/realtimeApi';
-import { queueDiscoveryActivity } from '../services/DiscoveryService';
+import {
+  queueDiscoveryActivity,
+  refreshDiscoveryIndexSafely,
+} from '../services/DiscoveryService';
 import { withTransaction } from '../core/transactions';
 import {
   clearedVersionsKey,
@@ -217,6 +220,7 @@ runs.post('/', async (c) => {
     }
   );
 
+  await refreshDiscoveryIndexSafely(levelId);
   // A clear got past every other player's trap in this version.
   await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
 
@@ -280,6 +284,7 @@ runs.post('/fall', async (c) => {
     await queueDiscoveryActivity(tx, body.levelId, username, false);
     return { commit: true, value: undefined };
   });
+  await refreshDiscoveryIndexSafely(body.levelId);
   return c.json({ status: 'ok' });
 });
 
@@ -355,6 +360,7 @@ runs.post('/trap-kill', async (c) => {
     }
   );
 
+  await refreshDiscoveryIndexSafely(body.levelId);
   await recordCatch(object.id, object.addedBy, username).catch(() => undefined);
 
   return c.json<TrapKillResponse>({

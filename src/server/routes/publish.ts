@@ -16,6 +16,7 @@ import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { SEED_LEVELS } from '../core/seedLevels';
 import { sanitizeLevelTitle } from '../core/titles';
 import { withTransaction } from '../core/transactions';
+import { refreshDiscoveryIndexSafely } from '../services/DiscoveryService';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
   allLevelsByDateKey,
@@ -348,6 +349,7 @@ publish.post('/publish', async (c) => {
       }
     );
     if (result?.status === 'ok') {
+      await refreshDiscoveryIndexSafely(result.levelId);
       await recordDailyUse('publish', username);
       // After the commit, and best-effort: the level is already live and
       // playable from Browse, so a Reddit API failure here must not turn a

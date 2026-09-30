@@ -14,7 +14,11 @@ export type LevelSummary = {
   createdAt: number;
   trendingScore: number;
 };
-export type DiscoveryResponse = { levels: LevelSummary[] };
+// One page of a sort; `nextCursor` is the `cursor` query for the page
+// after it, or null on the last page.
+export type DiscoveryResponse = { levels: LevelSummary[]; nextCursor: number | null };
+// Next Level after a clear (GET /api/discovery/next?after=<levelId>).
+export type NextLevelResponse = { next: { levelId: string; title: string } | null };
 
 // What a post's feed card (splash) and the in-game menu show about the
 // one level that post plays. `postId` is the level's canonical post, used
@@ -114,6 +118,20 @@ export function isDiscoveryResponse(
     value !== null &&
     'levels' in value &&
     Array.isArray(value.levels) &&
-    value.levels.every(isLevelSummary)
+    value.levels.every(isLevelSummary) &&
+    'nextCursor' in value &&
+    (value.nextCursor === null || isCount(value.nextCursor))
+  );
+}
+export function isNextLevelResponse(value: unknown): value is NextLevelResponse {
+  if (typeof value !== 'object' || value === null || !('next' in value)) return false;
+  const next = value.next;
+  return (
+    next === null ||
+    (typeof next === 'object' &&
+      'levelId' in next &&
+      typeof next.levelId === 'string' &&
+      'title' in next &&
+      typeof next.title === 'string')
   );
 }

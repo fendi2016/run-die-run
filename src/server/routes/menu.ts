@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay } from '../services/DailyService';
-import { resetBuiltInLevelStats } from '../services/DiscoveryService';
+import {
+  refreshDiscoveryIndex,
+  resetBuiltInLevelStats,
+} from '../services/DiscoveryService';
 import { reseedBuiltInLevels } from '../services/LevelService';
 
 export const menu = new Hono();
@@ -16,6 +19,7 @@ export const menu = new Hono();
 menu.post('/reseed-levels', async (c) => {
   try {
     const levelIds = await reseedBuiltInLevels();
+    await Promise.all(levelIds.map((levelId) => refreshDiscoveryIndex(levelId)));
     return c.json<UiResponse>(
       { showToast: `Reseeded: ${levelIds.join(', ')}` },
       200

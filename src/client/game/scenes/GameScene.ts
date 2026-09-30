@@ -18,7 +18,7 @@ import {
   SEED_AUTHOR,
 } from '../../../shared/constants';
 import {
-  isDiscoveryResponse,
+  isNextLevelResponse,
   isLevelStats,
   type LevelStats,
 } from '../../../shared/discoveryApi';
@@ -1023,16 +1023,13 @@ export class GameScene extends Scene {
     signal: AbortSignal
   ): Promise<{ levelId: string; title: string } | undefined> {
     if (this.nextLevel) return this.nextLevel;
-    const response = await fetch('/api/discovery/levels?sort=new', {
+    const after = encodeURIComponent(this.levelVersion?.levelId ?? '');
+    const response = await fetch(`/api/discovery/next?after=${after}`, {
       signal: withTimeout(signal, 15000),
     });
     const body: unknown = await response.json();
-    if (!response.ok || !isDiscoveryResponse(body)) throw new Error('Could not find levels');
-    const currentId = this.levelVersion?.levelId;
-    const currentIndex = body.levels.findIndex((level) => level.levelId === currentId);
-    this.nextLevel = body.levels.slice(currentIndex + 1)
-      .concat(body.levels.slice(0, Math.max(0, currentIndex)))
-      .find((level) => level.levelId !== currentId);
+    if (!response.ok || !isNextLevelResponse(body)) throw new Error('Could not find levels');
+    this.nextLevel = body.next ?? undefined;
     return this.nextLevel;
   }
 
