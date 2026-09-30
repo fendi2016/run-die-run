@@ -137,12 +137,12 @@ export const ZAPPER_HITBOX_PX = 32;
 export const ZAPPER_PERIOD_MS = 3000;
 export const ZAPPER_ON_FRACTION = 0.5;
 // Swinging Mace: the beam's bolt sits near the top of its placed cell and
-// the ball swings below it, through roughly the next two cells down.
-export const MACE_ART_SCALE = 0.55;
-export const MACE_PIVOT_INSET_PX = 14;
+// the ball (about one cell wide) swings below it, through the next cell down.
+export const MACE_ART_SCALE = 0.38;
+export const MACE_PIVOT_INSET_PX = 10;
 export const MACE_SWING_DEG = 60;
 export const MACE_PERIOD_MS = 2200;
-export const MACE_HITBOX_PX = 40;
+export const MACE_HITBOX_PX = 28;
 // Crusher: sits on its surface, lifts up, hangs there, then slams down.
 export const CRUSHER_DISPLAY_HEIGHT_PX = 70;
 export const CRUSHER_HITBOX_WIDTH_PX = 52;
