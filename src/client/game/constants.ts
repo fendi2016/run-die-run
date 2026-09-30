@@ -151,8 +151,10 @@ export const CRUSHER_DISPLAY_HEIGHT_PX = 70;
 export const CRUSHER_HITBOX_WIDTH_PX = 52;
 export const CRUSHER_LIFT_PX = 150;
 export const CRUSHER_PERIOD_MS = 2600;
-// Power-up pickups all draw at one size.
+// Power-up pickups all share one pickup box this tall; the art is drawn
+// at POWERUP_ART_SCALE of it, so it sits a little inside its hitbox.
 export const POWERUP_DISPLAY_HEIGHT_PX = 56;
+export const POWERUP_ART_SCALE = 0.9;
 
 // The finish pencil sharpener is scaled to this height (2 grid tiles, so
 // its mouth sits at the pencil's tip height); width follows the art's own

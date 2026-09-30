@@ -19,6 +19,7 @@ import {
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow, attachPickupShimmer } from './Juice';
 import { GROUND_TILE_DEPTH } from './PaperScenery';
+import { attachPowerUpAmbience, attachTrapAmbience } from './TrapAmbience';
 
 // A bat that hasn't yet locked onto the player and dashed off (see
 // ObjectRegistry.triggerBatFlight). `triggered` is mutated in place by
@@ -236,6 +237,7 @@ export function loadLevel(
         const hitbox = maceHitboxOf(rendered) ?? rendered;
         if (hitbox !== rendered) sourceObjects.set(hitbox, object);
         hazards.add(hitbox);
+        attachTrapAmbience(scene, rendered, object);
         break;
       }
       case 'finish': {
@@ -272,6 +274,7 @@ export function loadLevel(
         applyOutlineGlow(rendered, 0xffffff, 4);
         const center = rendered.getCenter();
         rendered.setData(SHIMMER_DATA_KEY, attachPickupShimmer(scene, center.x, center.y));
+        attachPowerUpAmbience(scene, rendered, object);
         break;
       }
       default:

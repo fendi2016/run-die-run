@@ -216,6 +216,10 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // lightning_strike_001 violet
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Puff
   { key: 'dizzy-stars', frameWidth: 166, frameHeight: 125, frameRate: 12, loop: true }, // Stunned (mace deaths)
+  // Trap and power-up ambience (TrapAmbience)
+  { key: 'trap-glint', frameWidth: 49, frameHeight: 61, frameRate: 20 }, // Glimmer, plain
+  { key: 'saw-sparks', frameWidth: 64, frameHeight: 64, frameRate: 24, pixel: true }, // scifi_spark_burst_001 small yellow
+  { key: 'zapper-crackle', frameWidth: 96, frameHeight: 96, frameRate: 14, loop: true, pixel: true }, // lightning_burst_003 violet, hue-shifted blue
 ];
 
 // Anims are global, so this runs once, from Preloader.

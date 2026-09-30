@@ -19,6 +19,7 @@ import {
   MACE_PERIOD_MS,
   MACE_PIVOT_INSET_PX,
   MACE_SWING_DEG,
+  POWERUP_ART_SCALE,
   POWERUP_DISPLAY_HEIGHT_PX,
   SAW_DISPLAY_SIZE_PX,
   SPIKE_MINE_DISPLAY_HEIGHT_PX,
@@ -319,10 +320,13 @@ function cyclePoseFor(
   object: { type: ObjectType; x: number; y: number }
 ): CyclePose | undefined {
   if (object.type === 'electricMine') {
+    let wasOn: boolean | undefined;
     return {
       periodMs: ZAPPER_PERIOD_MS,
       apply: (phase) => {
         const on = phase < ZAPPER_ON_FRACTION;
+        if (on !== wasOn) sprite.emit(ZAPPER_SWITCH_EVENT, on);
+        wasOn = on;
         if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) sprite.body.enable = on;
         sprite.setAlpha(on ? 1 : 0.35);
         const slowTint = slowTintOf(sprite);
@@ -333,11 +337,13 @@ function cyclePoseFor(
     };
   }
   if (object.type === 'crusher') {
+    let lastPhase = CRUSHER_REST_PHASE;
     return {
       periodMs: CRUSHER_PERIOD_MS,
       apply: (phase) => {
-        sprite.setY(object.y - CRUSHER_LIFT_PX * crusherLift(phase));
-        syncStaticBody(sprite);
+        if (lastPhase > 0.9 && phase < 0.1) sprite.emit(CRUSHER_SLAM_EVENT);
+        lastPhase = phase;
+        poseCrusher(sprite, object.y, CRUSHER_LIFT_PX * crusherLift(phase), crusherSpring(phase));
       },
     };
   }
@@ -364,6 +370,103 @@ function cyclePoseFor(
     };
   }
   return undefined;
+}
+
+// Fired on a trap sprite for TrapAmbience to decorate: the Crusher hitting
+// the ground, the Zapper switching (with `on`), the Stapler snapping shut.
+export const CRUSHER_SLAM_EVENT = 'crusher-slam';
+export const ZAPPER_SWITCH_EVENT = 'zapper-switch';
+export const STAPLER_SNAP_EVENT = 'stapler-snap';
+
+// Where the Crusher art (hazards/crusher.webp, 192px tall) splits: the head
+// (block and hazard stripe) above this row, the base plate below the next,
+// the springs between. The live sprite shows only the head and keeps the
+// hitbox; the springs and base are two more images that follow it.
+const CRUSHER_HEAD_END_ROW = 103;
+const CRUSHER_BASE_START_ROW = 152;
+const CRUSHER_PARTS_DATA_KEY = 'crusherParts';
+// How far the springs stretch while it lifts, and squash when it lands.
+const CRUSHER_STRETCH_PX = 10;
+const CRUSHER_SQUASH_PX = 9;
+
+// A phase with the crusher resting and its springs relaxed.
+const CRUSHER_REST_PHASE = 0.3;
+
+type CrusherParts = { springs: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image };
+
+function crusherPartsOf(sprite: Phaser.GameObjects.Sprite): CrusherParts | undefined {
+  const parts: unknown = sprite.getData(CRUSHER_PARTS_DATA_KEY);
+  if (typeof parts !== 'object' || parts === null || !('springs' in parts) || !('base' in parts)) return undefined;
+  const { springs, base } = parts;
+  if (!(springs instanceof Phaser.GameObjects.Image) || !(base instanceof Phaser.GameObjects.Image)) return undefined;
+  return { springs, base };
+}
+
+function attachCrusherParts(scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite): void {
+  const { width, height } = sprite.frame;
+  sprite.setCrop(0, 0, width, CRUSHER_HEAD_END_ROW);
+  const springs = scene.add
+    .image(sprite.x, sprite.y, sprite.texture.key)
+    .setOrigin(0.5, 0)
+    .setCrop(0, CRUSHER_HEAD_END_ROW, width, CRUSHER_BASE_START_ROW - CRUSHER_HEAD_END_ROW);
+  const base = scene.add
+    .image(sprite.x, sprite.y, sprite.texture.key)
+    .setOrigin(0.5, 0)
+    .setCrop(0, CRUSHER_BASE_START_ROW, width, height - CRUSHER_BASE_START_ROW);
+  sprite.setData(CRUSHER_PARTS_DATA_KEY, { springs, base });
+  sprite.once(Phaser.GameObjects.Events.DESTROY, () => {
+    springs.destroy();
+    base.destroy();
+  });
+  poseCrusher(sprite, sprite.y, 0, 0);
+}
+
+// Places the head `liftPx` up (and `spring` px lower while squashed), the
+// base plate `spring` px below where it would sit while stretched (never
+// under its surface), and stretches the springs between them. The parts
+// copy the head's tint, alpha and depth so editor and Slow Time tints
+// reach the whole crusher.
+function poseCrusher(sprite: Phaser.GameObjects.Sprite, surfaceY: number, liftPx: number, spring: number): void {
+  const stretch = Math.min(Math.max(spring, 0), liftPx);
+  const squash = Math.max(-spring, 0);
+  sprite.setY(surfaceY - liftPx + squash);
+  syncStaticBody(sprite);
+  const parts = crusherPartsOf(sprite);
+  if (!parts) return;
+  const scale = sprite.scaleY;
+  const frameHeight = sprite.frame.height;
+  const top = sprite.y - frameHeight * scale;
+  const headBottom = top + CRUSHER_HEAD_END_ROW * scale;
+  const baseHeight = (frameHeight - CRUSHER_BASE_START_ROW) * scale;
+  const baseTop = surfaceY - liftPx + stretch - baseHeight;
+  const springRows = CRUSHER_BASE_START_ROW - CRUSHER_HEAD_END_ROW;
+  const springScaleY = Math.max(baseTop - headBottom, 2) / springRows;
+  for (const part of [parts.springs, parts.base]) {
+    part
+      .setX(sprite.x)
+      .setDepth(sprite.depth)
+      .setAlpha(sprite.alpha)
+      .setVisible(sprite.visible)
+      .setTint(sprite.tintTopLeft);
+  }
+  parts.springs.setScale(scale, springScaleY).setY(headBottom - CRUSHER_HEAD_END_ROW * springScaleY);
+  parts.base.setScale(scale).setY(baseTop - CRUSHER_BASE_START_ROW * scale);
+}
+
+// The springs' give at `phase` (see crusherLift): squashed on landing and
+// wobbling out, stretched while the head hauls the base up, a small bounce
+// when it stops at the top, and the base leading the slam down.
+function crusherSpring(phase: number): number {
+  if (phase < 0.3) {
+    const t = phase / 0.3;
+    return -CRUSHER_SQUASH_PX * Math.exp(-4 * t) * Math.cos(3 * Math.PI * t);
+  }
+  if (phase < 0.7) return CRUSHER_STRETCH_PX * Math.sin(((phase - 0.3) / 0.4) * Math.PI);
+  if (phase < 0.85) {
+    const t = (phase - 0.7) / 0.15;
+    return -0.5 * CRUSHER_SQUASH_PX * Math.exp(-3 * t) * Math.sin(2 * Math.PI * t);
+  }
+  return 0.6 * CRUSHER_STRETCH_PX * ((phase - 0.85) / 0.15);
 }
 
 // Share of CRUSHER_LIFT_PX the crusher is raised at `phase`: resting on
@@ -677,7 +780,7 @@ export function renderLevelObject(
   } else if (object.type === 'crusher') {
     sprite.setScale(CRUSHER_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (categoryOf(object.type) === 'powerup') {
-    sprite.setScale(POWERUP_DISPLAY_HEIGHT_PX / sprite.height);
+    sprite.setScale((POWERUP_DISPLAY_HEIGHT_PX * POWERUP_ART_SCALE) / sprite.height);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
   if (terrain) setTerrainFootprint(sprite, terrainFootprintHeight(object.type));
@@ -688,7 +791,14 @@ export function renderLevelObject(
   if (object.type === 'ceilingSpikes') shrinkStaticBody(sprite, CEILING_SPIKES_HITBOX_WIDTH_PX);
   if (object.type === 'spikeMine') shrinkStaticBody(sprite, SPIKE_MINE_HITBOX_PX, SPIKE_MINE_HITBOX_PX);
   if (object.type === 'electricMine') shrinkStaticBody(sprite, ZAPPER_HITBOX_PX, ZAPPER_HITBOX_PX);
-  if (object.type === 'crusher') shrinkStaticBody(sprite, CRUSHER_HITBOX_WIDTH_PX);
+  if (object.type === 'crusher') {
+    shrinkStaticBody(sprite, CRUSHER_HITBOX_WIDTH_PX);
+    attachCrusherParts(scene, sprite);
+  }
+  // The pickup box stays the size it was before the art shrank.
+  if (categoryOf(object.type) === 'powerup') {
+    shrinkStaticBody(sprite, sprite.displayWidth / POWERUP_ART_SCALE, POWERUP_DISPLAY_HEIGHT_PX);
+  }
 
   // A dynamic body inherits the game's world gravity the instant it's
   // created, so a movingPlatform rendered anywhere that isn't a live run
@@ -726,18 +836,20 @@ export function renderLevelObject(
     });
   }
   if (object.type === 'candle') {
-    // Purely cosmetic chomp (the art used to be an 8-frame sheet); the
-    // static body keeps the size it was created with.
+    // Purely cosmetic snap every couple of seconds; the static body keeps
+    // the size it was created with.
     const baseScaleY = sprite.scaleY;
     scene.tweens.add({
       targets: sprite,
-      scaleY: baseScaleY * 0.88,
-      duration: 140,
+      scaleY: baseScaleY * 0.84,
+      duration: 90,
       yoyo: true,
+      hold: 60,
       repeat: -1,
-      repeatDelay: 380,
-      delay: Math.random() * 500,
-      ease: 'Quad.easeOut',
+      repeatDelay: 1800,
+      delay: Math.random() * 1800,
+      ease: 'Back.easeIn',
+      onYoyo: () => sprite.emit(STAPLER_SNAP_EVENT),
     });
   }
 
