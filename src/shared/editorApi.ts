@@ -217,6 +217,20 @@ export type PublishCurseRequest = {
   candidateToken: string;
 };
 
+// GET /api/curse/eligibility/:levelId — whether this player may curse the
+// level right now (not the latest curser, under CURSES_PER_LEVEL).
+export type CurseEligibilityResponse = { canCurse: boolean; reason?: string };
+
+export function isCurseEligibilityResponse(value: unknown): value is CurseEligibilityResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'canCurse' in value &&
+    typeof value.canCurse === 'boolean' &&
+    (!('reason' in value) || typeof value.reason === 'string')
+  );
+}
+
 export type PublishCurseResponse =
   | { status: 'ok'; levelId: string; version: number }
   | { status: 'error'; message: string; conflict?: boolean };

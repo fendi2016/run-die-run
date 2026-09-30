@@ -272,6 +272,14 @@ body {
   }
 }
 
+/* Curse on offer: the card is only the curse button and its hint, so it
+   doesn't cover the finish dive (see RunResultOverlay.setCurseHandler). */
+#run-result.run-result-curse-only #run-result-next-status,
+#run-result.run-result-curse-only #run-result-share,
+#run-result.run-result-curse-only #run-result-links {
+  display: none;
+}
+
 /* Secondary navigation — Browse/Leaderboard (leaderboard shown
    conditionally)/Exit — reads as a plain vertical text menu instead of a
    row of boxed buttons competing with Curse. */

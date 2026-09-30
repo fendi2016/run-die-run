@@ -21,8 +21,6 @@ import {
   type LevelVersion,
   type ObjectType,
 } from '../../../shared/types';
-import { suggestCurseCells } from '../../../shared/curseSuggestions';
-import { isMyCursesResponse } from '../../../shared/myCursesApi';
 import { CurseToolbar } from '../../ui/CurseToolbar';
 import {
   boardGridConfig,
@@ -33,7 +31,6 @@ import {
   ACCENT_COLOR,
   EDITOR_BOARD_ROWS,
   PAPER_COLOR,
-  RULE_BLUE_COLOR,
 } from '../editor/GridSystem';
 import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
 import {
@@ -153,14 +150,6 @@ export class CurseScene extends Scene {
   // moved, never at the image's own position.
   private pendingDragStart: { x: number; y: number } | undefined;
 
-  // A player's first curse (no curses yet, per GET /api/me/curses): the
-  // toolbar offers three picks and a few ground cells glow as suggestions.
-  // Hints only — tapping any cell still places there.
-  private guided = false;
-  private suggestions: { x: number; y: number }[] = [];
-  private suggestionGraphics!: Phaser.GameObjects.Graphics;
-  private suggestionTween: Phaser.Tweens.Tween | undefined;
-
   private panZoom!: PanZoomCamera;
 
   constructor() {
@@ -171,7 +160,8 @@ export class CurseScene extends Scene {
     this.proposalRequest = undefined;
     this.levelId = data.levelId;
     this.baseLevel = undefined;
-    this.category = data.preselected?.category;
+    // The full palette opens straight onto Hazards — the usual curse.
+    this.category = data.preselected?.category ?? 'hazard';
     this.selectedType = data.preselected?.object.type;
     this.pending = data.preselected?.object;
     this.pendingExtendTiles = data.preselected?.extendByTiles ?? 0;
@@ -183,9 +173,6 @@ export class CurseScene extends Scene {
     this.extensionMotionTweens = [];
     this.pendingMotionTween = undefined;
     this.pendingImage = undefined;
-    this.guided = false;
-    this.suggestions = [];
-    this.suggestionTween = undefined;
   }
 
   create(): void {
@@ -194,7 +181,6 @@ export class CurseScene extends Scene {
 
     this.gridGraphics = this.add.graphics();
     this.pendingGraphics = this.add.graphics();
-    this.suggestionGraphics = this.add.graphics().setDepth(10);
 
     this.board = this.rexBoard.add.board({
       grid: boardGridConfig(),
@@ -216,7 +202,6 @@ export class CurseScene extends Scene {
       onProve: () => void this.handleProve(),
       onCancel: () => this.scene.start('MainMenu'),
     });
-    this.toolbar.setGuided(false);
     this.toolbar.setActiveCategory(this.category);
     this.toolbar.setActiveType(this.selectedType);
     this.updateClearEnabled();
@@ -255,56 +240,9 @@ export class CurseScene extends Scene {
       this.redrawPending();
       this.redrawExtension();
       this.updateProveEnabled();
-      void this.guideFirstCurse(body);
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');
     }
-  }
-
-  // Best-effort: any failure just leaves the normal toolbar.
-  private async guideFirstCurse(level: LevelVersion): Promise<void> {
-    try {
-      const response = await fetch('/api/me/curses');
-      const body: unknown = await response.json();
-      if (!response.ok || !isMyCursesResponse(body) || body.curses.length > 0) return;
-    } catch {
-      return;
-    }
-    if (!this.sys.isActive()) return;
-    this.guided = true;
-    this.category ??= 'hazard';
-    this.suggestions = suggestCurseCells(level.objects, 3);
-    this.toolbar.setGuided(true, () => {
-      this.guided = false;
-      this.toolbar.setActiveCategory(this.category);
-      this.toolbar.setActiveType(this.selectedType);
-      this.redrawSuggestions();
-    });
-    this.toolbar.setActiveType(this.selectedType);
-    if (this.initialMessage) this.toolbar.showMessage(this.initialMessage);
-    this.redrawSuggestions();
-  }
-
-  // Pulsing one-cell outlines on each suggested spot, until something is
-  // placed (or the player opens the full palette).
-  private redrawSuggestions(): void {
-    this.suggestionTween?.stop();
-    this.suggestionTween = undefined;
-    this.suggestionGraphics.clear().setAlpha(1);
-    if (!this.guided || this.pending || this.suggestions.length === 0) return;
-    // Rule-blue, the same "hint" color as the notebook grid itself — these
-    // are suggestions, not the red curse/pending-placement color.
-    this.suggestionGraphics.lineStyle(3, RULE_BLUE_COLOR, 1);
-    for (const { x, y } of this.suggestions) {
-      this.suggestionGraphics.strokeRoundedRect(x - 27, y - 57, 54, 54, 8);
-    }
-    this.suggestionTween = this.tweens.add({
-      targets: this.suggestionGraphics,
-      alpha: 0.35,
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-    });
   }
 
   private selectCategory(category: CurseCategory): void {
@@ -597,7 +535,6 @@ export class CurseScene extends Scene {
   }
 
   private redrawPending(): void {
-    this.redrawSuggestions();
     this.pendingGraphics.clear();
     this.pendingMotionTween?.stop();
     this.pendingMotionTween = undefined;

@@ -72,6 +72,10 @@ export const DEV_SUBREDDIT = 'sketchy_game_dev';
 export const LEVEL_PUBLISHES_PER_DAY = 10;
 export const CURSES_PER_DAY = 30;
 
+// Most curses one player can ever leave on a single level. They also have
+// to wait for someone else to curse it between each of theirs.
+export const CURSES_PER_LEVEL = 3;
+
 // A level's thread gets one comment per this many curses, summing them up
 // (a comment on every curse flooded busy threads).
 export const CURSE_COMMENT_EVERY = 10;

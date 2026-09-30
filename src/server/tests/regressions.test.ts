@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
+import { isCurseEligibilityResponse, parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
 import type { ObjectType } from '../../shared/types';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
@@ -210,9 +210,11 @@ const { isCursersLeaderboardResponse } = await import(
 );
 const { withTransaction } = await import('../core/transactions');
 const { clearDiscoveryCache } = await import('../routes/discovery');
-const { STARTER_LEVEL_ID } = await import('../../shared/constants');
+const { STARTER_LEVEL_ID, CURSES_PER_LEVEL } = await import('../../shared/constants');
 const { userCursesKey, dailyCountKey } = await import('../core/redisKeys');
 const { postLevelOfTheDay } = await import('../services/DailyService');
+const { SEED_LEVELS } = await import('../core/seedLevels');
+const SEED_COUNT = Object.keys(SEED_LEVELS).length;
 
 beforeEach(() => {
   clearDiscoveryCache();
@@ -487,7 +489,9 @@ await test('curse propose accepts the new hazards and bridge, rejects the new te
   await getCurrentLevelVersion('meat-grinder');
   const curseable: ObjectType[] = ['spikes', 'bridge', 'rulerPlatform', 'paperclipPlatform'];
   for (const type of curseable) {
-    const { body } = await proposeCurse('alice', 'meat-grinder', {
+    // A different curser each time: nobody may curse on top of their own.
+    const curser = `curser-${type}`;
+    const { body } = await proposeCurse(curser, 'meat-grinder', {
       id: `x-${type}`,
       type,
       x: 700,
@@ -496,11 +500,11 @@ await test('curse propose accepts the new hazards and bridge, rejects the new te
     assert.equal(body.status, 'ok', `${type} should be curse-placeable`);
     if (body.status === 'ok') {
       assert.equal(
-        await markCandidateVerified('alice', body.candidateToken, 2000),
+        await markCandidateVerified(curser, body.candidateToken, 2000),
         true
       );
-      await publishCurse('alice', body.candidateToken);
-      assert.equal(await getCandidate('alice'), undefined);
+      await publishCurse(curser, body.candidateToken);
+      assert.equal(await getCandidate(curser), undefined);
     }
   }
   const notCurseable: ObjectType[] = [
@@ -653,8 +657,8 @@ await test('difficulty uses spec boundaries and leaves unplayed levels unrated',
 });
 
 await test('discovery includes seeds and atomically indexed new publishes', async () => {
-  // Both built-ins: Meat Grinder and the First Blood starter.
-  assert.equal((await browse()).length, 2);
+  // Every built-in level, starter included.
+  assert.equal((await browse()).length, SEED_COUNT);
   const result = await publishAs('bob', await ready('bob'), 'A new level');
   assert.equal(result.body.status, 'ok');
   const first = (await browse('new'))[0];
@@ -858,8 +862,8 @@ await test('discovery backfills its indexes once and pages without reading every
     const second = await discovery.request(`/levels?sort=new&cursor=${DISCOVERY_PAGE_SIZE}`);
     const secondBody: unknown = await second.json();
     assert.ok(isDiscoveryResponse(secondBody));
-    // The rest of the stored levels, then the two seeds (oldest).
-    assert.equal(secondBody.levels.length, total + 2 - DISCOVERY_PAGE_SIZE);
+    // The rest of the stored levels, then the built-ins (oldest).
+    assert.equal(secondBody.levels.length, total + SEED_COUNT - DISCOVERY_PAGE_SIZE);
     assert.equal(secondBody.nextCursor, null);
     const metaReads = get.mock.calls.filter((call) => String(call.arguments[0]).endsWith(':meta'));
     assert.equal(metaReads.length, secondBody.levels.length);
@@ -883,7 +887,7 @@ await test('next level follows newest-first order and wraps round', async () => 
   // Past the oldest level it wraps to the newest.
   const order = [];
   let current = 'newer';
-  for (let i = 0; i < 4; i++) order.push((current = (await next(current)) ?? ''));
+  for (let i = 0; i < SEED_COUNT + 2; i++) order.push((current = (await next(current)) ?? ''));
   assert.equal(order.at(-1), 'newer');
   assert.equal(await next('unknown-level'), 'newer');
 });
@@ -1162,6 +1166,43 @@ await test('publishing a curse adds it to the curser\'s list', async () => {
   const placed = hashes.get(userCursesKey('alice'))?.get(proposed.body.objectId);
   assert.ok(placed, 'curse recorded under its object id');
   assert.match(placed, /"levelId":"meat-grinder","type":"saw"/);
+});
+
+async function curseAndPublish(username: string, x: number) {
+  const proposed = await proposeCurse(username, 'meat-grinder', { id: 'x', type: 'saw', x, y: 480 });
+  if (proposed.body.status !== 'ok') return proposed.body;
+  await markCandidateVerified(username, proposed.body.candidateToken, 2000);
+  return (await publishCurse(username, proposed.body.candidateToken)).body;
+}
+
+async function eligibility(username: string) {
+  return users.run(username, async () => {
+    const body: unknown = await (await curse.request('/eligibility/meat-grinder')).json();
+    assert.ok(isCurseEligibilityResponse(body));
+    return body;
+  });
+}
+
+await test('a player waits for someone else to curse between curses, up to the per-level cap', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await eligibility('alice')).canCurse, true);
+  assert.equal((await curseAndPublish('alice', 700)).status, 'ok');
+
+  // Hers is the latest curse: no second one on top of it.
+  assert.equal((await eligibility('alice')).canCurse, false);
+  assert.equal((await curseAndPublish('alice', 760)).status, 'error');
+
+  // Once someone else curses it, alice gets another — up to the cap.
+  for (let i = 1; i < CURSES_PER_LEVEL; i++) {
+    assert.equal((await curseAndPublish(`other-${i}`, 400 + i * 60)).status, 'ok');
+    assert.equal((await eligibility('alice')).canCurse, true);
+    assert.equal((await curseAndPublish('alice', 820 + i * 60)).status, 'ok');
+  }
+  assert.equal((await curseAndPublish('someone-else', 1300)).status, 'ok');
+  const capped = await eligibility('alice');
+  assert.equal(capped.canCurse, false);
+  assert.match(capped.reason ?? '', /all \d+ of your curses/);
+  assert.equal((await curseAndPublish('alice', 1400)).status, 'error');
 });
 
 await test('the starter level cannot be cursed', async () => {

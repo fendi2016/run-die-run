@@ -4,6 +4,7 @@ import { context, realtime, redis } from '@devvit/web/server';
 import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
+  type CurseEligibilityResponse,
   type DraftObject,
   type ProposeCurseResponse,
   type PublishCurseResponse,
@@ -17,8 +18,8 @@ import {
   levelVersionKey,
   userCursesKey,
 } from '../core/redisKeys';
-import { cursePlacedFields } from '../services/TrapStatsService';
-import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY } from '../../shared/constants';
+import { countCursesOnLevel, cursePlacedFields } from '../services/TrapStatsService';
+import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY, CURSES_PER_LEVEL } from '../../shared/constants';
 import { announceCurseMilestone } from '../core/announcements';
 import { hasDailyQuota, recordDailyUse } from '../core/quota';
 import { withTransaction } from '../core/transactions';
@@ -98,7 +99,43 @@ function isPublishCurseBody(
   );
 }
 
+// Why this player can't curse the level right now, if they can't: one
+// curse at a time (someone else has to curse it after yours before you get
+// another) and at most CURSES_PER_LEVEL on any one level.
+async function curseBlockReason(
+  username: string,
+  level: LevelVersion
+): Promise<string | undefined> {
+  if (level.contributorUsername === username) {
+    return 'Yours is the latest curse here — wait for someone else to curse it first.';
+  }
+  if ((await countCursesOnLevel(username, level.levelId)) >= CURSES_PER_LEVEL) {
+    return `You've left all ${CURSES_PER_LEVEL} of your curses on this level.`;
+  }
+  return undefined;
+}
+
 export const curse = new Hono();
+
+// Lets the result card skip the curse button for a player who can't curse.
+curse.get('/eligibility/:levelId', async (c) => {
+  const levelId = c.req.param('levelId');
+  const { username } = context;
+  if (!username) {
+    return c.json<CurseEligibilityResponse>({ canCurse: false, reason: 'Sign in to leave curses.' });
+  }
+  if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
+    return c.json<CurseEligibilityResponse>({ canCurse: false });
+  }
+  const current = await getCurrentLevelVersion(levelId);
+  if (!current) {
+    return c.json<CurseEligibilityResponse>({ canCurse: false });
+  }
+  const reason = await curseBlockReason(username, current);
+  return c.json<CurseEligibilityResponse>(
+    reason ? { canCurse: false, reason } : { canCurse: true }
+  );
+});
 
 // The curse UI (spec sections 14-15) is a deliberately smaller component
 // than the base editor: exactly one new trap, chosen from a restricted
@@ -159,6 +196,10 @@ curse.post('/propose', async (c) => {
       { status: 'error', message: 'Level not found' },
       404
     );
+  }
+  const blocked = await curseBlockReason(username, current);
+  if (blocked) {
+    return c.json<ProposeCurseResponse>({ status: 'error', errors: [blocked] }, 403);
   }
 
   // The id is server-generated, never trusting whatever the client sent —
@@ -312,6 +353,12 @@ curse.post('/publish', async (c) => {
   if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
     return c.json<PublishCurseResponse>(
       { status: 'error', message: "This level can't be cursed." },
+      403
+    );
+  }
+  if ((await countCursesOnLevel(username, levelId)) >= CURSES_PER_LEVEL) {
+    return c.json<PublishCurseResponse>(
+      { status: 'error', message: `You've left all ${CURSES_PER_LEVEL} of your curses on this level.` },
       403
     );
   }

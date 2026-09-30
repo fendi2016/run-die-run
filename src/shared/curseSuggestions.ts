@@ -1,11 +1,9 @@
 import { GRID_CELL_SIZE, GROUND_TOP_Y } from './constants';
 import { HAZARD_TYPES } from './hazards';
-import { GROUND_LIKE_TYPES, PLATFORM_LIKE_TYPES, type LevelObject, type ObjectType } from './types';
+import { GROUND_LIKE_TYPES, PLATFORM_LIKE_TYPES, type LevelObject } from './types';
 
-// The three traps offered to a first-time curser, and where to suggest
-// placing one. Suggestions are hints only — a curse can still go anywhere.
-export const GUIDED_CURSE_TYPES: ObjectType[] = ['candle', 'saw', 'ghost'];
-
+// Where to suggest placing a curse. Suggestions are hints only — a curse
+// can still go anywhere.
 // Up to `count` spread-out ground cells that make a fair first trap: open
 // ground (ground on both sides, so not a gap edge), a few cells clear of
 // the spawn and finish, and two cells clear of any trap or platform.

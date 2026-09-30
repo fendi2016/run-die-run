@@ -27,6 +27,7 @@ import { withTimeout } from '../../net';
 import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
 import {
+  isCurseEligibilityResponse,
   isPublishCurseResponse,
   isVerifyLevelResponse,
 } from '../../../shared/editorApi';
@@ -260,6 +261,9 @@ export class GameScene extends Scene {
   // For the share sheet's copy ("... after 23 deaths") and target post.
   private deathsThisLevel = 0;
   private levelStats: LevelStats | undefined;
+  // Asked for as the level loads so the result card knows at the finish
+  // whether to offer a curse (see fetchCanCurse).
+  private canCurse: Promise<boolean> | undefined;
 
   constructor() {
     super('GameScene');
@@ -270,6 +274,7 @@ export class GameScene extends Scene {
     this.returnTo = data.returnTo;
     this.justCursed = data.justCursed === true;
     this.nextLevel = undefined;
+    this.canCurse = undefined;
     // The tutorial runs as a preview so nothing about it is reported or
     // saved (deaths, best distance, share); it only differs at load and at
     // the finish.
@@ -658,6 +663,7 @@ export class GameScene extends Scene {
     this.levelVersion = levelVersion;
     this.subscribeRealtime(levelVersion.levelId);
     void this.loadLevelStats(levelVersion.levelId);
+    this.canCurse = this.fetchCanCurse(levelVersion.levelId);
     this.startRun(levelVersion);
     if (this.justCursed) void this.showNextLevelShortcut();
   }
@@ -839,14 +845,13 @@ export class GameScene extends Scene {
       // clearing a level is what earns you a curse on it.
       this.resultOverlay.showTutorialOutro(() => this.leaveTutorial());
     } else if (devWarp) {
-      this.offerCurse(this.levelVersion.levelId);
+      void this.offerCurseAndNext(this.levelVersion.levelId);
       this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
-      this.offerNextLevel(this.levelVersion.levelId);
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
       const levelVersion = this.levelVersion;
-      this.offerCurse(levelVersion.levelId);
+      void this.offerCurseAndNext(levelVersion.levelId);
       this.resultOverlay.setShareHandler(() => this.share(this.clearShareText()));
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show({ levelId: levelVersion.levelId })
@@ -858,29 +863,52 @@ export class GameScene extends Scene {
         submissionId: crypto.randomUUID(),
       };
       void this.submitRun(request);
-      this.offerNextLevel(levelVersion.levelId);
     }
   }
 
   // Offered the moment the finish is reached, not after the score save
   // comes back: the curse flow doesn't need the clear on record, and gating
-  // it on the save hid the button whenever that request failed or was slow
-  // (or the viewer was signed out). The starter stays easy forever — no
-  // curse offered on it. Never for a preview/tutorial run.
-  private offerCurse(levelId: string): void {
-    if (this.previewLevel || CURSE_LOCKED_LEVEL_IDS.has(levelId)) return;
-    this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
-  }
-
+  // it on the save hid the button whenever that request failed or was slow.
+  // Only if the server says this player may curse the level now — not
+  // their own curse on top, not past the per-level cap. The starter stays
+  // easy forever — no curse offered on it. Never for a preview/tutorial run.
+  //
   // Next Level stays locked until you've left your curse on this level —
-  // cursing is the game, not an optional extra. Levels that can't be cursed
-  // (the starter) and players who already cursed this one go straight on.
-  private offerNextLevel(levelId: string): void {
-    if (CURSE_LOCKED_LEVEL_IDS.has(levelId) || cursedThisSession.has(levelId)) {
+  // cursing is the game, not an optional extra. Levels you can't curse and
+  // ones you already cursed go straight on.
+  private async offerCurseAndNext(levelId: string): Promise<void> {
+    if (this.previewLevel || CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
+      void this.findNextLevel();
+      return;
+    }
+    const attempt = this.attempt;
+    // A curse landed while you played: your turn may have come back round.
+    if (this.pendingVersionPublished) this.canCurse = undefined;
+    const canCurse = await (this.canCurse ??= this.fetchCanCurse(levelId));
+    if (attempt.signal.aborted) return;
+    if (canCurse) {
+      this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
+    }
+    if (!canCurse || cursedThisSession.has(levelId)) {
       void this.findNextLevel();
       return;
     }
     this.resultOverlay.showNext('Leave your curse to unlock the next level.');
+  }
+
+  // Best-effort: if the check fails, offer the curse and let propose (which
+  // runs the same check) explain any refusal.
+  private async fetchCanCurse(levelId: string): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `/api/curse/eligibility/${encodeURIComponent(levelId)}`,
+        { signal: withTimeout(new AbortController().signal, 8000) }
+      );
+      const body: unknown = await response.json();
+      return !response.ok || !isCurseEligibilityResponse(body) || body.canCurse;
+    } catch {
+      return true;
+    }
   }
 
   // Verification (spec section 16) is shared by both preview flows — only

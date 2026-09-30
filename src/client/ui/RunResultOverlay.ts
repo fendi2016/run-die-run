@@ -49,6 +49,7 @@ export class RunResultOverlay {
     this.showNext('');
     this.streakEl.textContent = '';
     this.curseBtn.classList.add('hidden');
+    this.root.classList.remove('run-result-curse-only');
     this.leaderboardBtn.classList.add('hidden');
     this.curseBtn.onclick = null;
     this.leaderboardBtn.onclick = null;
@@ -62,15 +63,20 @@ export class RunResultOverlay {
     this.streakEl.classList.toggle('run-result-streak-increased', result.isNewStreakIncrease);
   }
 
+  // While the curse is on offer the card is just the curse button and its
+  // hint — everything below them hides so the card stays small enough to
+  // watch the finish dive behind it.
   setCurseHandler(handler: () => void): void {
     this.curseBtn.classList.remove('hidden');
     this.curseHintEl.classList.remove('hidden');
+    this.root.classList.add('run-result-curse-only');
     this.curseBtn.onclick = handler;
   }
 
   hideCurse(): void {
     this.curseBtn.classList.add('hidden');
     this.curseHintEl.classList.add('hidden');
+    this.root.classList.remove('run-result-curse-only');
     this.curseBtn.onclick = null;
   }
 
