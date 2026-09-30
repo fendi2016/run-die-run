@@ -100,6 +100,7 @@ export class Preloader extends Scene {
     this.load.image('mace-swing', 'hazards/mace-swing.webp');
     this.load.image('mace-beam', 'hazards/mace-beam.webp');
     this.load.image('crusher', 'hazards/crusher.webp');
+    this.load.image('crusher-springs', 'hazards/crusher-springs.webp');
     // Animated 8-frame sheets (see ObjectRegistry.HAZARD_SPRITESHEETS); the
     // single-frame hazards/*.webp next to them are only the editor icons.
     for (const sheet of HAZARD_SPRITESHEETS) {

@@ -343,7 +343,7 @@ function cyclePoseFor(
       apply: (phase) => {
         if (lastPhase > 0.9 && phase < 0.1) sprite.emit(CRUSHER_SLAM_EVENT);
         lastPhase = phase;
-        poseCrusher(sprite, object.y, CRUSHER_LIFT_PX * crusherLift(phase), crusherSpring(phase));
+        poseCrusher(sprite, object, phase);
       },
     };
   }
@@ -378,95 +378,144 @@ export const CRUSHER_SLAM_EVENT = 'crusher-slam';
 export const ZAPPER_SWITCH_EVENT = 'zapper-switch';
 export const STAPLER_SNAP_EVENT = 'stapler-snap';
 
-// Where the Crusher art (hazards/crusher.webp, 192px tall) splits: the head
-// (block and hazard stripe) above this row, the base plate below the next,
-// the springs between. The live sprite shows only the head and keeps the
-// hitbox; the springs and base are two more images that follow it.
+// The Crusher is a piston: its head (the block and hazard stripe of
+// hazards/crusher.webp, above CRUSHER_HEAD_END_ROW of its 192 rows) hangs
+// still, CRUSHER_LIFT_PX over its surface; the springs shoot the base plate
+// (below CRUSHER_BASE_START_ROW) down to the surface and haul it back up.
+// The springs are a two-coil strip of the same art (crusher-springs.webp),
+// tiled down whatever gap is open. An invisible hitbox covers the whole
+// column, head to base plate, and grows and shrinks with it.
 const CRUSHER_HEAD_END_ROW = 103;
 const CRUSHER_BASE_START_ROW = 152;
+const CRUSHER_SPRINGS_TEXTURE = 'crusher-springs';
+// crusher-springs.webp is rows 110..139 of the art: two coils, 29 rows.
+const CRUSHER_COIL_ROWS = 29;
+const CRUSHER_COIL_PHASE_AT_BASE = (CRUSHER_BASE_START_ROW - 110) % CRUSHER_COIL_ROWS;
 const CRUSHER_PARTS_DATA_KEY = 'crusherParts';
-// How far the springs stretch while it lifts, and squash when it lands.
-const CRUSHER_STRETCH_PX = 10;
-const CRUSHER_SQUASH_PX = 9;
+// How far the base plate bounces back up off the surface after a slam, and
+// drops below the top when it's hauled up.
+const CRUSHER_SLAM_BOUNCE_PX = 12;
+const CRUSHER_TOP_BOUNCE_PX = 6;
+// Coils spread out as the springs extend, by up to this much.
+const CRUSHER_COIL_SPREAD = 0.4;
 
-// A phase with the crusher resting and its springs relaxed.
+// A phase with the base plate resting on the surface.
 const CRUSHER_REST_PHASE = 0.3;
 
-type CrusherParts = { springs: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image };
+type CrusherParts = {
+  springs: Phaser.GameObjects.TileSprite;
+  base: Phaser.GameObjects.Image;
+  hitbox: Phaser.GameObjects.Sprite;
+};
 
 function crusherPartsOf(sprite: Phaser.GameObjects.Sprite): CrusherParts | undefined {
   const parts: unknown = sprite.getData(CRUSHER_PARTS_DATA_KEY);
-  if (typeof parts !== 'object' || parts === null || !('springs' in parts) || !('base' in parts)) return undefined;
-  const { springs, base } = parts;
-  if (!(springs instanceof Phaser.GameObjects.Image) || !(base instanceof Phaser.GameObjects.Image)) return undefined;
-  return { springs, base };
+  if (typeof parts !== 'object' || parts === null) return undefined;
+  if (!('springs' in parts) || !('base' in parts) || !('hitbox' in parts)) return undefined;
+  const { springs, base, hitbox } = parts;
+  if (!(springs instanceof Phaser.GameObjects.TileSprite)) return undefined;
+  if (!(base instanceof Phaser.GameObjects.Image)) return undefined;
+  if (!(hitbox instanceof Phaser.GameObjects.Sprite)) return undefined;
+  return { springs, base, hitbox };
 }
 
-function attachCrusherParts(scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite): void {
-  const { width, height } = sprite.frame;
-  sprite.setCrop(0, 0, width, CRUSHER_HEAD_END_ROW);
+// The returned sprite is the still head; it has no body of its own (the
+// column hitbox, crusherHitboxOf, is what LevelLoader registers).
+function renderCrusher(scene: Phaser.Scene, object: LevelObject): Phaser.GameObjects.Sprite {
+  const head = scene.add.sprite(object.x, object.y, 'crusher').setOrigin(0.5, 1);
+  head.setScale(CRUSHER_DISPLAY_HEIGHT_PX / head.height);
+  const { width, height } = head.frame;
+  head.setCrop(0, 0, width, CRUSHER_HEAD_END_ROW);
   const springs = scene.add
-    .image(sprite.x, sprite.y, sprite.texture.key)
+    .tileSprite(object.x, object.y, width, CRUSHER_COIL_ROWS, CRUSHER_SPRINGS_TEXTURE)
     .setOrigin(0.5, 0)
-    .setCrop(0, CRUSHER_HEAD_END_ROW, width, CRUSHER_BASE_START_ROW - CRUSHER_HEAD_END_ROW);
+    .setScale(head.scaleY);
   const base = scene.add
-    .image(sprite.x, sprite.y, sprite.texture.key)
+    .image(object.x, object.y, 'crusher')
     .setOrigin(0.5, 0)
+    .setScale(head.scaleY)
     .setCrop(0, CRUSHER_BASE_START_ROW, width, height - CRUSHER_BASE_START_ROW);
-  sprite.setData(CRUSHER_PARTS_DATA_KEY, { springs, base });
-  sprite.once(Phaser.GameObjects.Events.DESTROY, () => {
+  const hitbox = scene.add
+    .sprite(object.x, object.y, '__DEFAULT')
+    .setOrigin(0.5, 0)
+    .setVisible(false);
+  scene.physics.add.existing(hitbox, true);
+  scene.physics.add.existing(head, true);
+  if (head.body instanceof Phaser.Physics.Arcade.StaticBody) head.body.enable = false;
+  head.setData(CRUSHER_PARTS_DATA_KEY, { springs, base, hitbox });
+  head.once(Phaser.GameObjects.Events.DESTROY, () => {
     springs.destroy();
     base.destroy();
+    hitbox.destroy();
   });
-  poseCrusher(sprite, sprite.y, 0, 0);
+  poseCrusher(head, object, CRUSHER_REST_PHASE);
+  return head;
 }
 
-// Places the head `liftPx` up (and `spring` px lower while squashed), the
-// base plate `spring` px below where it would sit while stretched (never
-// under its surface), and stretches the springs between them. The parts
-// copy the head's tint, alpha and depth so editor and Slow Time tints
-// reach the whole crusher.
-function poseCrusher(sprite: Phaser.GameObjects.Sprite, surfaceY: number, liftPx: number, spring: number): void {
-  const stretch = Math.min(Math.max(spring, 0), liftPx);
-  const squash = Math.max(-spring, 0);
-  sprite.setY(surfaceY - liftPx + squash);
-  syncStaticBody(sprite);
-  const parts = crusherPartsOf(sprite);
-  if (!parts) return;
-  const scale = sprite.scaleY;
-  const frameHeight = sprite.frame.height;
-  const top = sprite.y - frameHeight * scale;
-  const headBottom = top + CRUSHER_HEAD_END_ROW * scale;
-  const baseHeight = (frameHeight - CRUSHER_BASE_START_ROW) * scale;
-  const baseTop = surfaceY - liftPx + stretch - baseHeight;
-  const springRows = CRUSHER_BASE_START_ROW - CRUSHER_HEAD_END_ROW;
-  const springScaleY = Math.max(baseTop - headBottom, 2) / springRows;
-  for (const part of [parts.springs, parts.base]) {
-    part
-      .setX(sprite.x)
-      .setDepth(sprite.depth)
-      .setAlpha(sprite.alpha)
-      .setVisible(sprite.visible)
-      .setTint(sprite.tintTopLeft);
-  }
-  parts.springs.setScale(scale, springScaleY).setY(headBottom - CRUSHER_HEAD_END_ROW * springScaleY);
-  parts.base.setScale(scale).setY(baseTop - CRUSHER_BASE_START_ROW * scale);
+export function crusherHitboxOf(sprite: Phaser.GameObjects.Sprite): Phaser.GameObjects.Sprite | undefined {
+  return crusherPartsOf(sprite)?.hitbox;
 }
 
-// The springs' give at `phase` (see crusherLift): squashed on landing and
-// wobbling out, stretched while the head hauls the base up, a small bounce
-// when it stops at the top, and the base leading the slam down.
-function crusherSpring(phase: number): number {
+// Where the base plate's bottom sits at `phase`, as a height above the
+// surface (see crusherLift), with a springy bounce off the surface after
+// the slam and a dip below the top when it's hauled up.
+function crusherBaseLift(phase: number): number {
+  let lift = CRUSHER_LIFT_PX * crusherLift(phase);
   if (phase < 0.3) {
     const t = phase / 0.3;
-    return -CRUSHER_SQUASH_PX * Math.exp(-4 * t) * Math.cos(3 * Math.PI * t);
-  }
-  if (phase < 0.7) return CRUSHER_STRETCH_PX * Math.sin(((phase - 0.3) / 0.4) * Math.PI);
-  if (phase < 0.85) {
+    lift += CRUSHER_SLAM_BOUNCE_PX * Math.exp(-4 * t) * Math.abs(Math.sin(3 * Math.PI * t));
+  } else if (phase >= 0.7 && phase < 0.85) {
     const t = (phase - 0.7) / 0.15;
-    return -0.5 * CRUSHER_SQUASH_PX * Math.exp(-3 * t) * Math.sin(2 * Math.PI * t);
+    lift -= CRUSHER_TOP_BOUNCE_PX * Math.exp(-3 * t) * Math.abs(Math.sin(2 * Math.PI * t));
   }
-  return 0.6 * CRUSHER_STRETCH_PX * ((phase - 0.85) / 0.15);
+  return Phaser.Math.Clamp(lift, 0, CRUSHER_LIFT_PX);
+}
+
+// Re-placed every step: a restart snaps the head to the authored (x, y).
+// The parts copy the head's tint, alpha, depth and visibility so editor and
+// Slow Time tints reach the whole crusher.
+function poseCrusher(
+  head: Phaser.GameObjects.Sprite,
+  object: { x: number; y: number },
+  phase: number
+): void {
+  head.setPosition(object.x, object.y - CRUSHER_LIFT_PX);
+  const parts = crusherPartsOf(head);
+  if (!parts) return;
+  const scale = head.scaleY;
+  const frameHeight = head.frame.height;
+  const headTop = head.y - frameHeight * scale;
+  const headBottom = headTop + CRUSHER_HEAD_END_ROW * scale;
+  const baseBottom = object.y - crusherBaseLift(phase);
+  const baseTop = baseBottom - (frameHeight - CRUSHER_BASE_START_ROW) * scale;
+
+  // Rows of coil to show, spread wider the further the springs reach, and
+  // shifted so the coils ride along with the base plate.
+  const gap = Math.max(baseTop - headBottom, 1);
+  const restGap = (CRUSHER_BASE_START_ROW - CRUSHER_HEAD_END_ROW) * scale;
+  const spread = 1 + CRUSHER_COIL_SPREAD * Phaser.Math.Clamp((gap - restGap) / CRUSHER_LIFT_PX, 0, 1);
+  const rows = gap / scale;
+  parts.springs
+    .setPosition(object.x, headBottom)
+    .setSize(parts.springs.width, rows)
+    .setTileScale(1, spread);
+  parts.springs.tilePositionY =
+    (((CRUSHER_COIL_PHASE_AT_BASE - rows / spread) % CRUSHER_COIL_ROWS) + CRUSHER_COIL_ROWS) % CRUSHER_COIL_ROWS;
+  parts.base.setPosition(object.x, baseTop - CRUSHER_BASE_START_ROW * scale);
+  for (const part of [parts.springs, parts.base]) {
+    part
+      .setDepth(head.depth)
+      .setAlpha(head.alpha)
+      .setVisible(head.visible)
+      .setTint(head.tintTopLeft);
+  }
+
+  const columnHeight = baseBottom - headTop;
+  parts.hitbox.setPosition(object.x, headTop).setDisplaySize(CRUSHER_HITBOX_WIDTH_PX, columnHeight);
+  if (parts.hitbox.body instanceof Phaser.Physics.Arcade.StaticBody) {
+    parts.hitbox.body.setSize(CRUSHER_HITBOX_WIDTH_PX, columnHeight);
+  }
+  syncStaticBody(parts.hitbox);
 }
 
 // Share of CRUSHER_LIFT_PX the crusher is raised at `phase`: resting on
@@ -739,6 +788,7 @@ export function renderLevelObject(
   }
 
   if (object.type === 'mace') return renderMace(scene, object);
+  if (object.type === 'crusher') return renderCrusher(scene, object);
 
   const [originX, originY] = originFor(categoryOf(object.type));
   const sprite = scene.add
@@ -777,8 +827,6 @@ export function renderLevelObject(
     sprite.setScale(SPIKE_MINE_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (object.type === 'electricMine') {
     sprite.setScale(ZAPPER_DISPLAY_HEIGHT_PX / sprite.height);
-  } else if (object.type === 'crusher') {
-    sprite.setScale(CRUSHER_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (categoryOf(object.type) === 'powerup') {
     sprite.setScale((POWERUP_DISPLAY_HEIGHT_PX * POWERUP_ART_SCALE) / sprite.height);
   }
@@ -791,10 +839,6 @@ export function renderLevelObject(
   if (object.type === 'ceilingSpikes') shrinkStaticBody(sprite, CEILING_SPIKES_HITBOX_WIDTH_PX);
   if (object.type === 'spikeMine') shrinkStaticBody(sprite, SPIKE_MINE_HITBOX_PX, SPIKE_MINE_HITBOX_PX);
   if (object.type === 'electricMine') shrinkStaticBody(sprite, ZAPPER_HITBOX_PX, ZAPPER_HITBOX_PX);
-  if (object.type === 'crusher') {
-    shrinkStaticBody(sprite, CRUSHER_HITBOX_WIDTH_PX);
-    attachCrusherParts(scene, sprite);
-  }
   // The pickup box stays the size it was before the art shrank.
   if (categoryOf(object.type) === 'powerup') {
     shrinkStaticBody(sprite, sprite.displayWidth / POWERUP_ART_SCALE, POWERUP_DISPLAY_HEIGHT_PX);
@@ -853,6 +897,9 @@ export function renderLevelObject(
     });
   }
 
+  // The editors rebuild every sprite on each edit; a looping tween (the
+  // stapler's snap, a saw's spin) must not outlive its sprite.
+  sprite.once(Phaser.GameObjects.Events.DESTROY, () => scene.tweens.killTweensOf(sprite));
   return sprite;
 }
 

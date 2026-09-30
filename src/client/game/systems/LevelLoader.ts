@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/types';
 import {
   categoryOf,
+  crusherHitboxOf,
   maceHitboxOf,
   motionTweenConfigFor,
   renderLevelObject,
@@ -19,7 +20,7 @@ import {
 } from '../objects/ObjectRegistry';
 import { applyOutlineGlow, attachPickupShimmer } from './Juice';
 import { GROUND_TILE_DEPTH } from './PaperScenery';
-import { attachPowerUpAmbience, attachTrapAmbience } from './TrapAmbience';
+import { attachAmbience } from './TrapAmbience';
 
 // A bat that hasn't yet locked onto the player and dashed off (see
 // ObjectRegistry.triggerBatFlight). `triggered` is mutated in place by
@@ -233,11 +234,12 @@ export function loadLevel(
           registerMovingTween(scene.tweens.add(hazardTween), rendered);
         }
         // A mace only kills with its ball, which has its own small hitbox
-        // following the swing (see ObjectRegistry.renderMace).
-        const hitbox = maceHitboxOf(rendered) ?? rendered;
+        // following the swing (see ObjectRegistry.renderMace); a crusher's
+        // hitbox is its whole column, which grows and shrinks.
+        const hitbox = maceHitboxOf(rendered) ?? crusherHitboxOf(rendered) ?? rendered;
         if (hitbox !== rendered) sourceObjects.set(hitbox, object);
         hazards.add(hitbox);
-        attachTrapAmbience(scene, rendered, object);
+        attachAmbience(scene, rendered, object);
         break;
       }
       case 'finish': {
@@ -274,7 +276,7 @@ export function loadLevel(
         applyOutlineGlow(rendered, 0xffffff, 4);
         const center = rendered.getCenter();
         rendered.setData(SHIMMER_DATA_KEY, attachPickupShimmer(scene, center.x, center.y));
-        attachPowerUpAmbience(scene, rendered, object);
+        attachAmbience(scene, rendered, object);
         break;
       }
       default:

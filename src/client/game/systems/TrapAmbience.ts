@@ -1,5 +1,8 @@
 import * as Phaser from 'phaser';
 import type { LevelObject } from '../../../shared/types';
+
+// All ambience needs of an object: what it is and where it was placed.
+type PlacedObject = Pick<LevelObject, 'type' | 'x' | 'y'>;
 import {
   CRUSHER_SLAM_EVENT,
   STAPLER_SNAP_EVENT,
@@ -9,9 +12,10 @@ import {
 import { burstParticles, emitSpeedLine, playPixelFx } from './Juice';
 
 // Small looping touches on traps and power-ups, standing in for the motion
-// lines the old art had drawn in. Live runs only (LevelLoader), purely
-// cosmetic (no body is touched), and each one only plays while its object
-// is on screen. Everything stops when its object is destroyed.
+// lines the old art had drawn in. Played in runs and on every builder board
+// (the editors rebuild their sprites on each edit), purely cosmetic (no
+// body is touched), and each one only plays while its object is on screen.
+// Everything stops when its object is destroyed.
 
 const INK = 0x2b2b2b;
 const STOPWATCH_SPECK = 0x8ec8ff;
@@ -66,10 +70,22 @@ function glint(scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite, x: number
   playPixelFx(scene, 'trap-glint', x, y, { scale: 0.45, depth: sprite.depth + 0.1 });
 }
 
-export function attachTrapAmbience(
+// Call right after renderLevelObject (and motionTweenConfigFor's tween)
+// for any object; types without ambience are ignored.
+export function attachAmbience(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite,
-  object: LevelObject
+  object: PlacedObject
+): void {
+  sprite.once(Phaser.GameObjects.Events.DESTROY, () => scene.tweens.killTweensOf(sprite));
+  attachTrapAmbience(scene, sprite, object);
+  attachPowerUpAmbience(scene, sprite, object);
+}
+
+function attachTrapAmbience(
+  scene: Phaser.Scene,
+  sprite: Phaser.GameObjects.Sprite,
+  object: PlacedObject
 ): void {
   switch (object.type) {
     case 'spikes':
@@ -199,17 +215,18 @@ export function attachTrapAmbience(
   }
 }
 
-export function attachPowerUpAmbience(
+function attachPowerUpAmbience(
   scene: Phaser.Scene,
   sprite: Phaser.GameObjects.Sprite,
-  object: LevelObject
+  object: PlacedObject
 ): void {
   switch (object.type) {
     case 'wings': {
-      // Floats, flapping.
+      // Floats, flapping. The float shifts the drawing, not the sprite, so
+      // it never fights a drag in the curse builder.
       scene.tweens.add({
         targets: sprite,
-        y: sprite.y - 4,
+        displayOriginY: sprite.displayOriginY + 4 / sprite.scaleY,
         duration: 650,
         yoyo: true,
         repeat: -1,

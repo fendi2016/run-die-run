@@ -44,6 +44,7 @@ import {
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
+import { attachAmbience } from '../systems/TrapAmbience';
 import { PLATFORM_DISPLAY_HEIGHT_PX } from '../constants';
 
 // curse-strike's impact sits near its frame's bottom (~112 of 128px); it
@@ -551,6 +552,7 @@ export class CurseScene extends Scene {
         if (tweenConfig) {
           this.baseMotionTweens.push(this.tweens.add(tweenConfig));
         }
+        attachAmbience(this, image, object);
       }
     }
   }
@@ -589,6 +591,7 @@ export class CurseScene extends Scene {
         if (tweenConfig) {
           this.extensionMotionTweens.push(this.tweens.add(tweenConfig));
         }
+        attachAmbience(this, image, previewObject);
       }
     }
   }
@@ -621,6 +624,7 @@ export class CurseScene extends Scene {
       if (tweenConfig) {
         this.pendingMotionTween = this.tweens.add(tweenConfig);
       }
+      attachAmbience(this, image, previewObject);
       image.on('pointerdown', () => {
         this.panZoom.setSuspended(true);
         // Paused, not stopped — a tap that never crosses the drag threshold

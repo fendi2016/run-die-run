@@ -33,6 +33,7 @@ import {
 } from '../objects/ObjectRegistry';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
+import { attachAmbience } from '../systems/TrapAmbience';
 
 type EditorSceneData = {
   objects?: DraftObject[];
@@ -333,6 +334,7 @@ export class EditorScene extends Scene {
         if (tweenConfig) {
           this.motionTweens.push(this.tweens.add(tweenConfig));
         }
+        attachAmbience(this, image, object);
       }
     }
     this.refreshSelectionHighlight();
