@@ -907,15 +907,15 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   image-rendering: pixelated;
 }
 
-/* The Kenney pan-arrow icons are smooth scribble line art, not pixel-art
-   hazard sprites — the shared pixelated hint above (tuned for those)
-   would alias their downscaled edges instead of keeping the hand-drawn
-   line smooth. */
-#editor-pan-left .editor-btn-icon-img,
-#editor-pan-right .editor-btn-icon-img,
-#curse-pan-left .editor-btn-icon-img,
-#curse-pan-right .editor-btn-icon-img {
-  image-rendering: auto;
+/* Pan arrows: a plain drawn arrow in the button's ink colour. */
+.pan-arrow-icon {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .editor-btn-label {
