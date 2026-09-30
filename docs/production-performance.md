@@ -11,7 +11,9 @@ These commands do not upload or publish to Reddit.
   WebP (quality 88, alpha 90), visually checked at 100% against the lossless
   originals; pixel-art tiles, hazards, markers and power-ups stay lossless.
   Frame dimensions are unchanged except the tap-to-start logo (1254 → 800 px,
-  drawn at ≤260 CSS px). public/assets went from ~7.5 MB to 2.6 MB and the
+  drawn at ≤260 CSS px) and the speed-boost trail (`vfx/hyperspeed-lines`,
+  frames 517×515 → 259×258 at double the draw scale; it's drawn ~114 px
+  wide, so the full-size sheet was 19 MB of GPU memory, now ~5 MB). public/assets went from ~7.5 MB to 2.6 MB and the
   built client from 11 MB to 4.4 MB; the feed card's background is 221 KB
   (was 1.6 MB). Export new painted art the same way.
 - Static solids, hazards, pickups, and finish sensors use four spatially indexed
@@ -21,9 +23,20 @@ These commands do not upload or publish to Reddit.
   and logical world height are unchanged.
 - The post's level is fetched in parallel with Preloader assets, so no second
   loading screen appears between the bar and the level.
-- `/api/discovery/levels` (Browse, and Next Level after every clear) is
-  cached per sort for 15 s in each server instance, so the full catalog scan
-  doesn't scale with player count.
+- Browse reads sorted-set indexes (`discovery:index:*` in `redisKeys.ts`),
+  not the whole catalog. Publishes, curses, clears, falls and trap deaths
+  re-score that one level (`refreshDiscoveryIndex`). A listing reads only
+  index members and scores, then loads full stats for one 30-level page
+  (`?sort=&cursor=`; the client's "More levels" button asks for the next
+  page). Trending's daily part is a per-day set, so it resets at the UTC day
+  boundary without a sweep. The indexes backfill once from level data when
+  `discovery:index:version` is missing or out of date; bump
+  `DISCOVERY_INDEX_VERSION` after changing how scores are computed.
+- Next Level after a clear asks `/api/discovery/next?after=<levelId>`, which
+  returns one level instead of a whole listing. Level of the Day picks from
+  trending ids and reads only the chosen level.
+- Each page is cached for 15 s per server instance, so repeated Browse opens
+  don't scale with player count.
 - Background music (`assets/music/evening-mood.m4a`, 96 kbps AAC, 2.0 MB)
   streams through an `<audio>` element after the first tap instead of going
   through the Phaser loader, so it never delays the loading bar and isn't
@@ -31,17 +44,20 @@ These commands do not upload or publish to Reddit.
   iOS webviews don't reliably play.
 - Unused dependencies removed (phaser-runtime-editor, toolkit,
   command-history, nanoid, zod).
-- Feed/menu statistics read a handful of plain Redis keys for one level. Discovery retains its
-  global sorting and limits concurrent level reads to six workers.
-- Client source maps are omitted. Browse remains dynamically imported.
+- Feed/menu statistics read a handful of plain Redis keys for one level.
+  Per-level reads (a Browse page, the index backfill) run six at a time.
+- Client source maps are omitted. Browse is a plain DOM overlay
+  (`ui/DiscoveryOverlay.ts`) bundled into `game.js`; it's small enough that
+  splitting it out wouldn't measurably change load time, since Phaser
+  dominates the bundle.
 - Loading progress fits narrow screens. Asset failures offer touch retry;
   level requests time out and abort on scene shutdown. Embedded storage failure
   falls back to the expanded menu.
 
 ## Baseline and limits
 
-Initial JavaScript, including static imports, is approximately 5.3 KB gzip for
-splash and 425 KB gzip for the expanded game. Budgets are 16 KiB and 550 KiB,
+Initial JavaScript, including static imports, is approximately 6 KB gzip for
+splash and 439 KB gzip for the expanded game. Budgets are 16 KiB and 550 KiB,
 respectively. These are compressed file sizes, not measured network timings.
 
 The browser fixtures cover mobile layout at 390 × 844, a 500-tile collision
@@ -50,6 +66,8 @@ and asset failure recovery by touch. Local browser fixtures do not measure
 Reddit network latency, real-device GPU frame time, thermal behavior, or memory
 pressure. Check an iOS and Android Reddit playtest before publishing.
 
-Discovery still sorts the full catalog; very large catalogs will need indexed
-ranking/pagination. Bounding concurrency prevents request fan-out but does not
-make total discovery work constant.
+A Browse listing still reads every index member id and score (four sorted-set
+reads) and orders them in memory, so ordering cost grows with the catalog.
+That's plain ids and numbers, not per-level reads, so it holds up well into
+the tens of thousands of levels. Past that, read ranges straight from Redis
+(`zRange` with `limit`) instead of sorting in memory.

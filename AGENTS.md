@@ -36,7 +36,9 @@ You are writing a Devvit web application that will be executed on Reddit.com.
 
 - `npm run type-check`: Check typescript types
 - `npm run lint`: Check the linter
-- `npm run test -- my-file-name`: Run tests isolated to a file
+- `npm run test:unit`: Run all server/shared unit tests
+- `node --experimental-strip-types --experimental-test-module-mocks --import ./tools/test-loader.mjs --test src/server/tests/my-file.test.ts`: Run one test file
+- `npm run check:production`: Types, lint, unit tests, build and bundle-size budgets (run before deploying)
 
 ## Code Style
 
