@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { DANCE_FRAME_MS, FINISH_DISPLAY_HEIGHT_PX, PLAYER_SIZE } from '../constants';
+import { FINISH_DISPLAY_HEIGHT_PX, PLAYER_SIZE } from '../constants';
 import { playSfx } from './Sfx';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
@@ -212,7 +212,6 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'shield-zap', frameWidth: 64, frameHeight: 64, frameRate: 18 }, // Wham
   { key: 'pickup-shimmer', frameWidth: 96, frameHeight: 96, frameRate: 12, loop: true }, // three Glimmers, staggered
   // Level flow and curses (GameScene, CurseScene, EditorScene)
-  { key: 'finish-blast', frameWidth: 96, frameHeight: 96, frameRate: 15, pixel: true }, // stylized_explosion_002 violet
   { key: 'firework-green', frameWidth: 96, frameHeight: 96, frameRate: 15, pixel: true }, // round_firework_burst_001 green
   { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15, pixel: true }, // round_firework_burst_002 yellow
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // lightning_strike_001 violet
@@ -474,16 +473,11 @@ export function emitSpeedLine(scene: Phaser.Scene, backX: number, y: number): vo
   });
 }
 
-// Squash pulses on the finish gate, one per victory-dance beat
-// (DANCE_FRAME_MS), each weaker than the last.
-const FINISH_PULSES = 3;
-const FINISH_BLAST_SCALE = 1.1;
 // Where the mouth sits in markers/finish.webp: left of center by this
 // fraction of the display width, up from the base by this fraction of the
 // display height.
 const FINISH_MOUTH_OFFSET_X = 0.38;
 const FINISH_MOUTH_HEIGHT = 0.73;
-const FINISH_SPARK_COLOR = 0xffc233;
 
 // Puts the finish gate back at its resting size. Exported so GameScene can
 // snap it back on a same-scene restart without duplicating this math.
@@ -499,64 +493,30 @@ export function stopFinishGateAnimation(
   resetFinishGate(sprite);
 }
 
-// Plays the finish sharpener's celebration: a violet blast bursts from its
-// mouth while it pulses in time with the player's dance. Purely cosmetic, same as
-// burstParticles above — GameScene fires this once from onFinishReached and
-// never awaits it. Only the scale moves; the sprite is bottom-anchored, so
-// the gate stays planted on the ground.
-export function playFinishGateAnimation(
-  scene: Phaser.Scene,
-  sprite: Phaser.GameObjects.Sprite
-): void {
-  stopFinishGateAnimation(scene, sprite);
-  const restScale = sprite.scaleX;
-
-  // The sharpener's mouth, up on its left (incoming) side.
-  const openingX = sprite.x - sprite.displayWidth * FINISH_MOUTH_OFFSET_X;
-  const openingY = sprite.y - sprite.displayHeight * FINISH_MOUTH_HEIGHT;
-  playPixelFx(scene, 'finish-blast', openingX, openingY, {
-    scale: FINISH_BLAST_SCALE,
-    depth: sprite.depth + 0.01,
-  });
-  burstParticles(scene, openingX, openingY, FINISH_SPARK_COLOR, 18);
-
-  scene.tweens.chain({
-    targets: sprite,
-    tweens: Array.from({ length: FINISH_PULSES }, (_, i) => {
-      const strength = 1 - i / FINISH_PULSES;
-      return {
-        scaleX: restScale * (1 - 0.04 * strength),
-        scaleY: restScale * (1 + 0.08 * strength),
-        duration: DANCE_FRAME_MS / 2,
-        ease: 'Sine.easeOut',
-        yoyo: true,
-      };
-    }),
-  });
-}
-
-// Clear-screen finish: the pencil hops at the sharpener, lines up tip-first
-// with the hole on its upper-left face and slides in, vanishing at the
-// hole while it grinds. Then the gag: the sharpener gulps, squirts three
-// cartoon spurts of blood out of its top slot, and spits his eraser out,
-// which bounces and lies there. All on stand-in images: the caller has
-// already hidden the real (physics) player, and the finish sensor itself
-// only ever has its scale tweened. destroy() stops it all, for a restart
-// mid-animation.
+// Clear-screen finish: the pencil launches himself tip-first, in one low
+// arc, straight into the hole on the sharpener's upper-left face and
+// slides in, vanishing at the hole while it rumbles and spits shavings.
+// Then the gag: the sharpener gulps, squirts three fountains of cartoon
+// blood out of its lid slot, and spits his eraser out, which bounces and
+// lands in a puff. All on stand-ins (the caller has already hidden the
+// real physics player; the finish sensor itself only has its scale
+// tweened). destroy() stops everything, for a restart mid-animation.
 const DIVE_TEXTURE = 'player-dive';
-// Where the pencil's tip and eraser sit in player/player-dive.webp (300x226,
-// baked from the user's diving.png), in frame pixels.
+// player/player-dive.webp (300x226, from the user's diving.png): where the
+// tip and the eraser sit, in frame pixels.
+const DIVE_FRAME = { width: 300, height: 226 };
 const DIVE_TIP = { x: 298, y: 169.5 };
 const DIVE_ERASER = { x: 42, y: 104, cropWidth: 84 };
-// The drawn pencil leans down to the right at this slope; he slides in
-// along it.
+// The drawn pencil leans down to the right at this slope; he flies and
+// slides along it.
 const DIVE_SLOPE = (DIVE_TIP.y - 93) / DIVE_TIP.x;
 const DIVE_LENGTH = PLAYER_SIZE * 1.15;
-const DIVE_HOP_MS = 260;
-const DIVE_AIM_MS = 120;
-const DIVE_SLIDE_MS = 700;
-const DIVE_GRIND_MS = 350;
-const SPURT_GAP_MS = 260;
+const DIVE_ARC_MS = 300;
+const DIVE_ARC_LIFT = 40;
+const DIVE_SLIDE_MS = 620;
+const DIVE_GRIND_MS = 300;
+const SPURT_GAP_MS = 230;
+const ERASER_SCALE = 1.6;
 // The slot on the sharpener's lid, right of centre by this fraction of its
 // display width, up from the base by this fraction of its height.
 const SLOT_OFFSET_X = 0.13;
@@ -569,7 +529,7 @@ export type SharpenerDive = { destroy: () => void };
 
 export function playSharpenerDive(
   scene: Phaser.Scene,
-  from: { x: number; y: number; textureKey: string },
+  from: { x: number; y: number },
   sharpener: Phaser.GameObjects.Sprite,
   onInside: () => void
 ): SharpenerDive {
@@ -578,55 +538,81 @@ export function playSharpenerDive(
   const slotX = sharpener.x + sharpener.displayWidth * SLOT_OFFSET_X;
   const slotY = sharpener.y - sharpener.displayHeight * SLOT_HEIGHT;
   const depth = sharpener.depth + 0.02;
-  const length = Math.hypot(1, DIVE_SLOPE);
-  const dir = { x: 1 / length, y: DIVE_SLOPE / length };
+  const norm = Math.hypot(1, DIVE_SLOPE);
+  const dir = { x: 1 / norm, y: DIVE_SLOPE / norm };
   const restScale = FINISH_DISPLAY_HEIGHT_PX / sharpener.frame.height;
+  const diveScale = DIVE_LENGTH / DIVE_FRAME.width;
   const timers: Phaser.Time.TimerEvent[] = [];
   const later = (delay: number, fn: () => void) => timers.push(scene.time.delayedCall(delay, fn));
-  const tip = { x: 0, y: 0 };
+  const spawned: Phaser.GameObjects.GameObject[] = [];
 
+  // `tip` is where the pencil's point is; placeTip() draws him there and
+  // hides whatever has gone past the hole.
+  // He usually trips the finish sensor already level with the hole, so
+  // start the tip short of it (never cropped on its first frame).
+  const tip = { x: Math.min(from.x + DIVE_LENGTH * 0.35, mouthX - 12), y: from.y - PLAYER_SIZE * 0.5 };
   const pencil = scene.add
-    .image(from.x, from.y, from.textureKey)
+    .image(tip.x, tip.y, DIVE_TEXTURE)
     .setName('sharpener-dive')
-    .setOrigin(0.5, 1)
-    .setDepth(depth)
-    .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
-  let eraser: Phaser.GameObjects.Image | undefined;
-  Reflect.set(window, '__SKETCHY_DIVE_INSIDE__', false);
-
-  const shavings = () => {
-    burstParticles(scene, mouthX, mouthY, SHAVING_WOOD, 8);
-    burstParticles(scene, mouthX, mouthY, SHAVING_GRAPHITE, 4);
-  };
-
-  // Places the dive texture's tip at `tip` and hides whatever has gone
-  // past the hole.
+    .setOrigin(DIVE_TIP.x / DIVE_FRAME.width, DIVE_TIP.y / DIVE_FRAME.height)
+    .setScale(diveScale)
+    .setDepth(depth);
   const placeTip = () => {
     pencil.setPosition(tip.x, tip.y);
     const left = tip.x - pencil.displayWidth * pencil.originX;
-    const visible = Phaser.Math.Clamp((mouthX - left) / pencil.scaleX, 0, pencil.frame.width);
-    pencil.setCrop(0, 0, visible, pencil.frame.height);
+    const visible = Phaser.Math.Clamp((mouthX - left) / pencil.scaleX, 0, DIVE_FRAME.width);
+    pencil.setCrop(0, 0, visible, DIVE_FRAME.height);
+  };
+  placeTip();
+  Reflect.set(window, '__SKETCHY_DIVE_INSIDE__', false);
+
+  const shavings = () => {
+    burstParticles(scene, mouthX, mouthY, SHAVING_WOOD, 6);
+    burstParticles(scene, mouthX, mouthY, SHAVING_GRAPHITE, 3);
+  };
+
+  // A squirt of blood up out of the lid slot, falling back under gravity.
+  const spurt = (strength: number) => {
+    const fountain = scene.add.particles(slotX, slotY, 'particle', {
+      angle: { min: -118, max: -62 },
+      speed: { min: 220 + strength * 60, max: 330 + strength * 90 },
+      gravityY: 950,
+      scale: { start: 1.7, end: 0.6 },
+      lifespan: 700,
+      tint: BLOOD_RED,
+      emitting: false,
+    });
+    fountain.setDepth(depth);
+    fountain.explode(18 + strength * 8);
+    spawned.push(fountain);
+    later(700, () => fountain.destroy());
   };
 
   const spitEraser = () => {
     playSfx(scene, 'sharpenTwang');
-    const piece = scene.add
+    const eraser = scene.add
       .image(slotX, slotY, DIVE_TEXTURE)
       .setName('sharpener-eraser')
       .setDepth(depth)
-      .setCrop(0, 0, DIVE_ERASER.cropWidth, 226)
-      .setOrigin(DIVE_ERASER.x / 300, DIVE_ERASER.y / 226);
-    piece.setScale(DIVE_LENGTH / 300);
-    eraser = piece;
-    const landX = sharpener.x + sharpener.displayWidth * 0.9;
-    scene.tweens.add({ targets: piece, x: landX, angle: 540, duration: 820, ease: 'Linear' });
+      .setCrop(0, 0, DIVE_ERASER.cropWidth, DIVE_FRAME.height)
+      .setOrigin(DIVE_ERASER.x / DIVE_FRAME.width, DIVE_ERASER.y / DIVE_FRAME.height)
+      .setScale(diveScale * ERASER_SCALE);
+    spawned.push(eraser);
+    const groundY = sharpener.y - 10;
+    const landX = sharpener.x + sharpener.displayWidth * 0.85;
+    scene.tweens.add({ targets: eraser, x: landX, angle: 450, duration: 760, ease: 'Linear' });
     scene.tweens.chain({
-      targets: piece,
+      targets: eraser,
       tweens: [
-        { y: slotY - 170, duration: 340, ease: 'Quad.easeOut' },
-        { y: sharpener.y - 8, duration: 360, ease: 'Quad.easeIn' },
-        { y: sharpener.y - 30, duration: 110, ease: 'Quad.easeOut' },
-        { y: sharpener.y - 8, duration: 110, ease: 'Quad.easeIn' },
+        { y: slotY - 150, duration: 320, ease: 'Quad.easeOut' },
+        {
+          y: groundY,
+          duration: 330,
+          ease: 'Quad.easeIn',
+          onComplete: () => playPixelFx(scene, 'smoke-poof', landX, groundY, { scale: 0.8, depth }),
+        },
+        { y: groundY - 22, duration: 100, ease: 'Quad.easeOut' },
+        { y: groundY, duration: 100, ease: 'Quad.easeIn' },
       ],
     });
   };
@@ -647,11 +633,10 @@ export function playSharpenerDive(
     for (let i = 0; i < 3; i++) {
       later(140 + i * SPURT_GAP_MS, () => {
         playSfx(scene, 'sharpenSquelch');
-        burstParticles(scene, slotX, slotY, BLOOD_RED, 10 + i * 6);
-        playPixelFx(scene, 'blood-spray', slotX, slotY, { scale: 1.4 + i * 0.5, angle: -90, depth });
+        spurt(i);
         scene.tweens.add({
           targets: sharpener,
-          scaleY: restScale * (1.06 + i * 0.03),
+          scaleY: restScale * (1.05 + i * 0.03),
           duration: 70,
           yoyo: true,
           ease: 'Quad.easeOut',
@@ -660,73 +645,59 @@ export function playSharpenerDive(
     }
     later(140 + 3 * SPURT_GAP_MS, () => {
       spitEraser();
-      playPixelFx(scene, 'finish-blast', mouthX, mouthY, { scale: FINISH_BLAST_SCALE, depth });
       onInside();
     });
   };
 
-  const slideIn = () => {
-    // The hop's arc can land a frame after this; it mustn't drag the
-    // lined-up pencil off the mouth.
-    scene.tweens.killTweensOf(pencil);
-    pencil.setTexture(DIVE_TEXTURE).setOrigin(DIVE_TIP.x / 300, DIVE_TIP.y / 226);
-    pencil.setScale(DIVE_LENGTH / 300);
-    tip.x = mouthX - dir.x * DIVE_LENGTH * 0.5;
-    tip.y = mouthY - dir.y * DIVE_LENGTH * 0.5;
-    placeTip();
-    scene.tweens.chain({
-      targets: tip,
-      tweens: [
-        // onUpdate goes on each tween: a chain's own onUpdate never fires.
-        { x: mouthX, y: mouthY, duration: DIVE_AIM_MS, ease: 'Quad.easeIn', onUpdate: placeTip },
-        {
-          x: mouthX + dir.x * DIVE_LENGTH,
-          y: mouthY + dir.y * DIVE_LENGTH,
-          duration: DIVE_SLIDE_MS,
-          ease: 'Sine.easeIn',
-          onUpdate: placeTip,
-          onStart: () => {
-            playSfx(scene, 'sharpenGrind');
-            playFinishGateAnimation(scene, sharpener);
-            timers.push(scene.time.addEvent({ delay: 120, repeat: 5, callback: shavings }));
-          },
-        },
-      ],
-      onComplete: () => {
-        placeTip();
-        pencil.setVisible(false);
-        scene.cameras.main.shake(DIVE_GRIND_MS, 0.003);
-        shavings();
-        later(DIVE_GRIND_MS, gulpAndSpurt);
-      },
+  // Rumbles (scale only) and spits shavings while he goes in.
+  const grind = () => {
+    playSfx(scene, 'sharpenGrind');
+    scene.tweens.add({
+      targets: sharpener,
+      scaleX: restScale * 1.03,
+      scaleY: restScale * 0.98,
+      duration: 60,
+      yoyo: true,
+      repeat: Math.floor(DIVE_SLIDE_MS / 120),
     });
+    timers.push(scene.time.addEvent({ delay: 110, repeat: 4, callback: shavings }));
   };
 
-  // The hop: forward to just short of the mouth, up and over.
-  scene.tweens.add({
-    targets: pencil,
-    x: mouthX - DIVE_LENGTH * 0.7,
-    duration: DIVE_HOP_MS,
-    ease: 'Linear',
-    onComplete: slideIn,
-  });
+  // One low arc from where he stopped to just short of the hole, lined up
+  // on its slope, then the slide in. (onUpdate on each tween: a chain's
+  // own onUpdate never fires.)
+  const lineUp = { x: mouthX - dir.x * DIVE_LENGTH * 0.3, y: mouthY - dir.y * DIVE_LENGTH * 0.3 };
+  const apexY = Math.min(tip.y, lineUp.y) - DIVE_ARC_LIFT;
+  scene.tweens.add({ targets: tip, x: lineUp.x, duration: DIVE_ARC_MS, ease: 'Sine.easeInOut', onUpdate: placeTip });
   scene.tweens.chain({
-    targets: pencil,
+    targets: tip,
     tweens: [
-      { y: Math.min(from.y, mouthY) - 50, duration: DIVE_HOP_MS * 0.6, ease: 'Quad.easeOut' },
-      { y: mouthY + PLAYER_SIZE * 0.4, duration: DIVE_HOP_MS * 0.4, ease: 'Quad.easeIn' },
+      { y: apexY, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeOut', onUpdate: placeTip },
+      { y: lineUp.y, duration: DIVE_ARC_MS / 2, ease: 'Quad.easeIn', onUpdate: placeTip },
+      {
+        x: mouthX + dir.x * DIVE_LENGTH,
+        y: mouthY + dir.y * DIVE_LENGTH,
+        duration: DIVE_SLIDE_MS,
+        ease: 'Sine.easeIn',
+        onStart: grind,
+        onUpdate: placeTip,
+      },
     ],
+    onComplete: () => {
+      placeTip();
+      pencil.setVisible(false);
+      scene.cameras.main.shake(DIVE_GRIND_MS, 0.003);
+      shavings();
+      later(DIVE_GRIND_MS, gulpAndSpurt);
+    },
   });
 
   return {
     destroy: () => {
       for (const timer of timers) timer.remove();
-      scene.tweens.killTweensOf([pencil, tip]);
+      scene.tweens.killTweensOf([pencil, tip, ...spawned]);
       pencil.destroy();
-      if (eraser) {
-        scene.tweens.killTweensOf(eraser);
-        eraser.destroy();
-      }
+      for (const object of spawned) object.destroy();
       stopFinishGateAnimation(scene, sharpener);
     },
   };

@@ -171,7 +171,3 @@ export const SPAWN_CASE_CLEARANCE_PX = 24;
 // over it) so it rests on the drawn edge instead of hovering above it.
 export const SPAWN_CASE_SINK_PX = 4;
 
-// One beat of the finish-line victory dance (ms per pose). The finish
-// gate's pulse (Juice.playFinishGateAnimation) is timed on the same beat
-// so the two read as one celebration.
-export const DANCE_FRAME_MS = 144;

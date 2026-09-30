@@ -827,24 +827,17 @@ export class GameScene extends Scene {
       return;
     }
     this.runEnded = true;
-    const { x, y, texture } = this.player.sprite;
+    const { x, y } = this.player.sprite;
     this.player.freeze();
     this.recordBestProgress(1);
     this.runHud.hide();
 
-    // Purely cosmetic — doesn't touch `timeMs` below in any way.
-    burstParticles(
-      this,
-      this.player.sprite.x,
-      this.player.sprite.y,
-      0x39ff88,
-      22
-    );
-    this.cameras.main.flash(150, 57, 255, 136, false);
+    // Purely cosmetic — doesn't touch `timeMs` below in any way. The dive
+    // into the sharpener is the celebration.
     if (this.finishSprite) {
       const finish = this.finishSprite;
       this.sharpenerDive?.destroy();
-      this.sharpenerDive = playSharpenerDive(this, { x, y, textureKey: texture.key }, finish, () =>
+      this.sharpenerDive = playSharpenerDive(this, { x, y }, finish, () =>
         this.playFinishFireworks(finish)
       );
     }

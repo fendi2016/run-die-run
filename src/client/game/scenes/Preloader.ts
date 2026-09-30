@@ -104,7 +104,7 @@ export class Preloader extends Scene {
         frameHeight: sheet.frameHeight,
       });
     }
-    // The finish sharpener (see Juice.playFinishGateAnimation) and the spawn
+    // The finish sharpener (see Juice.playSharpenerDive) and the spawn
     // pencil case are single frames; their effects come from PIXEL_FX_SHEETS.
     this.load.image('finish-gate', 'markers/finish.webp');
     this.load.image('spawn-marker', 'markers/spawn.webp');
