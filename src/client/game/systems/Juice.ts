@@ -793,6 +793,92 @@ export function playSharpenerDive(
   };
 }
 
+// A level's first spawn: the pencil pops up out of the pencil case (drawn
+// cut off at the case's front rim, so he climbs out from inside), then
+// hops over to the spawn point and lands. A stand-in again; `onLanded`
+// is when the caller shows the real player. finish() skips straight to
+// the landing (the player tapped to start early, or the run restarted).
+const EMERGE_RISE_MS = 300;
+const EMERGE_HOP_MS = 340;
+// The top of the case's front rim, down from its top edge as a fraction
+// of its display height (markers/spawn.webp).
+const CASE_RIM = 0.47;
+
+export type CaseEmerge = { finish: () => void };
+
+export function playCaseEmerge(
+  scene: Phaser.Scene,
+  pencilCase: Phaser.GameObjects.Image,
+  spawn: { x: number; y: number },
+  onLanded: () => void
+): CaseEmerge {
+  const caseX = pencilCase.x - pencilCase.displayWidth * pencilCase.originX + pencilCase.displayWidth / 2;
+  const caseTop = pencilCase.y - pencilCase.displayHeight * pencilCase.originY;
+  const rimY = caseTop + pencilCase.displayHeight * CASE_RIM;
+  const caseScale = pencilCase.scaleX;
+  const pencil = scene.add
+    .image(caseX, pencilCase.y, 'player-jump-rise')
+    .setName('spawn-emerge')
+    .setOrigin(0.5, 1)
+    .setDepth(pencilCase.depth + 0.01)
+    .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+  let done = false;
+
+  // Only the part above the rim shows while he's still inside.
+  const clipAtRim = () => {
+    const top = pencil.y - pencil.displayHeight;
+    const visible = Phaser.Math.Clamp((rimY - top) / pencil.scaleY, 0, pencil.frame.height);
+    pencil.setCrop(0, 0, pencil.frame.width, visible);
+  };
+  clipAtRim();
+
+  const finish = () => {
+    if (done) return;
+    done = true;
+    scene.tweens.killTweensOf([pencil, pencilCase]);
+    pencilCase.setScale(caseScale);
+    pencil.destroy();
+    playPixelFx(scene, 'jump-dust', spawn.x, spawn.y, { scale: 0.6, originY: 1 });
+    onLanded();
+  };
+
+  scene.tweens.add({
+    targets: pencil,
+    y: rimY + PLAYER_SIZE * 0.35,
+    duration: EMERGE_RISE_MS,
+    ease: 'Back.easeOut',
+    onStart: () => {
+      playSfx(scene, 'spawnPop');
+      scene.tweens.add({
+        targets: pencilCase,
+        scaleX: caseScale * 1.08,
+        scaleY: caseScale * 0.9,
+        duration: 90,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    },
+    onUpdate: clipAtRim,
+    onComplete: () => {
+      if (done) return;
+      pencil.setCrop();
+      pencil.setTexture('player-jump-tuck').setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+      playSfx(scene, 'jump');
+      scene.tweens.add({ targets: pencil, x: spawn.x, duration: EMERGE_HOP_MS, ease: 'Linear' });
+      scene.tweens.chain({
+        targets: pencil,
+        tweens: [
+          { y: Math.min(pencil.y, spawn.y) - 60, duration: EMERGE_HOP_MS * 0.45, ease: 'Quad.easeOut' },
+          { y: spawn.y, duration: EMERGE_HOP_MS * 0.55, ease: 'Quad.easeIn' },
+        ],
+        onComplete: finish,
+      });
+    },
+  });
+
+  return { finish };
+}
+
 // The player being scribbled into existence: a pen scrawl hatches up
 // over a `width` x `height` box standing on (x, groundY), then fades.
 // `onDrawn` fires the moment the scrawl reaches the top, which is when

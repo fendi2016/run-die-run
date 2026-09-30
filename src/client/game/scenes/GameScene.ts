@@ -87,7 +87,9 @@ import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   playScribbleIn,
   burstParticles,
+  playCaseEmerge,
   playSharpenerDive,
+  type CaseEmerge,
   type SharpenerDive,
   playPixelFx,
   stopFinishGateAnimation,
@@ -108,7 +110,6 @@ const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // running at once, so it gets a quicker flourish around the visible player.
 // Per-frame ease toward the clear-screen framing (see frameFinish()).
 const FINISH_CAMERA_LERP = 0.12;
-const SPAWN_SCRIBBLE_MS = 260;
 const SPAWN_SCRIBBLE_RETRY_MS = 150;
 const SPAWN_SCRIBBLE_WIDTH = PLAYER_SIZE * 0.6;
 // Offsets from the finish gate's top-center, in world px.
@@ -229,6 +230,8 @@ export class GameScene extends Scene {
   private finishSprite: Phaser.GameObjects.Sprite | undefined;
   // The clear-screen pencil-into-sharpener animation, while it plays.
   private sharpenerDive: SharpenerDive | undefined;
+  // The first spawn's climb out of the pencil case, while it plays.
+  private caseEmerge: CaseEmerge | undefined;
 
   private previewLevel: LevelVersion | undefined;
   private candidateToken: string | undefined;
@@ -342,6 +345,8 @@ export class GameScene extends Scene {
     // already owns deciding what counts as "the start tap".
     if (!this.runStarted && !this.player.isWaitingToStart) {
       this.runStarted = true;
+      // Tapped before he'd climbed out: skip to him standing at spawn.
+      this.caseEmerge?.finish();
       this.tapToStartPrompt.hide();
       this.runElapsedMs = 0;
       this.physics.resume();
@@ -764,7 +769,7 @@ export class GameScene extends Scene {
 
     // The spawn pencil case the player comes out of, just to his left —
     // above the background, behind the player and every level object.
-    this.add
+    const pencilCase = this.add
       .image(
         this.spawn.x - SPAWN_CASE_CLEARANCE_PX,
         this.spawn.y + SPAWN_CASE_SINK_PX,
@@ -779,7 +784,13 @@ export class GameScene extends Scene {
     // reports the wait is over.
     player.reset(this.spawn.x, this.spawn.y, true);
     this.followPlayerY(true);
-    this.playSpawnWarp(true);
+    // He climbs out of the pencil case (death retries use the quicker
+    // scribble-in, playSpawnWarp).
+    player.sprite.setVisible(false);
+    this.caseEmerge = playCaseEmerge(this, pencilCase, this.spawn, () => {
+      this.caseEmerge = undefined;
+      if (!this.runEnded) player.sprite.setVisible(true);
+    });
     // Keep gravity, collision callbacks, and moving objects idle together.
     // Scene input remains active so the first tap can release the gate.
     this.physics.pause();
@@ -1386,17 +1397,16 @@ export class GameScene extends Scene {
       });
   }
 
-  // The player is scribbled in at the spawn point (see SPAWN_SCRIBBLE_MS).
-  private playSpawnWarp(beamIn: boolean): void {
+  // After a death the player is scribbled back in at the spawn point.
+  private playSpawnWarp(): void {
     const sprite = this.player?.sprite;
-    if (beamIn) sprite?.setVisible(false);
     playScribbleIn(
       this,
       this.spawn.x,
       this.spawn.y,
       SPAWN_SCRIBBLE_WIDTH,
       PLAYER_SIZE,
-      beamIn ? SPAWN_SCRIBBLE_MS : SPAWN_SCRIBBLE_RETRY_MS,
+      SPAWN_SCRIBBLE_RETRY_MS,
       // Not if the run already ended meanwhile (a dev warp straight to the
       // finish): the sharpener dive has hidden him for good.
       () => {
@@ -1436,7 +1446,8 @@ export class GameScene extends Scene {
     this.runHud.setAttempt(this.deathsThisLevel + 1);
     this.runHud.setProgress(0);
     this.runHud.show();
-    this.playSpawnWarp(false);
+    this.caseEmerge?.finish();
+    this.playSpawnWarp();
     this.cameras.main.scrollX = 0;
     this.runElapsedMs = 0;
     this.runStarted = true;
@@ -1476,6 +1487,9 @@ export class GameScene extends Scene {
   }
 
   private cleanup(): void {
+    // The scene's own shutdown destroys the stand-ins; just drop the handles.
+    this.caseEmerge = undefined;
+    this.sharpenerDive = undefined;
     DiscoveryOverlay.instance().hide();
     this.attempt.abort();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
