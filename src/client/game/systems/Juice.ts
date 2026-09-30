@@ -732,6 +732,9 @@ export function playSharpenerDive(
   };
 
   const slideIn = () => {
+    // The hop's arc can land a frame after this; it mustn't drag the
+    // lined-up pencil off the mouth.
+    scene.tweens.killTweensOf(pencil);
     pencil.setTexture(DIVE_TEXTURE).setOrigin(DIVE_TIP.x / 300, DIVE_TIP.y / 226);
     pencil.setScale(DIVE_LENGTH / 300);
     tip.x = mouthX - dir.x * DIVE_LENGTH * 0.5;
@@ -740,12 +743,14 @@ export function playSharpenerDive(
     scene.tweens.chain({
       targets: tip,
       tweens: [
-        { x: mouthX, y: mouthY, duration: DIVE_AIM_MS, ease: 'Quad.easeIn' },
+        // onUpdate goes on each tween: a chain's own onUpdate never fires.
+        { x: mouthX, y: mouthY, duration: DIVE_AIM_MS, ease: 'Quad.easeIn', onUpdate: placeTip },
         {
           x: mouthX + dir.x * DIVE_LENGTH,
           y: mouthY + dir.y * DIVE_LENGTH,
           duration: DIVE_SLIDE_MS,
           ease: 'Sine.easeIn',
+          onUpdate: placeTip,
           onStart: () => {
             playSfx(scene, 'sharpenGrind');
             playFinishGateAnimation(scene, sharpener);
@@ -753,8 +758,8 @@ export function playSharpenerDive(
           },
         },
       ],
-      onUpdate: placeTip,
       onComplete: () => {
+        placeTip();
         pencil.setVisible(false);
         scene.cameras.main.shake(DIVE_GRIND_MS, 0.003);
         shavings();
