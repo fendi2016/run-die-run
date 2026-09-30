@@ -498,8 +498,8 @@ export function stopFinishGateAnimation(
 // arc, straight into the hole on the sharpener's upper-left face and
 // slides in, vanishing at the hole while it rumbles and spits shavings.
 // Then the gag: the sharpener gulps, squirts three fountains of cartoon
-// blood out of its lid slot, and spits his eraser out, which bounces and
-// lands in a puff. All on stand-ins (the caller has already hidden the
+// blood out of its lid slot, and spits his eraser out, which falls off the
+// bottom of the screen. All on stand-ins (the caller has already hidden the
 // real physics player; the finish sensor itself only has its scale
 // tweened). destroy() stops everything, for a restart mid-animation.
 const DIVE_TEXTURE = 'player-dive';
@@ -599,21 +599,20 @@ export function playSharpenerDive(
       .setOrigin(DIVE_ERASER.x / DIVE_FRAME.width, DIVE_ERASER.y / DIVE_FRAME.height)
       .setScale(diveScale * ERASER_SCALE);
     spawned.push(eraser);
-    const groundY = sharpener.y - 10;
-    const landX = sharpener.x + sharpener.displayWidth * 0.85;
-    scene.tweens.add({ targets: eraser, x: landX, angle: 450, duration: 760, ease: 'Linear' });
+    // Up out of the slot, then straight down past the bottom of the view.
+    const offscreenY = scene.cameras.main.worldView.bottom + eraser.displayHeight * 2;
+    const driftX = sharpener.x + sharpener.displayWidth * 0.6;
+    scene.tweens.add({ targets: eraser, x: driftX, angle: 540, duration: 1100, ease: 'Linear' });
     scene.tweens.chain({
       targets: eraser,
       tweens: [
         { y: slotY - 150, duration: 320, ease: 'Quad.easeOut' },
         {
-          y: groundY,
-          duration: 330,
+          y: offscreenY,
+          duration: 780,
           ease: 'Quad.easeIn',
-          onComplete: () => playPixelFx(scene, 'smoke-poof', landX, groundY, { scale: 0.8, depth }),
+          onComplete: () => eraser.setVisible(false),
         },
-        { y: groundY - 22, duration: 100, ease: 'Quad.easeOut' },
-        { y: groundY, duration: 100, ease: 'Quad.easeIn' },
       ],
     });
   };
