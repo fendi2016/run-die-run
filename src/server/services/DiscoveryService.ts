@@ -21,6 +21,7 @@ import {
 } from '../core/redisKeys';
 import { levelDisplayTitle, SEED_LEVELS } from '../core/seedLevels';
 import { getCurrentLevelVersion } from './LevelService';
+import { withTransaction } from '../core/transactions';
 
 type Transaction = Awaited<ReturnType<typeof redis.watch>>;
 const DAY_MS = 86400000;
@@ -190,39 +191,75 @@ async function mapBounded<T, R>(
   return results;
 }
 
-async function writeIndexes(summary: LevelSummary, day: number): Promise<void> {
+// Queues one level's scores in every Browse index.
+async function queueIndexes(
+  tx: Transaction,
+  summary: LevelSummary,
+  day: number
+): Promise<void> {
   const member = summary.levelId;
-  await Promise.all([
-    redis.zAdd(discoveryIndexKey('createdAt'), {
-      member,
-      score: summary.createdAt,
-    }),
-    redis.zAdd(discoveryIndexKey('deadliest'), {
-      member,
-      score: summary.attempts === 0 ? UNPLAYED_SCORE : summary.completionRate,
-    }),
-    redis.zAdd(discoveryIndexKey('speedrun'), {
-      member,
-      score: summary.worldRecordMs ?? NO_RECORD_SCORE,
-    }),
-    redis.zAdd(discoveryIndexKey('curses'), {
-      member,
-      score: summary.version - 1,
-    }),
-    redis.zAdd(discoveryTrendingKey(day), {
-      member,
-      score: summary.trendingScore,
-    }),
-  ]);
-  await redis.expire(discoveryTrendingKey(day), (2 * DAY_MS) / 1000);
+  await tx.zAdd(discoveryIndexKey('createdAt'), {
+    member,
+    score: summary.createdAt,
+  });
+  await tx.zAdd(discoveryIndexKey('deadliest'), {
+    member,
+    score: summary.attempts === 0 ? UNPLAYED_SCORE : summary.completionRate,
+  });
+  await tx.zAdd(discoveryIndexKey('speedrun'), {
+    member,
+    score: summary.worldRecordMs ?? NO_RECORD_SCORE,
+  });
+  await tx.zAdd(discoveryIndexKey('curses'), {
+    member,
+    score: summary.version - 1,
+  });
+  await tx.zAdd(discoveryTrendingKey(day), {
+    member,
+    score: summary.trendingScore,
+  });
+  await tx.expire(discoveryTrendingKey(day), (2 * DAY_MS) / 1000);
+}
+
+// Every key summarizeLevel reads its scores from (the version blob itself
+// never changes once written).
+function scoreSourceKeys(levelId: string, day: number, version: number): string[] {
+  return [
+    levelCurrentVersionKey(levelId),
+    levelMetaKey(levelId),
+    levelAttemptsKey(levelId),
+    levelClearsKey(levelId),
+    levelDailyPlayersKey(levelId, day),
+    levelDailyClearsKey(levelId, day),
+    versionLeaderboardKey(levelId, version),
+  ];
 }
 
 // Re-score one level in every Browse index. Call after anything that
 // changes what a listing shows for it: a publish, a curse, or a run.
+// The read and the index writes share one WATCH transaction on every key
+// the scores come from, so a slower refresh that read older stats can't
+// land after a newer one and overwrite it.
 export async function refreshDiscoveryIndex(levelId: string): Promise<void> {
   const day = today();
-  const summary = await summarizeLevel(levelId, day);
-  if (summary) await writeIndexes(summary, day);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    // The record board is per version, so watch the one for the version
+    // expected here; a version that moved in between retries below.
+    const rawVersion = await redis.get(levelCurrentVersionKey(levelId));
+    const version = Number(rawVersion ?? SEED_LEVELS[levelId]?.version ?? 1);
+    const settled = await withTransaction(
+      scoreSourceKeys(levelId, day, version),
+      async (tx) => {
+        const summary = await summarizeLevel(levelId, day);
+        if (!summary) return { commit: false, value: true };
+        if (summary.version !== version) return { commit: false, value: false };
+        await queueIndexes(tx, summary, day);
+        return { commit: true, value: true };
+      }
+    );
+    if (settled) return;
+  }
+  throw new Error(`Discovery index refresh for ${levelId} kept racing a version change`);
 }
 
 // The same, but for callers that must not fail once their own write has
@@ -251,11 +288,7 @@ async function ensureDiscoveryIndexes(): Promise<void> {
       ...indexed.map((entry) => entry.member),
     ]),
   ];
-  const day = today();
-  await mapBounded(ids, async (levelId) => {
-    const summary = await summarizeLevel(levelId, day);
-    if (summary) await writeIndexes(summary, day);
-  });
+  await mapBounded(ids, refreshDiscoveryIndex);
   await redis.set(discoveryIndexVersionKey(), DISCOVERY_INDEX_VERSION);
 }
 

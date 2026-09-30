@@ -8,7 +8,7 @@ import { isLevelVersion, isObjectType, type LevelObject, type LevelVersion } fro
 const RETIRED_SPIKE: string = 'spike';
 
 // Writes a seed's own version blob into Redis, without touching the
-// current-version pointer — shared by both places below that persist a
+// current-version pointer — shared by the places below that persist a
 // seed on demand (a level never yet requested, and a version blob that
 // went missing but whose pointer still points at this exact seed version).
 async function persistSeedVersion(
@@ -45,7 +45,14 @@ export async function getCurrentLevelVersion(
   // A built-in level's own seed version always comes from source, so an
   // edit in seedLevels.ts reaches subreddits that stored the old copy.
   const seedSource = SEED_LEVELS[levelId];
-  if (seedSource && seedSource.version === version) return seedSource;
+  if (seedSource && seedSource.version === version) {
+    // Runs and deaths check this blob exists before accepting a result, so
+    // restore it if it went missing (e.g. evicted) before serving the seed.
+    if (!(await redis.exists(levelVersionKey(levelId, version)))) {
+      await persistSeedVersion(levelId, seedSource);
+    }
+    return seedSource;
+  }
   const raw = await redis.get(levelVersionKey(levelId, version));
   if (raw === undefined) {
     // The current-version pointer survived but its version blob didn't

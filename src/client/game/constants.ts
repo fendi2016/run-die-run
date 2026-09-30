@@ -164,8 +164,7 @@ export const SPAWN_CASE_HEIGHT_PX = PLAYER_SIZE;
 // The player starts just right of the case, this far from its right edge
 // (about the pencil's visual half-width plus a small gap), so the case is
 // never hidden behind him. A spawn authored too close to the level's left
-// edge for the case to fit is nudged right; the editor's spawn buffer
-// (EDITOR_SPAWN_BUFFER_CELLS) keeps hazards well clear of that nudge.
+// edge for that keeps its spot; the case sits at the edge, partly behind him.
 export const SPAWN_CASE_CLEARANCE_PX = 24;
 // Sinks the case's base into the ground tile's ink line (the tiles draw
 // over it) so it rests on the drawn edge instead of hovering above it.

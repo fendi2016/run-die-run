@@ -32,6 +32,19 @@ export default async function ({ page, errors, harness }) {
   await page.waitForTimeout(1200);
   s = await state();
   if (s.emerge !== 0) throw new Error('retry climbed out of the case');
+  // A spawn hard against the left edge keeps its authored spot (the case
+  // squeezes in behind him) instead of being nudged into nearby spikes.
+  const tight = [{ type: 'spawn', x: 30, y: 480 }, { type: 'finish', x: 3000, y: 480 },
+    { id: 'near', type: 'spikes', x: 150, y: 480 }, ...harness.groundTiles(60)];
+  await harness.startLevel(page, tight);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(60);
+  const tightState = await page.evaluate(() => {
+    const scene = window.__PHASER_GAME__.scene.getScene('GameScene');
+    return { spawnX: scene.spawn.x, deaths: scene.deathsThisLevel };
+  });
+  if (tightState.spawnX !== 30 || tightState.deaths !== 0)
+    throw new Error(`tight spawn moved or died: ${JSON.stringify(tightState)}`);
   if (errors.length) throw new Error(errors.join('\n'));
   return 'ok';
 }

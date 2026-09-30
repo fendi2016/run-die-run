@@ -804,6 +804,42 @@ function storeLevel(levelId: string, createdAt: number) {
   zAdd(allLevelsByDateKey(), { member: levelId, score: createdAt });
 }
 
+await test('an older discovery refresh never overwrites a newer record', async () => {
+  const { discoveryIndexKey } = await import('../core/redisKeys');
+  storeLevel('race', 1);
+  const board = versionLeaderboardKey('race', 1);
+  zAdd(board, { member: 'slow', score: 5000 });
+  // Right after the first refresh reads the 5 s record, a 1 s run lands
+  // and its own refresh finishes first.
+  const realZRange = redis.zRange;
+  let raced = false;
+  redis.zRange = async (key, start, end, options) => {
+    const result = await realZRange(key, start, end, options);
+    if (key === board && !raced) {
+      raced = true;
+      zAdd(board, { member: 'fast', score: 1000 });
+      await refreshDiscoveryIndex('race');
+    }
+    return result;
+  };
+  try {
+    await refreshDiscoveryIndex('race');
+  } finally {
+    redis.zRange = realZRange;
+  }
+  assert.equal(scores.get(discoveryIndexKey('speedrun'))?.get('race'), 1000);
+});
+
+await test('a seed whose version blob went missing is restored before it is served', async () => {
+  set(levelCurrentVersionKey('meat-grinder'), '1');
+  assert.equal((await getCurrentLevelVersion('meat-grinder'))?.version, 1);
+  assert.ok(values.has(levelVersionKey('meat-grinder', 1)));
+  const response = await users.run('bob', () =>
+    runs.request('/', post({ levelId: 'meat-grinder', version: 1, timeMs: 2000 }))
+  );
+  assert.equal(response.status, 200);
+});
+
 await test('discovery backfills its indexes once and pages without reading every level', async () => {
   const total = DISCOVERY_PAGE_SIZE + 5;
   for (let i = 0; i < total; i++) storeLevel(`level-${i}`, Date.now() + i);

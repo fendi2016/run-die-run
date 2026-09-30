@@ -740,13 +740,12 @@ export class GameScene extends Scene {
     });
 
     // The pencil case sits left of the player (see SPAWN_CASE_CLEARANCE_PX).
+    // The spawn itself is never moved: nudging it right could drop him onto
+    // a hazard the author placed next to it.
     const caseFrame = this.textures.getFrame('spawn-marker');
     const caseScale = SPAWN_CASE_HEIGHT_PX / caseFrame.height;
     const caseWidth = caseFrame.width * caseScale;
-    this.spawn = {
-      x: Math.max(loaded.spawn.x, caseWidth + SPAWN_CASE_CLEARANCE_PX),
-      y: loaded.spawn.y,
-    };
+    this.spawn = loaded.spawn;
     this.levelWidth = loaded.levelWidth;
     this.movingObjectTweens = loaded.movingObjectTweens;
     this.resetMovingObjects = loaded.resetMovingObjects;
@@ -781,7 +780,8 @@ export class GameScene extends Scene {
     // above the background, behind the player and every level object.
     const pencilCase = this.add
       .image(
-        this.spawn.x - SPAWN_CASE_CLEARANCE_PX,
+        // Near the level's left edge it slides in behind him instead.
+        Math.max(this.spawn.x - SPAWN_CASE_CLEARANCE_PX, caseWidth),
         this.spawn.y + SPAWN_CASE_SINK_PX,
         'spawn-marker'
       )
