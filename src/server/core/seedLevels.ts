@@ -114,9 +114,64 @@ const firstBlood = level(
   6000
 );
 
+// The launch set: ten more built-in levels, so day one isn't every player
+// cursing Meat Grinder. Each is Meat Grinder's course (same ground, gaps,
+// staplers, floater and finish) with a few traps or power-ups added in its
+// open stretches. Every one has been cleared by the playtest solver.
+function meatGrinderPlus(levelId: string, extras: LevelObject[]): LevelVersion {
+  return level(levelId, [...meatGrinder.objects, ...extras], meatGrinder.verificationTimeMs);
+}
+const add = (type: LevelObject['type'], x: number, y = GROUND_TOP_Y): LevelObject =>
+  placed(`${type}-${x}`, type, x, y);
+// Heights for the traps that don't sit on the ground.
+const LOW = GROUND_TOP_Y - 60;
+const HIGH = GROUND_TOP_Y - 120;
+
+const paperCuts = meatGrinderPlus('paper-cuts', [
+  add('spikes', 2650), add('spikes', 2900),
+]);
+const recess = meatGrinderPlus('recess', [
+  add('shield', 1250), add('saw', 2650), add('saw', 2900),
+]);
+// Spikes hang just over the pencil's head: stay down under them.
+const mindYourHead = meatGrinderPlus('mind-your-head', [
+  add('ceilingSpikes', 1620, HIGH), add('ceilingSpikes', 1680, HIGH),
+  add('ceilingSpikes', 2650, HIGH), add('ceilingSpikes', 2710, HIGH),
+]);
+const leapOfFaith = meatGrinderPlus('leap-of-faith', [
+  add('wings', 1250), add('bat', 2650, LOW), add('spikes', 2900),
+]);
+// Boosts carry you into the gap and the staplers at speed.
+const lateForClass = meatGrinderPlus('late-for-class', [
+  add('speedBoost', 1250), add('speedBoost', 2250),
+]);
+const popQuiz = meatGrinderPlus('pop-quiz', [
+  add('stopwatch', 1250), add('electricMine', 2650), add('spikeMine', 2900),
+]);
+const detention = meatGrinderPlus('detention', [
+  add('mace', 2250, HIGH), add('mace', 2650, LOW), add('candle', 2900),
+]);
+const marginOfError = meatGrinderPlus('margin-of-error', [
+  add('bat', 1250, LOW), add('bat', 2650, LOW), add('ghost', 2900, GROUND_TOP_Y - 180),
+]);
+// A bit of everyone's traps.
+const groupProject = meatGrinderPlus('group-project', [
+  add('bat', 1250, LOW), add('saw', 2650), add('spikeMine', 2900),
+]);
+const finalExam = meatGrinderPlus('final-exam', [
+  add('bat', 1250, LOW), add('ceilingSpikes', 1620, HIGH), add('ceilingSpikes', 1680, HIGH),
+  add('mace', 2650, LOW), add('electricMine', 2900),
+]);
+
+const LAUNCH_SET = [
+  paperCuts, recess, mindYourHead, leapOfFaith, lateForClass, popQuiz,
+  detention, marginOfError, groupProject, finalExam,
+];
+
 export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
   [firstBlood.levelId]: firstBlood,
+  ...Object.fromEntries(LAUNCH_SET.map((l) => [l.levelId, l])),
 };
 
 // Built-in levels have no published metadata (that's written by the
@@ -125,6 +180,16 @@ export const SEED_LEVELS: Record<string, LevelVersion> = {
 export const SEED_TITLES: Record<string, string> = {
   [meatGrinder.levelId]: 'Meat Grinder',
   [firstBlood.levelId]: 'First Blood',
+  [paperCuts.levelId]: 'Paper Cuts',
+  [recess.levelId]: 'Recess',
+  [mindYourHead.levelId]: 'Mind Your Head',
+  [leapOfFaith.levelId]: 'Leap of Faith',
+  [lateForClass.levelId]: 'Late for Class',
+  [popQuiz.levelId]: 'Pop Quiz',
+  [detention.levelId]: 'Detention',
+  [marginOfError.levelId]: 'Margin of Error',
+  [groupProject.levelId]: 'Group Project',
+  [finalExam.levelId]: 'Final Exam',
 };
 
 export function levelDisplayTitle(levelId: string, publishedTitle: string | undefined): string {

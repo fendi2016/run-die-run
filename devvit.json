@@ -35,14 +35,14 @@
       },
       {
         "label": "SKETCHY: reseed built-in levels (dev)",
-        "description": "Sync meat-grinder with seedLevels.ts",
+        "description": "Sync every built-in level with seedLevels.ts",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reseed-levels"
       },
       {
         "label": "SKETCHY: reset built-in level stats (dev)",
-        "description": "Zero Meat Grinder's attempt/clear counts (keeps curses)",
+        "description": "Zero the built-in levels' attempt/clear counts (keeps curses)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reset-builtin-stats"

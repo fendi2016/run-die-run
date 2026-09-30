@@ -13,7 +13,7 @@ export const menu = new Hono();
 // Dev utility (see LevelService.reseedBuiltInLevels): a source edit to a
 // seed level in seedLevels.ts never reaches a subreddit where that level
 // was already requested once, since levels only seed on first request.
-// This forces the three built-in levels' stored data back in sync with
+// This forces every built-in level's stored data back in sync with
 // whatever seedLevels.ts currently says, without touching any real
 // published level.
 menu.post('/reseed-levels', async (c) => {
@@ -21,7 +21,7 @@ menu.post('/reseed-levels', async (c) => {
     const levelIds = await reseedBuiltInLevels();
     await Promise.all(levelIds.map((levelId) => refreshDiscoveryIndex(levelId)));
     return c.json<UiResponse>(
-      { showToast: `Reseeded: ${levelIds.join(', ')}` },
+      { showToast: `Reseeded ${levelIds.length} built-in levels` },
       200
     );
   } catch (error) {
@@ -73,7 +73,7 @@ menu.post('/reset-builtin-stats', async (c) => {
   try {
     const levelIds = await resetBuiltInLevelStats();
     return c.json<UiResponse>(
-      { showToast: `Stats reset: ${levelIds.join(', ')}` },
+      { showToast: `Stats reset on ${levelIds.length} built-in levels` },
       200
     );
   } catch (error) {

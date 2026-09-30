@@ -122,7 +122,7 @@ export async function getLevelStats(
 // Browse pages are this many cards; the client asks for the next page.
 export const DISCOVERY_PAGE_SIZE = 30;
 // Bumping this rebuilds every index from the level data on the next read.
-const DISCOVERY_INDEX_VERSION = '1';
+const DISCOVERY_INDEX_VERSION = '2';
 // Sentinel scores for the ascending sorts: unplayed levels sort after every
 // real completion rate (0..1), levels without a record after every time.
 const UNPLAYED_SCORE = 2;
