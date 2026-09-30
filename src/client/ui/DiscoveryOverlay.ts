@@ -7,7 +7,8 @@ import {
 import { withTimeout } from '../net';
 import { requireButton, requireElement } from './domUtils';
 
-const SORTS: DiscoverySort[] = ['trending', 'deadliest', 'speedrun', 'new'];
+// No Speedrun sort: SKETCHY isn't a timed game.
+const SORTS: DiscoverySort[] = ['trending', 'deadliest', 'new'];
 
 export type DiscoveryOverlayHandlers = {
   onSelectLevel: (levelId: string) => void;
@@ -154,14 +155,12 @@ export class DiscoveryOverlay {
     stats.className = 'discovery-card-stats';
     const completion =
       level.attempts === 0 ? '—' : `${(level.completionRate * 100).toFixed(1)}%`;
-    const record =
-      level.worldRecordMs === null ? '—' : `${(level.worldRecordMs / 1000).toFixed(3)}s`;
+    // No clear time: SKETCHY isn't a timed game.
     for (const text of [
       level.difficulty,
       `Completion: ${completion}`,
       `Attempts: ${level.attempts}`,
       `Clears: ${level.clears}`,
-      `Record: ${record}`,
     ]) {
       const span = document.createElement('span');
       span.textContent = text;
