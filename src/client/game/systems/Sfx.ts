@@ -9,7 +9,7 @@ import type { ObjectType } from '../../../shared/types';
 // and not timing-critical) ships as .m4a.
 //   jump   Other/whoosh_1
 //   death  Combat and Gore/crunch_splat
-//   deathFire  Combat Sounds/fire_punch_02 (candle deaths)
+//   deathStaple    400 Sounds Pack Materials/cork_stabbed (stapler deaths)
 //   deathSaw   Combat Sounds/guts_and_gore_59 (saw deaths)
 //   deathSpikes   Combat Sounds/bone_breaking_03
 //   deathCeiling  Combat Sounds/bone_breaking_53
@@ -27,7 +27,7 @@ import type { ObjectType } from '../../../shared/types';
 export const SFX_KEYS = [
   'jump',
   'death',
-  'deathFire',
+  'deathStaple',
   'deathSaw',
   'deathSpikes',
   'deathCeiling',
@@ -47,7 +47,7 @@ export type SfxKey = (typeof SFX_KEYS)[number];
 export const SFX_FILES: Record<SfxKey, string> = {
   jump: 'sfx/jump.wav',
   death: 'sfx/death.wav',
-  deathFire: 'sfx/death_fire.wav',
+  deathStaple: 'sfx/death_staple.wav',
   deathSaw: 'sfx/death_saw.wav',
   deathSpikes: 'sfx/death_spikes.wav',
   deathCeiling: 'sfx/death_ceiling.wav',
@@ -68,7 +68,7 @@ export const SFX_FILES: Record<SfxKey, string> = {
 export const DEATH_SFX_BY_TYPE: Partial<Record<ObjectType, SfxKey>> = {
   saw: 'deathSaw',
   movingSaw: 'deathSaw',
-  candle: 'deathFire',
+  candle: 'deathStaple',
   spikes: 'deathSpikes',
   ceilingSpikes: 'deathCeiling',
   spikeMine: 'deathMine',
@@ -81,7 +81,7 @@ export const DEATH_SFX_BY_TYPE: Partial<Record<ObjectType, SfxKey>> = {
 const VOLUME: Record<SfxKey, number> = {
   jump: 0.3,
   death: 0.5,
-  deathFire: 0.5,
+  deathStaple: 0.55,
   deathSaw: 0.5,
   deathSpikes: 0.5,
   deathCeiling: 0.5,

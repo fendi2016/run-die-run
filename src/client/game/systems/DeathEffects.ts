@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import type { ObjectType } from '../../../shared/types';
 import {
+  attachElectricShield,
   burstParticles,
   playBloodSplatter,
   playDeathExplosion,
@@ -8,6 +9,7 @@ import {
   playPlayerShatter,
   slicePlayerFrame,
 } from './Juice';
+import { playSfx } from './Sfx';
 
 // The pencil ✗ DeathMarkers draws where other players died (loaded by
 // Preloader).
@@ -110,45 +112,73 @@ const sawSlice: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   scene.cameras.main.shake(140, 0.008);
 };
 
-const CHAR_TINT = 0x1c1414;
-const EMBER_COLOR = 0xff8a2a;
-const ASH_GRID = 4;
-const CANDLE_CHAR_MS = 220;
-// ash-smoke's first puff sits at the bottom of its 64px frame; anchoring
-// there sets it on the floor, rising off the ash pile.
-const ASH_SMOKE_BASE_Y = 60 / 64;
+const STAPLE_STEEL = 0xc9d1d9;
+const STAPLE_INK = 0x2b2b2b;
+const BLOOD = 0xe0303a;
 
-// Burned to a crisp: the player flash-chars black and trembles for a beat,
-// then crumbles into ash that drops to the floor, embers rising off it.
-const candleBurn: DeathEffect = (scene, x, y, textureKey, displaySize) => {
+// A staple seen from the front: the crown across the pencil, legs driven in.
+function drawStaple(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Graphics {
+  const staple = scene.add.graphics({ x, y }).setName(STAND_IN_NAME).setDepth(1);
+  const half = 10;
+  const legs = 5;
+  for (const [width, color] of [
+    [5, STAPLE_INK],
+    [2.5, STAPLE_STEEL],
+  ] as const) {
+    staple.lineStyle(width, color, 1);
+    staple.beginPath();
+    staple.moveTo(-half, legs);
+    staple.lineTo(-half, 0);
+    staple.lineTo(half, 0);
+    staple.lineTo(half, legs);
+    staple.strokePath();
+  }
+  return staple;
+}
+
+// Stapled: two staples punch through the pencil one after the other, each
+// with a jolt, a "chk" and a few drops of red, then he droops and keels
+// over backwards, pinned. Done well inside the respawn delay.
+const staplerStaple: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
-  body.setTint(0xff6a1a).setTintMode(Phaser.TintModes.FILL);
-  scene.time.delayedCall(60, () => body.setTint(CHAR_TINT).setTintMode(Phaser.TintModes.MULTIPLY));
-  scene.tweens.add({ targets: body, x: x + 2, duration: 40, yoyo: true, repeat: 2 });
-  burstParticles(scene, x, y - displaySize / 2, EMBER_COLOR, 16);
-  scene.cameras.main.shake(90, 0.004);
-
-  scene.time.delayedCall(CANDLE_CHAR_MS, () => {
-    scene.tweens.killTweensOf(body);
-    body.destroy();
-    for (const { piece, row } of slicePlayerFrame(scene, x, y, textureKey, displaySize, ASH_GRID, ASH_GRID)) {
-      piece.setTint(CHAR_TINT);
-      // Higher rows have further to fall, so they land a touch later.
-      scene.tweens.add({
-        targets: piece,
-        x: piece.x + Phaser.Math.Between(-18, 18),
-        y: y - Phaser.Math.Between(0, 6),
-        angle: Phaser.Math.Between(-90, 90),
-        scale: piece.scale * 0.6,
-        alpha: 0,
-        delay: (ASH_GRID - 1 - row) * 25 + Phaser.Math.Between(0, 40),
-        duration: 360 + (ASH_GRID - 1 - row) * 40,
-        ease: 'Quad.easeIn',
-        onComplete: () => piece.destroy(),
-      });
-    }
-    burstParticles(scene, x, y - 10, EMBER_COLOR, 12);
-    playPixelFx(scene, 'ash-smoke', x, y, { scale: 2, originY: ASH_SMOKE_BASE_Y });
+  const restX = body.scaleX;
+  const restY = body.scaleY;
+  const staples: Phaser.GameObjects.Graphics[] = [];
+  // The first "chk" is the death sound itself (Sfx.DEATH_SFX_BY_TYPE).
+  const punch = (heightFraction: number, withSound: boolean) => {
+    const stapleY = y - displaySize * heightFraction;
+    const staple = drawStaple(scene, x, stapleY).setScale(1.5);
+    staples.push(staple);
+    scene.tweens.add({ targets: staple, scale: 1, duration: 70, ease: 'Quad.easeIn' });
+    scene.tweens.add({
+      targets: body,
+      scaleX: restX * 1.08,
+      scaleY: restY * 0.92,
+      duration: 60,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+    });
+    burstParticles(scene, x, stapleY, BLOOD, 6);
+    if (withSound) playSfx(scene, 'deathStaple');
+    scene.cameras.main.shake(60, 0.004);
+  };
+  punch(0.62, false);
+  scene.time.delayedCall(110, () => {
+    if (body.active) punch(0.4, true);
+  });
+  scene.time.delayedCall(250, () => {
+    if (!body.active) return;
+    scene.tweens.add({
+      targets: [body, ...staples],
+      alpha: 0,
+      delay: 90,
+      duration: 180,
+      onComplete: () => {
+        body.destroy();
+        for (const staple of staples) staple.destroy();
+      },
+    });
+    scene.tweens.add({ targets: body, angle: -24, duration: 200, ease: 'Quad.easeIn' });
   });
 };
 
@@ -242,116 +272,134 @@ const shatterAndExplode: DeathEffect = (scene, x, y, textureKey, displaySize) =>
 
 const INK = 0x2b2b2b;
 const SPARK_YELLOW = 0xffd23f;
-const ZAP_VIOLET = 0xb07cff;
+const ZAP_CYAN = 0x7fe7ff;
 
-// Impaled from below: the body jolts up onto the points, sags, and a
-// spray of red goes up past it.
+// Every trap death below reads in its first ~120ms (a fast retry skips
+// the rest after RESPAWN_SKIP_AFTER_MS) and is gone by ~520ms, inside the
+// RESPAWN_DELAY_MS auto-restart, with effects about the pencil's size.
+
+// Impaled from below: a jolt up onto the points, a squirt of red, then he
+// sags onto them and fades.
 const spikesImpale: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
-  playPixelFx(scene, 'blood-spray', x, y - displaySize * 0.2, { scale: 2, angle: -90 });
-  playBloodSplatter(scene, x, y - displaySize * 0.1, 1.5);
+  playPixelFx(scene, 'blood-spray', x + 6, y - 4, { scale: 0.9, originX: 0.82, originY: 0.82 });
+  burstParticles(scene, x, y - displaySize * 0.15, BLOOD, 10);
   scene.cameras.main.shake(90, 0.005);
   scene.tweens.chain({
     targets: body,
     tweens: [
-      { y: y - 18, scaleY: body.scaleY * 1.1, duration: 90, ease: 'Quad.easeOut' },
-      { y: y + 10, scaleY: body.scaleY * 0.85, duration: 260, ease: 'Bounce.easeOut' },
-      { alpha: 0, delay: 380, duration: 260 },
+      { y: y - 12, scaleY: body.scaleY * 1.06, duration: 70, ease: 'Quad.easeOut' },
+      { y: y + 6, scaleY: body.scaleY * 0.9, angle: 10, duration: 200, ease: 'Bounce.easeOut' },
+      { alpha: 0, duration: 200 },
     ],
     onComplete: () => body.destroy(),
   });
 };
 
-// Pinned from above: squashed flat against the points, then drops.
+// Pinned from above: stretched up onto the points, red drips down, then he
+// drops free and fades.
 const ceilingSpikesPin: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
-  playPixelFx(scene, 'blood-spray', x, y - displaySize, { scale: 2, angle: 90 });
+  playPixelFx(scene, 'blood-spray', x - 6, y - displaySize, { scale: 0.9, angle: 180, originX: 0.82, originY: 0.82 });
+  burstParticles(scene, x, y - displaySize, BLOOD, 10);
   scene.cameras.main.shake(90, 0.005);
   scene.tweens.chain({
     targets: body,
     tweens: [
-      { scaleY: body.scaleY * 0.7, scaleX: body.scaleX * 1.15, duration: 80, ease: 'Quad.easeOut' },
-      { y: y + 260, alpha: 0, delay: 220, duration: 520, ease: 'Quad.easeIn' },
+      { scaleY: body.scaleY * 1.12, scaleX: body.scaleX * 0.92, duration: 80, ease: 'Quad.easeOut' },
+      { y: y + 60, alpha: 0, delay: 140, duration: 280, ease: 'Quad.easeIn' },
     ],
     onComplete: () => body.destroy(),
   });
 };
 
-// Blown to bits: orange pixel explosion with the pose ripped into pieces.
+// Blown up: the painted fireball and a KABOOM, the pose flying apart, and
+// dark shrapnel.
 const mineBlast: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   playPlayerShatter(scene, x, y, textureKey, displaySize);
-  playPixelFx(scene, 'mine-explosion', x, y - displaySize / 2, { scale: 3 });
-  burstParticles(scene, x, y - displaySize / 2, INK, 18);
+  playDeathExplosion(scene, x, y);
+  burstParticles(scene, x, y - displaySize / 2, INK, 14);
   scene.cameras.main.shake(160, 0.01);
 };
 
-// Electrocuted: the body strobes between white and a dark "x-ray" fill
-// while jittering, violet lightning cracks around it, then it collapses.
+// Electrocuted: the blue zap ring crackles round him while he strobes
+// between himself and a black silhouette (the cartoon x-ray), then he
+// crumbles in a puff.
 const zapperFry: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
   body.setTintMode(Phaser.TintModes.FILL);
+  const ring = attachElectricShield(scene, x, y - displaySize / 2).setName(STAND_IN_NAME).setScale(0.4);
+  burstParticles(scene, x, y - displaySize / 2, ZAP_CYAN, 14);
+  scene.cameras.main.shake(260, 0.004);
   let lit = false;
   const strobe = scene.time.addEvent({
-    delay: 50,
-    repeat: 9,
+    delay: 45,
+    repeat: 6,
     callback: () => {
       if (!body.active) return;
       lit = !lit;
-      body.setTint(lit ? 0xffffff : INK);
-      body.setX(x + (lit ? 3 : -3));
+      if (lit) body.setTint(INK);
+      else body.clearTint();
+      body.setX(x + (lit ? 2 : -2));
     },
   });
-  playPixelFx(scene, 'zap-burst', x, y - displaySize / 2, { scale: 2.5 });
-  scene.time.delayedCall(180, () =>
-    playPixelFx(scene, 'zap-burst', x, y - displaySize * 0.7, { scale: 1.8, angle: 90 })
-  );
-  burstParticles(scene, x, y - displaySize / 2, ZAP_VIOLET, 16);
-  scene.cameras.main.shake(260, 0.004);
-  scene.time.delayedCall(520, () => {
+  scene.time.delayedCall(320, () => {
     strobe.remove();
+    ring.destroy();
     if (!body.active) return;
-    body.clearTint().setX(x);
-    playPixelFx(scene, 'ash-smoke', x, y, { scale: 1.5, originY: ASH_SMOKE_BASE_Y });
+    body.setTint(INK).setX(x);
+    playPixelFx(scene, 'smoke-poof', x, y - displaySize * 0.35, { scale: 1.3 });
     scene.tweens.add({
       targets: body,
       scaleY: 0.01,
       alpha: 0,
-      duration: 260,
+      duration: 200,
       ease: 'Quad.easeIn',
       onComplete: () => body.destroy(),
     });
   });
 };
 
-// Whacked by the mace: star impact, then launched spinning up and away.
+// Whacked by the mace: a comic WHAM, then he's knocked back head over heels
+// with stars circling his head.
 const maceWhack: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
   body.setOrigin(0.5, 0.5).setY(y - displaySize / 2);
-  playPixelFx(scene, 'whack-impact', x, y - displaySize / 2, { scale: 2 });
-  burstParticles(scene, x, y - displaySize / 2, SPARK_YELLOW, 14);
+  const stars = scene.add
+    .sprite(x, y - displaySize - 4, 'dizzy-stars', 0)
+    .setName(STAND_IN_NAME)
+    .setScale(0.55)
+    .play('dizzy-stars');
+  playPixelFx(scene, 'shield-zap', x + displaySize * 0.3, y - displaySize / 2, { scale: 1.4 });
+  burstParticles(scene, x, y - displaySize / 2, SPARK_YELLOW, 10);
   scene.cameras.main.shake(140, 0.009);
-  scene.tweens.add({ targets: body, x: x - 320, angle: -720, duration: 1000, ease: 'Linear' });
+  scene.tweens.add({ targets: body, angle: -540, duration: 500, ease: 'Linear' });
+  scene.tweens.add({ targets: [body, stars], x: '-=170', duration: 500, ease: 'Quad.easeOut' });
   scene.tweens.chain({
-    targets: body,
+    targets: [body, stars],
     tweens: [
-      { y: body.y - 220, duration: 380, ease: 'Quad.easeOut' },
-      { y: body.y + 320, alpha: 0, duration: 620, ease: 'Quad.easeIn' },
+      { y: '-=90', duration: 220, ease: 'Quad.easeOut' },
+      { y: '+=150', alpha: 0, duration: 280, ease: 'Quad.easeIn' },
     ],
-    onComplete: () => body.destroy(),
+    onComplete: () => {
+      body.destroy();
+      stars.destroy();
+    },
   });
 };
 
-// Flattened: a pancake on the ground with dust puffing out both sides.
+// Flattened into a pencil pancake, with dust puffing out both sides.
 const crusherFlatten: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   const body = playerStandIn(scene, x, y, textureKey, displaySize);
-  playPixelFx(scene, 'crush-dust', x - displaySize * 0.4, y, { scale: 1.6, originY: 1 });
-  playPixelFx(scene, 'crush-dust', x + displaySize * 0.4, y, { scale: 1.6, originY: 1 });
+  playPixelFx(scene, 'smoke-poof', x - displaySize * 0.55, y - 12, { scale: 1.1 });
+  playPixelFx(scene, 'smoke-poof', x + displaySize * 0.55, y - 12, { scale: 1.1 });
   scene.cameras.main.shake(120, 0.012);
   scene.tweens.chain({
     targets: body,
     tweens: [
-      { scaleY: body.scaleY * 0.12, scaleX: body.scaleX * 1.7, duration: 70, ease: 'Quad.easeIn' },
-      { alpha: 0, delay: 600, duration: 300 },
+      { scaleY: body.scaleY * 0.26, scaleX: body.scaleX * 1.5, duration: 60, ease: 'Quad.easeIn' },
+      { scaleY: body.scaleY * 0.32, duration: 90, yoyo: true, ease: 'Quad.easeOut' },
+      { alpha: 0, delay: 120, duration: 200 },
     ],
     onComplete: () => body.destroy(),
   });
@@ -360,7 +408,7 @@ const crusherFlatten: DeathEffect = (scene, x, y, textureKey, displaySize) => {
 const DEATH_EFFECT_BY_TYPE: Partial<Record<ObjectType, DeathEffect>> = {
   saw: sawSlice,
   movingSaw: sawSlice,
-  candle: candleBurn,
+  candle: staplerStaple,
   bat: batKnockout,
   ghost: ghostSoulDrain,
   spikes: spikesImpale,

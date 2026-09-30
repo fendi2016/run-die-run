@@ -123,8 +123,9 @@ export class Preloader extends Scene {
 
     // Death VFX (see Juice.playDeathExplosion), from the VFX Free Pack.
     // death-explosion is trimmed to the source's first 24 of 30 frames and
-    // played fast; death-kaboom is one frame of the pack's comic "KABOOM",
-    // popped in and out with a tween.
+    // played fast; death-kaboom is the one clean "KABOOM" cropped from the
+    // pack's comic frame (the rest was a smeared pile of them), popped in
+    // and out with a tween.
     this.load.spritesheet('death-explosion', 'vfx/death-explosion.webp', {
       frameWidth: 355,
       frameHeight: 355,

@@ -111,8 +111,11 @@ const DEATH_EXPLOSION_FRAME_COUNT = 20;
 // source pack's native ~1s pace reads as a slow cutscene, not a death in a
 // fast-retry punishing platformer (spec section 6's retry-loop target).
 const DEATH_EXPLOSION_FRAME_RATE = 50;
-const DEATH_EXPLOSION_SCALE = 0.62;
-const KABOOM_SCALE = 0.62;
+// Roughly twice (fireball) and one and a half (KABOOM) times the pencil:
+// big enough to be a KABOOM, not so big it swallows the screen (falls and
+// mines both use it).
+const DEATH_EXPLOSION_SCALE = 0.42;
+const KABOOM_SCALE = 0.6;
 const KABOOM_POP_DURATION_MS = 90;
 const KABOOM_HOLD_MS = 220;
 const KABOOM_FADE_DURATION_MS = 160;
@@ -215,6 +218,7 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'firework-yellow', frameWidth: 96, frameHeight: 96, frameRate: 15, pixel: true }, // round_firework_burst_002 yellow
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // lightning_strike_001 violet
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Puff
+  { key: 'dizzy-stars', frameWidth: 166, frameHeight: 125, frameRate: 12, loop: true }, // Stunned (mace deaths)
   // Trap deaths (DeathEffects) — Super Pixel Effects, packed by tools/pack-fx.py
   { key: 'mine-explosion', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // symmetrical_explosion_001 orange
   { key: 'zap-burst', frameWidth: 64, frameHeight: 64, frameRate: 24, pixel: true }, // lightning_burst_001 violet
