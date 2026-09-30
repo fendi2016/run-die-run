@@ -155,8 +155,8 @@ export const dailyLastPostedDayKey = (): string => 'daily:lastPostedDay';
 export const dailyFeaturedKey = (): string => 'daily:featured';
 export const dailyCurrentKey = (): string => 'daily:current';
 
-// '1' once this player has been through the first-play tutorial (finished,
-// skipped or left), so it isn't forced on them again on another post or
-// device where the client's localStorage flag isn't there.
+// '1' once this player has finished or skipped the first-play tutorial, so
+// it isn't forced on them again on another post or device where the
+// client's localStorage flag isn't there.
 export const userTutorialDoneKey = (username: string): string =>
   `user:${username}:tutorialDone`;

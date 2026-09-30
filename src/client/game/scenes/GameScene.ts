@@ -579,7 +579,6 @@ export class GameScene extends Scene {
 
   private async loadAndStart(): Promise<void> {
     if (this.tutorial) {
-      markTutorialDone();
       this.levelVersion = TUTORIAL_LEVEL;
       this.startRun(TUTORIAL_LEVEL);
       PreviewBackButton.instance().setLabel('Skip Tutorial →');

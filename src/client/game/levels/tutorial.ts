@@ -166,9 +166,9 @@ export async function isTutorialDone(maxWaitMs = 1500): Promise<boolean> {
   ]);
 }
 
-// Called as soon as the tutorial starts, not only when it's finished or
-// skipped: leaving through the pause menu or closing the post used to leave
-// it unmarked, so it came back on the next Play.
+// Called only when the tutorial is finished or skipped with its Skip
+// button. Closing the post or leaving mid-run leaves it unmarked, so it
+// comes back on the next Play instead of being skipped by exiting.
 export function markTutorialDone(): void {
   rememberLocally();
   serverStatus = Promise.resolve(true);
