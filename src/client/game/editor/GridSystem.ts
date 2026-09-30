@@ -15,7 +15,6 @@ export const PLACEABLE_TYPES = [
   'platform',
   'crateBlock',
   'grassBlock',
-  'sandBlock',
   'metalBlock',
   'bridge',
   'rulerPlatform',

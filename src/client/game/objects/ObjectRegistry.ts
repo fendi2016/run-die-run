@@ -473,7 +473,8 @@ const TERRAIN_TILESETS: Partial<Record<ObjectType, TerrainTileset>> = {
   stoneBlock: slicedTileset('clipstack', 1),
   crateBlock: wholePieceTileset(['note-crown', 'note-smiley', 'note-arrow']),
   grassBlock: slicedTileset('graph', 1),
-  sandBlock: wholePieceTileset(['sponge']),
+  // Sponge art removed; any sandBlock already in a saved level draws as graph paper.
+  sandBlock: slicedTileset('graph', 1),
   metalBlock: slicedTileset('scribble', 2),
   rulerPlatform: slicedTileset('ruler', 1),
   eraserPlatform: slicedTileset('eraser', 1),

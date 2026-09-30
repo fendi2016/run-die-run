@@ -14,7 +14,7 @@ const TYPE_LABELS: Partial<Record<ObjectType, string>> = {
   stoneBlock: 'Clipped Stack',
   crateBlock: 'Sticky Note',
   grassBlock: 'Graph Paper',
-  sandBlock: 'Sponge',
+  sandBlock: 'Graph Paper',
   metalBlock: 'Scribble Block',
   bridge: 'Shelf',
   rulerPlatform: 'Ruler',
