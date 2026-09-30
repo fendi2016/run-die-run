@@ -63,6 +63,8 @@ The app never sends private messages to players.
 ## Development
 
 Requires Node 24 and a Reddit developer account (`npm run login`).
+The game lives on r/sketchygame; r/sketchy_game_dev is the dev/playtest
+subreddit.
 
 | Command                    | What it does                                                                                       |
 | -------------------------- | -------------------------------------------------------------------------------------------------- |
