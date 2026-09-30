@@ -7,6 +7,7 @@ import {
 } from '../systems/InputSystem';
 import {
   attachElectricShield,
+  attachStarSparkle,
   destroyElectricShield,
   fitHyperspeedTrail,
   playHyperspeedTrail,
@@ -400,6 +401,8 @@ export class Player {
   // player's back until it's used.
   private airJumps = 0;
   private wingsSprite: Phaser.GameObjects.Image | undefined;
+  // Star: looping sparkles for as long as it lasts (Juice.attachStarSparkle).
+  private starSprite: Phaser.GameObjects.Sprite | undefined;
   // Star: traps can't hurt the player while this counts down.
   private invincibleRemainingMs = 0;
   private readonly starColor = new Phaser.Display.Color();
@@ -483,6 +486,7 @@ export class Player {
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
     this.wingsSprite?.setPosition(this.sprite.x - PLAYER_SIZE * 0.22, centerY - PLAYER_SIZE * 0.08);
+    this.starSprite?.setPosition(this.sprite.x, centerY);
     this.fitHyperspeedSprite();
     this.updateStarTint();
   }
@@ -562,7 +566,13 @@ export class Player {
     this.hyperspeedSprite = undefined;
     this.wingsSprite?.destroy();
     this.wingsSprite = undefined;
+    this.clearStarSprite();
     this.display.clearTint();
+  }
+
+  private clearStarSprite(): void {
+    this.starSprite?.destroy();
+    this.starSprite = undefined;
   }
 
   update(deltaMs: number): void {
@@ -570,7 +580,10 @@ export class Player {
     this.shieldProtectionRemainingMs = Math.max(0, this.shieldProtectionRemainingMs - deltaMs);
     if (this.invincibleRemainingMs > 0) {
       this.invincibleRemainingMs = Math.max(0, this.invincibleRemainingMs - deltaMs);
-      if (this.invincibleRemainingMs === 0) this.display.clearTint();
+      if (this.invincibleRemainingMs === 0) {
+        this.display.clearTint();
+        this.clearStarSprite();
+      }
     }
     this.msSinceGrounded = this.isGrounded
       ? 0
@@ -776,6 +789,8 @@ export class Player {
   // Star: every trap is harmless for a few seconds (falling still kills).
   grantStar(): void {
     this.invincibleRemainingMs = STAR_DURATION_MS;
+    // Re-collecting refreshes the timer; one aura only.
+    this.starSprite ??= attachStarSparkle(this.scene, this.sprite.x, this.sprite.y - PLAYER_SIZE / 2);
   }
 
   applySpeedBoost(): void {

@@ -1083,23 +1083,23 @@ export class GameScene extends Scene {
     switch (type) {
       case 'shield':
         this.player.grantShield();
-        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2 });
+        playPixelFx(this, 'shield-up', x, y, { scale: 1.2 });
         break;
       case 'speedBoost':
         this.player.applySpeedBoost();
-        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75 });
+        playPixelFx(this, 'haste-burst', x, y, { scale: 1.2 });
         break;
       case 'wings':
         this.player.grantWings();
-        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 1.5 });
+        playPixelFx(this, 'wings-burst', x, y, { scale: 0.9 });
         break;
       case 'stopwatch':
         this.slowTime();
-        playPixelFx(this, 'pickup-flash', x, y, { scale: 0.75 });
+        playPixelFx(this, 'time-warp', x, y, { scale: 1.4 });
         break;
       case 'star':
         this.player.grantStar();
-        playPixelFx(this, 'pickup-sparkle', x, y, { scale: 2 });
+        playPixelFx(this, 'firework-yellow', x, y, { scale: 1.2 });
         break;
       default:
         break;
@@ -1117,6 +1117,11 @@ export class GameScene extends Scene {
     this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
       this.slowTimeTimer = undefined;
       for (const tween of this.movingObjectTweens) tween.timeScale = 1;
+      // Time snapping back to normal, around the player.
+      if (this.player) {
+        const { x, y } = this.player.sprite;
+        playPixelFx(this, 'time-warp', x, y - PLAYER_SIZE / 2, { scale: 1 });
+      }
     });
   }
 
