@@ -87,7 +87,8 @@ import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   playScribbleIn,
   burstParticles,
-  playFinishGateAnimation,
+  playSharpenerDive,
+  type SharpenerDive,
   playPixelFx,
   stopFinishGateAnimation,
 } from '../systems/Juice';
@@ -226,6 +227,8 @@ export class GameScene extends Scene {
   // PhysicsInterpolation); rebuilt with each startRun().
   private interpolation: PhysicsInterpolation | undefined;
   private finishSprite: Phaser.GameObjects.Sprite | undefined;
+  // The clear-screen pencil-into-sharpener animation, while it plays.
+  private sharpenerDive: SharpenerDive | undefined;
 
   private previewLevel: LevelVersion | undefined;
   private candidateToken: string | undefined;
@@ -803,6 +806,7 @@ export class GameScene extends Scene {
       return;
     }
     this.runEnded = true;
+    const { x, y, texture } = this.player.sprite;
     this.player.freeze();
     this.recordBestProgress(1);
     this.runHud.hide();
@@ -817,8 +821,11 @@ export class GameScene extends Scene {
     );
     this.cameras.main.flash(150, 57, 255, 136, false);
     if (this.finishSprite) {
-      playFinishGateAnimation(this, this.finishSprite);
-      this.playFinishFireworks(this.finishSprite);
+      const finish = this.finishSprite;
+      this.sharpenerDive?.destroy();
+      this.sharpenerDive = playSharpenerDive(this, { x, y, textureKey: texture.key }, finish, () =>
+        this.playFinishFireworks(finish)
+      );
     }
     playSfx(this, 'clear');
 
@@ -1390,7 +1397,11 @@ export class GameScene extends Scene {
       SPAWN_SCRIBBLE_WIDTH,
       PLAYER_SIZE,
       beamIn ? SPAWN_SCRIBBLE_MS : SPAWN_SCRIBBLE_RETRY_MS,
-      () => sprite?.setVisible(true)
+      // Not if the run already ended meanwhile (a dev warp straight to the
+      // finish): the sharpener dive has hidden him for good.
+      () => {
+        if (!this.runEnded) sprite?.setVisible(true);
+      }
     );
   }
 
@@ -1448,6 +1459,8 @@ export class GameScene extends Scene {
     // flow rather than restartRun — but if this ever does fire after a
     // finish (e.g. a stray restart control), the gate shouldn't stay stuck
     // mid-pulse.
+    this.sharpenerDive?.destroy();
+    this.sharpenerDive = undefined;
     if (this.finishSprite) {
       stopFinishGateAnimation(this, this.finishSprite);
     }

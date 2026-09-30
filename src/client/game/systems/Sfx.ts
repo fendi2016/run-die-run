@@ -17,6 +17,9 @@ import type { ObjectType } from '../../../shared/types';
 //   deathZap      400 Sounds Pack Machines/razor_buzz (cut to 0.7s)
 //   deathMace     Combat Sounds/metal_punch_finisher_07
 //   deathCrush    Combat Sounds/body_hit_finisher_42
+//   sharpenGrind   400 Sounds Pack Machines/drill_whizz (cut to 1.3s)
+//   sharpenSquelch 400 Sounds Pack Combat and Gore/squelching_2 (cut to 0.6s)
+//   sharpenTwang   400 Sounds Pack Other/elastic_twang
 // Newer ones are converted with tools/pack-sfx.py.
 //   clear  Musical Effects/music_box_level_complete
 //   pickup Items/gem_collect
@@ -31,6 +34,9 @@ export const SFX_KEYS = [
   'deathZap',
   'deathMace',
   'deathCrush',
+  'sharpenGrind',
+  'sharpenSquelch',
+  'sharpenTwang',
   'clear',
   'pickup',
 ] as const;
@@ -47,6 +53,9 @@ export const SFX_FILES: Record<SfxKey, string> = {
   deathZap: 'sfx/death_zap.wav',
   deathMace: 'sfx/death_mace.wav',
   deathCrush: 'sfx/death_crush.wav',
+  sharpenGrind: 'sfx/sharpen_grind.wav',
+  sharpenSquelch: 'sfx/sharpen_squelch.wav',
+  sharpenTwang: 'sfx/sharpen_twang.wav',
   clear: 'sfx/clear.m4a',
   pickup: 'sfx/pickup.wav',
 };
@@ -77,6 +86,9 @@ const VOLUME: Record<SfxKey, number> = {
   deathZap: 0.4,
   deathMace: 0.5,
   deathCrush: 0.5,
+  sharpenGrind: 0.35,
+  sharpenSquelch: 0.5,
+  sharpenTwang: 0.45,
   clear: 0.45,
   pickup: 0.35,
 };

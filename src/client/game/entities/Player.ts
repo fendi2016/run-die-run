@@ -18,7 +18,6 @@ import { DEATH_SFX_BY_TYPE, playSfx } from '../systems/Sfx';
 import type { ObjectType } from '../../../shared/types';
 import {
   COYOTE_TIME_MS,
-  DANCE_FRAME_MS,
   JUMP_BUFFER_MS,
   JUMP_RELEASE_MULTIPLIER,
   JUMP_VELOCITY,
@@ -63,18 +62,6 @@ export const PLAYER_TEXTURE_KEYS = [
   'player-jump-rise',
   'player-jump-tuck',
   'player-jump-fall',
-  'player-dance-1',
-  'player-dance-2',
-  'player-dance-3',
-  'player-dance-4',
-  'player-dance-5',
-  'player-dance-6',
-  'player-dance-7',
-  'player-dance-8',
-  'player-dance-9',
-  'player-dance-10',
-  'player-dance-11',
-  'player-dance-12',
 ] as const;
 
 export const PLAYER_IDLE_KEY = 'player-idle';
@@ -116,25 +103,6 @@ const HARD_LANDING_SPEED = 700;
 // forgiving width, bottom flush with the feet.
 const HITBOX_WIDTH = 0.7;
 const HITBOX_HEIGHT = 0.85;
-const DANCE_ANIM_KEY = 'player-dance';
-// Reordered from the source sheet's raster order (1 is a near-idle pose —
-// starting the loop on it would read as "nothing happened" for a beat)
-// so the finish dance leads with a distinct gesture and only cycles back
-// through the calm pose as a brief breather before repeating.
-const DANCE_KEYS = [
-  'player-dance-2',
-  'player-dance-3',
-  'player-dance-4',
-  'player-dance-5',
-  'player-dance-6',
-  'player-dance-7',
-  'player-dance-8',
-  'player-dance-9',
-  'player-dance-10',
-  'player-dance-11',
-  'player-dance-12',
-  'player-dance-1',
-];
 // Plays once (repeat: 0) for the ascent — a brief rise pose that hands off
 // to a held tuck frame, giving the apex an actual pose instead of holding
 // the leap pose for the entire ascent. The fall half stays a direct,
@@ -224,18 +192,6 @@ const runSquash = RUN_KEYS.map(
 );
 const RUN_SCALE_X_FACTORS: readonly number[] = runSquash.map((t) => 1 + 0.045 * t);
 const RUN_SCALE_Y_FACTORS: readonly number[] = runSquash.map((t) => 1 - 0.06 * t);
-// Same trick as the run cycle's squash/stretch above, applied to the dance
-// loop — without it the dance is just a slideshow of static poses cut on
-// every frame, since none of the source art itself has any built-in
-// squash/stretch. Alternating compress/stretch every frame reads as a
-// bounce synced exactly to the beat the pose changes land on (a tween
-// wouldn't stay locked to that beat — see onAnimFrameUpdate).
-const DANCE_SCALE_X_FACTORS: readonly number[] = [
-  1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95, 1.08, 0.95,
-];
-const DANCE_SCALE_Y_FACTORS: readonly number[] = [
-  0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07, 0.92, 1.07,
-];
 type AnimScaleTable = {
   keys: readonly string[];
   scaleX: readonly number[];
@@ -249,11 +205,6 @@ const ANIM_SCALE_TABLES: Record<string, AnimScaleTable> = {
     keys: RUN_KEYS,
     scaleX: RUN_SCALE_X_FACTORS,
     scaleY: RUN_SCALE_Y_FACTORS,
-  },
-  [DANCE_ANIM_KEY]: {
-    keys: DANCE_KEYS,
-    scaleX: DANCE_SCALE_X_FACTORS,
-    scaleY: DANCE_SCALE_Y_FACTORS,
   },
 };
 // A vertical root-motion "bob" (translating sprite.y directly, on top of
@@ -327,14 +278,6 @@ function ensurePlayerAnims(scene: Phaser.Scene): void {
       // JUMP_ASCEND_ANIM_KEY comment above for why the fall half isn't
       // joined to this same timeline.
       repeat: 0,
-    });
-  }
-  if (!scene.anims.exists(DANCE_ANIM_KEY)) {
-    scene.anims.create({
-      key: DANCE_ANIM_KEY,
-      frames: DANCE_KEYS.map((key) => ({ key, duration: DANCE_FRAME_MS })),
-      frameRate: 22,
-      repeat: -1,
     });
   }
 }
@@ -455,7 +398,7 @@ export class Player {
     );
   }
 
-  // Drives the run cycle's and dance loop's squash/stretch bounce
+  // Drives the run cycle's squash/stretch bounce
   // frame-by-frame instead of a tween — a tween racing the animation's own
   // frame timing would drift out of sync as soon as any non-uniform frame
   // timing kicks in. Keyed off the sprite's current texture rather than
@@ -558,7 +501,7 @@ export class Player {
   // Instant removal (no break/fade tween, unlike tryAbsorbHit's own use of
   // destroyElectricShield) — called when the run itself is ending or
   // restarting, where the escort disappearing a frame early is invisible
-  // next to the much bigger death/dance/reset transition already playing.
+  // next to the much bigger death/finish/reset transition already playing.
   private clearEffectSprites(): void {
     this.shieldSprite?.destroy();
     this.shieldSprite = undefined;
@@ -857,21 +800,17 @@ export class Player {
     playSfx(this.scene, (killer && DEATH_SFX_BY_TYPE[killer]) ?? 'death');
   }
 
-  // Called once, when the finish line is reached (see GameScene.onFinishReached
-  // — the only call site). Swaps the run cycle for a victory dance loop
-  // rather than just freezing on the idle pose, so reaching the finish
-  // reads as a distinct celebratory beat instead of the character just
-  // stopping mid-stride.
+  // Called once, when the finish line is reached (GameScene.onFinishReached).
+  // The finish animation (Juice.playSharpenerDive) runs on a stand-in, so
+  // the real pencil just stops and hides; reset() shows it again.
   freeze(): void {
     this.alive = false;
     this.clearEffectSprites();
     this.sprite.setVelocity(0, 0);
     this.body.setAllowGravity(false);
-    // Undo the run cycle's squash/stretch (onAnimFrameUpdate) — otherwise
-    // whichever pose was mid-bounce when the run ended stays
-    // squashed/stretched underneath the dance animation.
     this.sprite.setScale(PLAYER_BASE_SCALE, PLAYER_BASE_SCALE);
-    this.sprite.play(DANCE_ANIM_KEY);
+    this.sprite.anims.stop();
+    this.sprite.setVisible(false);
   }
 
   // `waiting`: true for a level's very first spawn (tap-to-start gate,
@@ -881,7 +820,7 @@ export class Player {
   reset(x: number, y: number, waiting = false): void {
     this.clearEffectSprites();
     // die() hides the real sprite behind the death VFX (DeathEffects) — undo
-    // that here so a retry (or the finish-line freeze() dance) shows the
+    // that here so a retry (or the finish-line freeze(), which hides it) shows the
     // player again.
     this.sprite.setVisible(true);
     this.sprite.setPosition(x, y);

@@ -73,6 +73,9 @@ export class Preloader extends Scene {
     for (const key of PLAYER_TEXTURE_KEYS) {
       this.load.image(key, `player/${key}.webp`);
     }
+    // The clear-screen dive into the sharpener (Juice.playSharpenerDive),
+    // from the user's diving.png.
+    this.load.image('player-dive', 'player/player-dive.webp');
 
     // Level object art (see ObjectRegistry for how each ObjectType maps to
     // one of these keys). Sourced from the open-source sprite pack in
