@@ -47,12 +47,17 @@ export function cursePlacedFields(objectId: string, levelId: string, type: Objec
 type PlacedCurse = { levelId: string; type: ObjectType; placedAt: number };
 type SeenCounts = { caught: number; passed: number };
 
-// How many curses this player has ever placed on one level.
+// How many curses this player has ever placed on one level. Counts every
+// entry for the level whatever its type: a curse of a since-removed trap
+// (Crusher, Star) still used up one of the player's curses there.
 export async function countCursesOnLevel(username: string, levelId: string): Promise<number> {
   const placed = await redis.hGetAll(userCursesKey(username));
   return Object.values(placed).filter((raw) => {
     const curse = parseJson(raw);
-    return isPlacedCurse(curse) && curse.levelId === levelId;
+    return (
+      typeof curse === 'object' && curse !== null &&
+      'levelId' in curse && curse.levelId === levelId
+    );
   }).length;
 }
 

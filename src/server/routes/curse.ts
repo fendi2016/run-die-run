@@ -97,12 +97,14 @@ function isPublishCurseBody(
 
 // Why this player can't curse the level right now, if they can't: one
 // curse at a time (someone else has to curse it after yours before you get
-// another) and at most CURSES_PER_LEVEL on any one level.
+// another) and at most CURSES_PER_LEVEL on any one level. A version 1's
+// contributor is the level's creator, and publishing isn't a curse, so the
+// one-at-a-time rule only applies once a curse exists.
 async function curseBlockReason(
   username: string,
   level: LevelVersion
 ): Promise<string | undefined> {
-  if (level.contributorUsername === username) {
+  if (level.parentVersion !== null && level.contributorUsername === username) {
     return 'Yours is the latest curse here — wait for someone else to curse it first.';
   }
   if ((await countCursesOnLevel(username, level.levelId)) >= CURSES_PER_LEVEL) {

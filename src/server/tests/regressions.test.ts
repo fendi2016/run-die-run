@@ -1175,9 +1175,9 @@ async function curseAndPublish(username: string, x: number) {
   return (await publishCurse(username, proposed.body.candidateToken)).body;
 }
 
-async function eligibility(username: string) {
+async function eligibility(username: string, levelId = 'meat-grinder') {
   return users.run(username, async () => {
-    const body: unknown = await (await curse.request('/eligibility/meat-grinder')).json();
+    const body: unknown = await (await curse.request(`/eligibility/${levelId}`)).json();
     assert.ok(isCurseEligibilityResponse(body));
     return body;
   });
@@ -1203,6 +1203,26 @@ await test('a player waits for someone else to curse between curses, up to the p
   assert.equal(capped.canCurse, false);
   assert.match(capped.reason ?? '', /all \d+ of your curses/);
   assert.equal((await curseAndPublish('alice', 1400)).status, 'error');
+});
+
+await test("a level's creator can leave the first curse on it (publishing isn't a curse)", async () => {
+  storeLevel('makers-level', Date.now());
+  assert.equal((await eligibility('maker', 'makers-level')).canCurse, true);
+  const proposed = await proposeCurse('maker', 'makers-level', { id: 'x', type: 'saw', x: 700, y: 480 });
+  assert.equal(proposed.body.status, 'ok');
+});
+
+await test('curses of since-removed trap types still count toward the per-level cap', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  // Crusher and Star were taken out of the game; alice's old curses of
+  // them are still her curses on this level.
+  const placed = (type: string) => JSON.stringify({ levelId: 'meat-grinder', type, placedAt: 1 });
+  hashes.set(userCursesKey('alice'), new Map([
+    ['c1', placed('crusher')], ['c2', placed('star')], ['c3', placed('saw')],
+  ]));
+  const capped = await eligibility('alice');
+  assert.equal(capped.canCurse, false);
+  assert.match(capped.reason ?? '', /all \d+ of your curses/);
 });
 
 await test('the starter level cannot be cursed', async () => {
