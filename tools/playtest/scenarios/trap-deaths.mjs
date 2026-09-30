@@ -9,9 +9,11 @@ export default async function ({ page, errors, harness }) {
       { id: 'trap', type, x: 1400, y: type === 'ceilingSpikes' ? 60 : 480 },
       ...harness.groundTiles(30),
     ]);
-    // burstParticles keeps a small pool of emitters in the scene on purpose.
+    // burstParticles keeps a small pool of emitters in the scene on purpose,
+    // and the swinging mace draws short-lived ink streaks the whole time.
     const live = () => page.evaluate(() => window.__PHASER_GAME__.scene.getScene('GameScene')
-      .children.list.filter((o) => o.type !== 'ParticleEmitter' && o.texture?.key !== 'scribble-x').length);
+      .children.list.filter((o) => o.type !== 'ParticleEmitter' && o.texture?.key !== 'scribble-x'
+        && o.name !== 'mace-streak').length);
     const before = await live();
     const played = await page.evaluate(() => {
       const scene = window.__PHASER_GAME__.scene.getScene('GameScene');

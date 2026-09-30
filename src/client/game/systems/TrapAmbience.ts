@@ -165,7 +165,7 @@ function attachTrapAmbience(
         const speed = (Math.hypot(ball.x - lastX, ball.y - lastY) / Math.max(deltaMs, 1)) * 1000;
         everyOther = !everyOther;
         if (everyOther && speed > 170 && onScreen(scene, ball.x, ball.y)) {
-          const streak = scene.add.graphics().setDepth(sprite.depth - 0.02);
+          const streak = scene.add.graphics().setName('mace-streak').setDepth(sprite.depth - 0.02);
           streak.lineStyle(3, INK, 0.45);
           streak.lineBetween(lastX, lastY, ball.x, ball.y);
           scene.tweens.add({

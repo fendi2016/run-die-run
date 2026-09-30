@@ -11,6 +11,17 @@ const MUSIC_URL = '/assets/music/evening-mood.m4a';
 const MUSIC_VOLUME = 0.35;
 const MUTED_KEY = 'sketchy:sound-muted';
 
+// Set by initSound; the Preloader calls allowMusic() once its assets are in.
+let releaseMusic: (() => void) | undefined;
+
+// Held back until the loading bar is done: a 2 MB track downloading
+// alongside the Preloader's assets roughly doubles the bar on a slow
+// mobile connection. Buffering starts on the menu, before the Play tap.
+export function allowMusic(): void {
+  releaseMusic?.();
+  releaseMusic = undefined;
+}
+
 function readMuted(): boolean {
   try {
     return localStorage.getItem(MUTED_KEY) === '1';
@@ -33,10 +44,11 @@ export function initSound(game: Phaser.Game): void {
   const music = new Audio(MUSIC_URL);
   music.loop = true;
   music.volume = MUSIC_VOLUME;
-  // Start downloading right away so the music is buffered by the time
-  // the player taps — with 'none' the fetch only began on that first tap
-  // and the run opened on a couple of seconds of silence.
-  music.preload = 'auto';
+  // Nothing downloads until allowMusic() (see above); from then on it
+  // buffers right away so it's ready by the time the player taps — with
+  // 'none' until the tap, the run opened on a couple of seconds of silence.
+  music.preload = 'none';
+  let allowed = false;
   let muted = readMuted();
   // Only real playback counts: the track time has to actually advance.
   // Some webviews report a blocked play() as started (paused=false, even
@@ -56,7 +68,7 @@ export function initSound(game: Phaser.Game): void {
   let attempt = 0;
 
   const start = (): void => {
-    if (playing) return;
+    if (playing || !allowed) return;
     const id = ++attempt;
     // Reset a fake start first — play() on a track that claims to be
     // unpaused does nothing.
@@ -109,8 +121,13 @@ export function initSound(game: Phaser.Game): void {
   // Phaser's sound manager finishes booting after this runs; re-apply the
   // saved mute once it's ready so a muted player's SFX stay muted too.
   game.events.once('ready', sync);
-  // Try right away: when the Play tap that opened this view still counts
-  // as permission, the music starts with the game. If the browser blocks
-  // it, the first tap/key anywhere starts it instead.
+  // Try as soon as the assets are in: when the Play tap that opened this
+  // view still counts as permission, the music starts on the menu. If the
+  // browser blocks it, the first tap/key anywhere starts it instead.
+  releaseMusic = () => {
+    allowed = true;
+    music.preload = 'auto';
+    sync();
+  };
   sync();
 }

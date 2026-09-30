@@ -12,6 +12,7 @@ import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
 import { createPixelFxAnims, PIXEL_FX_SHEETS } from '../systems/Juice';
 import { SCENERY_ART } from '../systems/PaperScenery';
+import { allowMusic } from '../../ui/SoundToggle';
 
 const BAR_WIDTH = 460;
 
@@ -182,6 +183,7 @@ export class Preloader extends Scene {
     }
     createPixelFxAnims(this);
     createSpawnIconTexture(this);
+    allowMusic();
 
     //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
     //  For example, you can define global animations here, so we can use them in other scenes.
