@@ -10,7 +10,7 @@ import {
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
 import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
-import { createPixelFxAnims, PIXEL_FX_SHEETS } from '../systems/Juice';
+import { createPixelFxAnims, PIXEL_FX_SHEETS, streamLateSpritesheets } from '../systems/Juice';
 import { SCENERY_ART } from '../systems/PaperScenery';
 import { allowMusic } from '../../ui/SoundToggle';
 
@@ -124,29 +124,13 @@ export class Preloader extends Scene {
     // Scribble death art (see DeathEffects.SCRIBBLE_FX).
     for (const { key, file } of SCRIBBLE_FX) this.load.image(key, file);
 
-    // Death VFX (see Juice.playDeathExplosion), from the VFX Free Pack.
-    // death-explosion is trimmed to the source's first 24 of 30 frames and
-    // played fast; death-kaboom is the one clean "KABOOM" cropped from the
-    // pack's comic frame (the rest was a smeared pile of them), popped in
-    // and out with a tween.
-    this.load.spritesheet('death-explosion', 'vfx/death-explosion.webp', {
-      frameWidth: 355,
-      frameHeight: 355,
-    });
+    // Effect strips (see Juice.PIXEL_FX_SHEETS). The death fireball and
+    // the Shield's electric ring stream in after this bar instead (see
+    // Juice.streamLateSpritesheets).
     this.load.image('death-kaboom', 'vfx/death-kaboom.webp');
-    // Effect strips (see Juice.PIXEL_FX_SHEETS).
     for (const { key, frameWidth, frameHeight } of PIXEL_FX_SHEETS) {
       this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
     }
-
-    // The Shield's electric ring (see Juice.attachElectricShield), also from
-    // the VFX Free Pack: the source pack's full 30-frame loop (a genuine
-    // one-revolution rotation, unlike the death VFX above, so trimming it
-    // would cut the rotation off mid-spin). The Zapper death reuses it.
-    this.load.spritesheet('shield-electric', 'vfx/shield-electric.webp', {
-      frameWidth: 265,
-      frameHeight: 265,
-    });
 
     // Kenney UI pieces (CC0 kenney_scribble-platformer pack, PNG/Retina
     // sources converted to lossless webp in public/assets/kenney/ui). Only
@@ -184,6 +168,7 @@ export class Preloader extends Scene {
     createPixelFxAnims(this);
     createSpawnIconTexture(this);
     allowMusic();
+    streamLateSpritesheets(this.game);
 
     //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
     //  For example, you can define global animations here, so we can use them in other scenes.

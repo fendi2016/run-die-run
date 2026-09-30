@@ -59,6 +59,18 @@ These commands do not upload or publish to Reddit.
   through the Phaser loader, so it never delays the loading bar and isn't
   decoded to PCM in memory. AAC rather than the delivered Ogg Vorbis, which
   iOS webviews don't reliably play.
+- Phaser resolves to its Arcade-only build (`vite.config.ts` alias; no
+  Matter.js): game.js went from 435 to 402 KB gzip.
+- Editor/curse toolbar `<img>`s are `loading="lazy"` (hidden until opened),
+  and the music only starts buffering once the Preloader finishes
+  (`allowMusic`), so neither competes with the loading bar.
+- The death fireball and shield ring sheets (~660 KB, 20 MB GPU) stream in
+  behind the menu (`Juice.streamLateSpritesheets`); until they land those
+  effects skip that layer. Throttled mobile emulation (4x CPU, 150 ms RTT,
+  9 Mbps): menu at 7.5 s, was 9.5 s.
+- Not done: the first time a render mode appears (first death, first
+  power-up) Phaser compiles a shader mid-run, a small hitch on phones.
+  Warming them during loading would remove it.
 - Unused dependencies removed (phaser-runtime-editor, toolkit,
   command-history, nanoid, zod).
 - Feed/menu statistics read a handful of plain Redis keys for one level.

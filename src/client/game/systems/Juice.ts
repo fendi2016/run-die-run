@@ -121,9 +121,51 @@ const KABOOM_POP_DURATION_MS = 90;
 const KABOOM_HOLD_MS = 220;
 const KABOOM_FADE_DURATION_MS = 160;
 
-function ensureDeathExplosionAnim(scene: Phaser.Scene): void {
+// The two big painted VFX sheets (~660 KB, 20 MB of GPU memory) aren't in
+// the Preloader: nothing needs them before the first death or shield, so
+// they stream in behind the menu instead of lengthening the loading bar.
+// Until one lands, the effect that uses it quietly skips that layer.
+// Both are from the VFX Free Pack: death-explosion trimmed to the source's
+// first 24 of 30 frames; shield-electric the full 30-frame loop (one real
+// revolution, so trimming would chop the spin). The Zapper death reuses it.
+const STREAMED_SPRITESHEETS = [
+  { key: 'death-explosion', file: 'vfx/death-explosion.webp', frameWidth: 355, frameHeight: 355 },
+  { key: 'shield-electric', file: 'vfx/shield-electric.webp', frameWidth: 265, frameHeight: 265 },
+];
+const STREAM_RETRY_MS = 3000;
+let streamStarted = false;
+
+export function streamLateSpritesheets(game: Phaser.Game): void {
+  if (streamStarted) return;
+  streamStarted = true;
+  for (const sheet of STREAMED_SPRITESHEETS) {
+    const load = (retries: number): void => {
+      const image = new Image();
+      // Relative to game.html, like the Preloader's '../assets' path.
+      image.src = `../assets/${sheet.file}`;
+      image
+        .decode()
+        .then(() => {
+          if (game.textures.exists(sheet.key)) return;
+          game.textures.addSpriteSheet(sheet.key, image, {
+            frameWidth: sheet.frameWidth,
+            frameHeight: sheet.frameHeight,
+          });
+        })
+        .catch(() => {
+          if (retries > 0) setTimeout(() => load(retries - 1), STREAM_RETRY_MS);
+        });
+    };
+    load(2);
+  }
+}
+
+function ensureDeathExplosionAnim(scene: Phaser.Scene): boolean {
   if (scene.anims.exists(DEATH_EXPLOSION_ANIM_KEY)) {
-    return;
+    return true;
+  }
+  if (!scene.textures.exists('death-explosion')) {
+    return false;
   }
   scene.anims.create({
     key: DEATH_EXPLOSION_ANIM_KEY,
@@ -134,6 +176,7 @@ function ensureDeathExplosionAnim(scene: Phaser.Scene): void {
     frameRate: DEATH_EXPLOSION_FRAME_RATE,
     repeat: 0,
   });
+  return true;
 }
 
 // "Quick and absurd" death VFX (spec section 31's squish/pop/explosion,
@@ -145,16 +188,16 @@ function ensureDeathExplosionAnim(scene: Phaser.Scene): void {
 // per-frame (see Preloader's comment) and gets its motion from a tween
 // instead.
 export function playDeathExplosion(scene: Phaser.Scene, x: number, y: number): void {
-  ensureDeathExplosionAnim(scene);
-
-  const fireball = scene.add.sprite(x, y, 'death-explosion', 0);
-  fireball.setScale(DEATH_EXPLOSION_SCALE);
-  // Normal blending: the old additive blend glowed against the dark
-  // Halloween backdrop but washes out to nothing on the white paper.
-  fireball.play(DEATH_EXPLOSION_ANIM_KEY);
-  fireball.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-    fireball.destroy();
-  });
+  if (ensureDeathExplosionAnim(scene)) {
+    const fireball = scene.add.sprite(x, y, 'death-explosion', 0);
+    fireball.setScale(DEATH_EXPLOSION_SCALE);
+    // Normal blending: the old additive blend glowed against the dark
+    // Halloween backdrop but washes out to nothing on the white paper.
+    fireball.play(DEATH_EXPLOSION_ANIM_KEY);
+    fireball.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      fireball.destroy();
+    });
+  }
 
   // A slight random tilt per death — a perfectly axis-aligned comic burst
   // reads as a UI element; a few degrees off reads as text slapped onto
@@ -394,9 +437,12 @@ const SHIELD_FRAME_RATE = 30;
 const SHIELD_SCALE = 0.5;
 const SHIELD_BREAK_DURATION_MS = 150;
 
-function ensureShieldAnim(scene: Phaser.Scene): void {
+function ensureShieldAnim(scene: Phaser.Scene): boolean {
   if (scene.anims.exists(SHIELD_ANIM_KEY)) {
-    return;
+    return true;
+  }
+  if (!scene.textures.exists('shield-electric')) {
+    return false;
   }
   scene.anims.create({
     key: SHIELD_ANIM_KEY,
@@ -404,6 +450,7 @@ function ensureShieldAnim(scene: Phaser.Scene): void {
     frameRate: SHIELD_FRAME_RATE,
     repeat: -1,
   });
+  return true;
 }
 
 // A persistent aura for as long as the Shield power-up is held, rather than
@@ -418,7 +465,11 @@ export function attachElectricShield(
   x: number,
   y: number
 ): Phaser.GameObjects.Sprite {
-  ensureShieldAnim(scene);
+  if (!ensureShieldAnim(scene)) {
+    // Not streamed in yet (see STREAMED_SPRITESHEETS): an invisible
+    // stand-in, so callers can still position and destroy it.
+    return scene.add.sprite(x, y, '__DEFAULT').setVisible(false);
+  }
   const shield = scene.add.sprite(x, y, 'shield-electric');
   shield.setScale(SHIELD_SCALE);
   // Normal blend: additive (made for the old dark backdrop) all but
