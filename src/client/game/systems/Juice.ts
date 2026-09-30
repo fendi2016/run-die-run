@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { FINISH_DISPLAY_HEIGHT_PX, PLAYER_SIZE } from '../constants';
+import { FINISH_DISPLAY_HEIGHT_PX, PLAYER_DISPLAY_WIDTH_SCALE, PLAYER_SIZE } from '../constants';
 import { playSfx } from './Sfx';
 
 // Cheap, asset-free "juice" (spec section 31: squish/pop/explosion on
@@ -301,9 +301,11 @@ export function slicePlayerFrame(
 ): { piece: Phaser.GameObjects.Image; col: number; row: number }[] {
   const frame = scene.textures.getFrame(textureKey);
   const scale = displaySize / frame.width;
+  // As wide as the live pencil is drawn (Player's display sprite).
+  const scaleX = scale * PLAYER_DISPLAY_WIDTH_SCALE;
   const cellSourceW = frame.width / cols;
   const cellSourceH = frame.height / rows;
-  const topLeftX = x - displaySize / 2;
+  const topLeftX = x - (displaySize * PLAYER_DISPLAY_WIDTH_SCALE) / 2;
   const topLeftY = y - displaySize;
   const texture = scene.textures.get(textureKey);
   // Texture.add() makes the first frame ever added the texture's default,
@@ -331,12 +333,12 @@ export function slicePlayerFrame(
         );
       }
       const piece = scene.add.image(
-        topLeftX + (col + 0.5) * cellSourceW * scale,
+        topLeftX + (col + 0.5) * cellSourceW * scaleX,
         topLeftY + (row + 0.5) * cellSourceH * scale,
         textureKey,
         frameName
       );
-      piece.setScale(scale);
+      piece.setScale(scaleX, scale);
       pieces.push({ piece, col, row });
     }
   }
@@ -564,7 +566,7 @@ export function playSharpenerDive(
     pencil.setCrop(0, 0, visible, DIVE_FRAME.height);
   };
   placeTip();
-  Reflect.set(window, '__SKETCHY_DIVE_INSIDE__', false);
+  window.__SKETCHY_DIVE_INSIDE__ = false;
 
   const shavings = () => {
     burstParticles(scene, mouthX, mouthY, SHAVING_WOOD, 6);
@@ -619,7 +621,7 @@ export function playSharpenerDive(
 
   // The gag, once he's all the way in.
   const gulpAndSpurt = () => {
-    Reflect.set(window, '__SKETCHY_DIVE_INSIDE__', true);
+    window.__SKETCHY_DIVE_INSIDE__ = true;
     scene.tweens.killTweensOf(sharpener);
     sharpener.setScale(restScale);
     scene.tweens.add({
@@ -731,7 +733,7 @@ export function playCaseEmerge(
     .setName('spawn-emerge')
     .setOrigin(0.5, 1)
     .setDepth(pencilCase.depth + 0.01)
-    .setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+    .setDisplaySize(PLAYER_SIZE * PLAYER_DISPLAY_WIDTH_SCALE, PLAYER_SIZE);
   let done = false;
 
   // Only the part above the rim shows while he's still inside.
@@ -772,7 +774,7 @@ export function playCaseEmerge(
     onComplete: () => {
       if (done) return;
       pencil.setCrop();
-      pencil.setTexture('player-jump-tuck').setDisplaySize(PLAYER_SIZE, PLAYER_SIZE);
+      pencil.setTexture('player-jump-tuck').setDisplaySize(PLAYER_SIZE * PLAYER_DISPLAY_WIDTH_SCALE, PLAYER_SIZE);
       playSfx(scene, 'jump');
       scene.tweens.add({ targets: pencil, x: spawn.x, duration: EMERGE_HOP_MS, ease: 'Linear' });
       scene.tweens.chain({

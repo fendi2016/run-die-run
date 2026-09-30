@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import type { ObjectType } from '../../../shared/types';
+import { PLAYER_DISPLAY_WIDTH_SCALE } from '../constants';
 import {
   attachElectricShield,
   burstParticles,
@@ -54,7 +55,8 @@ function playerStandIn(
 ): Phaser.GameObjects.Image {
   const image = scene.add.image(x, y, textureKey).setName(STAND_IN_NAME);
   image.setOrigin(0.5, 1);
-  image.setDisplaySize(displaySize, displaySize);
+  // As wide as the live pencil is drawn (Player's display sprite).
+  image.setDisplaySize(displaySize * PLAYER_DISPLAY_WIDTH_SCALE, displaySize);
   return image;
 }
 
@@ -429,7 +431,7 @@ export function playDeathEffect(
 ): void {
   const own = killer === undefined ? undefined : DEATH_EFFECT_BY_TYPE[killer];
   // Read by the playtest scenarios to tell a trap's own death from the fallback.
-  Reflect.set(window, '__SKETCHY_LAST_DEATH__', own ? killer : 'generic');
+  window.__SKETCHY_LAST_DEATH__ = own && killer !== undefined ? killer : 'generic';
   const effect = own ?? shatterAndExplode;
   effect(scene, x, y, textureKey, displaySize);
 }

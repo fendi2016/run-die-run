@@ -77,6 +77,11 @@ const config: Phaser.Types.Core.GameConfig = {
 declare global {
   interface Window {
     __PHASER_GAME__?: Phaser.Game;
+    // Read by the playtest scenarios (tools/playtest/scenarios): which
+    // death effect last played, and whether the finish dive has reached
+    // the inside of the sharpener.
+    __SKETCHY_LAST_DEATH__?: string;
+    __SKETCHY_DIVE_INSIDE__?: boolean;
   }
 }
 

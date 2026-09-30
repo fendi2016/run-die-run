@@ -514,8 +514,8 @@ export class GameScene extends Scene {
   private readonly onNavigationKey = (event: KeyboardEvent): void => {
     if (event.repeat || !this.player) return;
     // Dev shortcut: warp to the finish sprite, then trigger the real finish
-    // sequence (particles, camera flash, gate animation, player's dance,
-    // result overlay) there — triggering in place left the camera (which
+    // sequence (the dive into the sharpener, result overlay) there —
+    // triggering in place left the camera (which
     // just follows the player's x) nowhere near the gate. Dev subreddit
     // only: anywhere else it would verify unbeaten levels and farm clears.
     if (event.key === '7' && currentSubredditName() === DEV_SUBREDDIT) {

@@ -64,16 +64,17 @@ The app never sends private messages to players.
 
 Requires Node 24 and a Reddit developer account (`npm run login`).
 
-| Command                    | What it does                                              |
-| -------------------------- | --------------------------------------------------------- |
-| `npm run dev`              | Live playtest on r/sketchy_game_dev                       |
-| `npm run type-check`       | TypeScript                                                |
-| `npm run lint`             | ESLint                                                    |
-| `npm run test:unit`        | Server and shared unit tests                              |
-| `npm run check:production` | Types, lint, tests, build and bundle-size budgets         |
-| `npm run test:browser`     | Playwright checks of the built client (run after a build) |
-| `npm run deploy`           | `check:production`, then upload a new version             |
-| `npm run launch`           | Deploy, then submit for review                            |
+| Command                    | What it does                                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm run dev`              | Live playtest on r/sketchy_game_dev                                                                |
+| `npm run type-check`       | TypeScript                                                                                         |
+| `npm run lint`             | ESLint                                                                                             |
+| `npm run test:unit`        | Server and shared unit tests                                                                       |
+| `npm run check:production` | Types, lint, tests, build and bundle-size budgets                                                  |
+| `npm run test:browser`     | Playwright checks of the built client (run after a build)                                          |
+| `npm run test:playtest`    | Builds, then plays every scenario in `tools/playtest/scenarios` (deaths, power-ups, finish, spawn) |
+| `npm run deploy`           | `check:production`, then upload a new version                                                      |
+| `npm run launch`           | Deploy, then submit for review                                                                     |
 
 See [docs/production-performance.md](docs/production-performance.md) for
 asset rules and performance budgets.
