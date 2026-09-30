@@ -230,7 +230,8 @@ export function motionTweenConfigFor(
     // on/off, a lift-hold-slam), which a single yoyo can't express. Still
     // one Tween, so LevelLoader's pause/restart/Slow Time handling applies
     // unchanged.
-    const state = { phase: 0 };
+    // `sprite` rides along so Slow Time can find what to tint.
+    const state = { phase: 0, sprite };
     return {
       targets: state,
       phase: 1,
@@ -275,6 +276,34 @@ export function motionTweenConfigFor(
 
 type CyclePose = { periodMs: number; apply: (phase: number) => void };
 
+type TintableObject = Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+const SLOW_TINT_DATA_KEY = 'slowTint';
+
+// The object a moving-object tween visibly moves: the target itself, or
+// the sprite behind a looping trap's phase counter (motionTweenConfigFor).
+export function movedObjectOf(target: unknown): TintableObject | undefined {
+  if (target instanceof Phaser.GameObjects.Sprite || target instanceof Phaser.GameObjects.Image) return target;
+  if (typeof target === 'object' && target !== null && 'sprite' in target) {
+    const { sprite } = target;
+    if (sprite instanceof Phaser.GameObjects.Sprite) return sprite;
+  }
+  return undefined;
+}
+
+// Slow Time's tint (undefined clears it). Remembered on the object so a
+// pose that sets its own tint every step (the Zapper's off state) puts
+// this one back instead of wiping it.
+export function setSlowTint(object: TintableObject, tint: number | undefined): void {
+  object.setData(SLOW_TINT_DATA_KEY, tint);
+  if (tint === undefined) object.clearTint();
+  else object.setTint(tint);
+}
+
+function slowTintOf(object: TintableObject): number | undefined {
+  const tint: unknown = object.getData(SLOW_TINT_DATA_KEY);
+  return typeof tint === 'number' ? tint : undefined;
+}
+
 // Resyncs a static body after its sprite moved (or changed pose) —
 // harmless in the editor boards, where nothing collides.
 export function syncStaticBody(sprite: Phaser.GameObjects.Sprite): void {
@@ -296,8 +325,10 @@ function cyclePoseFor(
         const on = phase < ZAPPER_ON_FRACTION;
         if (sprite.body instanceof Phaser.Physics.Arcade.StaticBody) sprite.body.enable = on;
         sprite.setAlpha(on ? 1 : 0.35);
-        if (on) sprite.clearTint();
-        else sprite.setTint(0x9e9e9e);
+        const slowTint = slowTintOf(sprite);
+        if (!on) sprite.setTint(0x9e9e9e);
+        else if (slowTint === undefined) sprite.clearTint();
+        else sprite.setTint(slowTint);
       },
     };
   }

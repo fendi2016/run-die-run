@@ -103,7 +103,7 @@ import {
   type LoadedBat,
 } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
-import { triggerBatFlight } from '../objects/ObjectRegistry';
+import { movedObjectOf, setSlowTint, triggerBatFlight } from '../objects/ObjectRegistry';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // The scribble-in (Juice.playScribbleIn): on level load the player is
@@ -1149,9 +1149,8 @@ export class GameScene extends Scene {
     for (const tween of this.movingObjectTweens) {
       tween.timeScale = slowed ? SLOW_TIME_SCALE : 1;
       for (const target of tween.targets) {
-        if (!(target instanceof Phaser.GameObjects.Sprite || target instanceof Phaser.GameObjects.Image)) continue;
-        if (slowed) target.setTint(SLOW_TIME_TINT);
-        else target.clearTint();
+        const moved = movedObjectOf(target);
+        if (moved) setSlowTint(moved, slowed ? SLOW_TIME_TINT : undefined);
       }
     }
   }
