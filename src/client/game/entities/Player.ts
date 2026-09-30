@@ -9,8 +9,7 @@ import {
   attachElectricShield,
   attachStarSparkle,
   destroyElectricShield,
-  fitHyperspeedTrail,
-  playHyperspeedTrail,
+  emitSpeedLine,
   playPixelFx,
 } from '../systems/Juice';
 import { playDeathEffect } from '../systems/DeathEffects';
@@ -121,13 +120,14 @@ const JUMP_ASCEND_ANIM_KEY = 'player-jump-ascend';
 // through the floor. Sizing off the source image instead scales down
 // correctly alongside the sprite.
 const PLAYER_FRAME_SIZE = 362;
-// How far the Speed Boost trail's leading tips tuck into the character's
-// back (see fitHyperspeedSprite). The trail is fitted to the current pose's
-// actual drawn pixels (opaqueFrameBounds), not the 80px display box, but
-// the leftmost opaque column is often a trailing foot or elbow — without a
-// few px of overlap the streaks at head/torso height would stop short of
-// the body instead of hugging it.
-const HYPERSPEED_BODY_OVERLAP_PX = 4;
+// Speed Boost lines start this far inside the character's back (see
+// emitSpeedLines). They're placed off the current pose's actual drawn
+// pixels (opaqueFrameBounds), not the 80px display box, but the leftmost
+// opaque column is often a trailing foot or elbow — without a few px of
+// overlap the lines at head/torso height would start short of the body.
+const SPEED_LINE_BODY_OVERLAP_PX = 4;
+// One ink line this often while boosted.
+const SPEED_LINE_INTERVAL_MS = 40;
 // Alpha above which a source pixel counts as "part of the character" when
 // measuring a pose's drawn bounds (skips faint antialiasing fringe).
 const OPAQUE_ALPHA_THRESHOLD = 20;
@@ -339,7 +339,7 @@ export class Player {
   // (syncEffectSprites) for as long as they're active. undefined whenever
   // not currently shown, so presence alone doubles as "is one showing".
   private shieldSprite: Phaser.GameObjects.Sprite | undefined;
-  private hyperspeedSprite: Phaser.GameObjects.Sprite | undefined;
+  private speedLineMs = 0;
   // Wings: one extra jump in mid-air, shown as a small pair of wings on the
   // player's back until it's used.
   private airJumps = 0;
@@ -422,15 +422,16 @@ export class Player {
   // Called by GameScene every frame after PhysicsInterpolation has placed
   // the physics sprite where it will be drawn. Poses the display sprite on
   // it, then the escorts: neither effect sprite has any position logic of
-  // its own (Juice's attachElectricShield/playHyperspeedTrail just
-  // place-and-return) — this is what makes them follow the player.
+  // its own (Juice's attachElectricShield just places and returns) — this
+  // is what makes them follow the player.
   syncVisuals(): void {
-    this.updateDisplay(Math.min(this.scene.game.loop.delta, 100) / 1000);
+    const deltaMs = Math.min(this.scene.game.loop.delta, 100);
+    this.updateDisplay(deltaMs / 1000);
     const centerY = this.sprite.y - PLAYER_SIZE / 2;
     this.shieldSprite?.setPosition(this.sprite.x, centerY);
     this.wingsSprite?.setPosition(this.sprite.x - PLAYER_SIZE * 0.22, centerY - PLAYER_SIZE * 0.08);
     this.starSprite?.setPosition(this.sprite.x, centerY);
-    this.fitHyperspeedSprite();
+    this.emitSpeedLines(deltaMs);
     this.updateStarTint();
   }
 
@@ -477,24 +478,30 @@ export class Player {
     this.squashVelocity = 0;
   }
 
-  // Streams the Speed Boost trail straight off the character's back, head
-  // to toes and no taller: the trail's trailing-edge origin (see
-  // Juice.playHyperspeedTrail) sits at the pose's leftmost drawn pixel
-  // (the player always auto-runs rightward), and its height is squeezed to
-  // the pose's drawn top-to-bottom span. Re-fit every tick since the run
-  // cycle's squash/stretch and the jump poses all change the body's
-  // extent — a fixed box put streaks above the head (user report).
-  private fitHyperspeedSprite(): void {
-    if (!this.hyperspeedSprite) return;
+  // Speed Boost motion lines straight off the character's back, head to
+  // toes and no taller: each starts at the pose's leftmost drawn pixel (the
+  // player always auto-runs rightward) at a random height inside the pose's
+  // drawn top-to-bottom span, re-measured every time since the run cycle's
+  // squash/stretch and the jump poses change the body's extent (a fixed box
+  // put streaks above the head — user report).
+  private emitSpeedLines(deltaMs: number): void {
+    if (this.speedMultiplier <= 1 || !this.alive) {
+      this.speedLineMs = 0;
+      return;
+    }
+    this.speedLineMs += deltaMs;
+    if (this.speedLineMs < SPEED_LINE_INTERVAL_MS) return;
+    this.speedLineMs = 0;
     const sprite = this.display;
     const bounds = opaqueFrameBounds(sprite.frame);
     const frameLeft = sprite.x - sprite.width * sprite.originX * sprite.scaleX;
     const frameTop = sprite.y - sprite.height * sprite.originY * sprite.scaleY;
-    fitHyperspeedTrail(
-      this.hyperspeedSprite,
-      frameLeft + bounds.left * sprite.scaleX + HYPERSPEED_BODY_OVERLAP_PX,
-      frameTop + bounds.top * sprite.scaleY,
-      frameTop + bounds.bottom * sprite.scaleY
+    const top = frameTop + bounds.top * sprite.scaleY;
+    const bottom = frameTop + bounds.bottom * sprite.scaleY;
+    emitSpeedLine(
+      this.scene,
+      frameLeft + bounds.left * sprite.scaleX + SPEED_LINE_BODY_OVERLAP_PX,
+      Phaser.Math.FloatBetween(top + 6, bottom - 6)
     );
   }
 
@@ -505,8 +512,6 @@ export class Player {
   private clearEffectSprites(): void {
     this.shieldSprite?.destroy();
     this.shieldSprite = undefined;
-    this.hyperspeedSprite?.destroy();
-    this.hyperspeedSprite = undefined;
     this.wingsSprite?.destroy();
     this.wingsSprite = undefined;
     this.clearStarSprite();
@@ -741,28 +746,7 @@ export class Player {
       SPEED_BOOST_MULTIPLIER,
       SPEED_BOOST_DURATION_MS
     );
-    // Re-collecting mid-boost cuts the old trail immediately rather than
-    // fading it — it's about to be replaced by a fresh one at full alpha
-    // anyway, so the fade would only ever be visible for a couple of
-    // frames.
-    this.hyperspeedSprite?.destroy();
-    const trail = playHyperspeedTrail(
-      this.scene,
-      this.sprite.x,
-      this.sprite.y - PLAYER_SIZE / 2,
-      SPEED_BOOST_DURATION_MS
-    );
-    // playHyperspeedTrail self-destroys on a timer — this just keeps
-    // syncEffectSprites from calling setPosition on it afterward. Guarded
-    // by identity since a re-trigger above may already have replaced
-    // `hyperspeedSprite` with a newer trail by the time this fires.
-    trail.once(Phaser.GameObjects.Events.DESTROY, () => {
-      if (this.hyperspeedSprite === trail) {
-        this.hyperspeedSprite = undefined;
-      }
-    });
-    this.hyperspeedSprite = trail;
-    this.fitHyperspeedSprite();
+    // The motion lines come from emitSpeedLines while the boost lasts.
   }
 
   private applyTimedSpeedMultiplier(

@@ -203,7 +203,6 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'blood-splatter', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // burst_splatter_001 red
   { key: 'blood-spray', frameWidth: 48, frameHeight: 48, frameRate: 20, pixel: true }, // directional_splatter_003 red, mirrored to spray up-left
   { key: 'bat-impact', frameWidth: 80, frameHeight: 80, frameRate: 15, pixel: true }, // directional_impact_004 yellow
-  { key: 'ash-smoke', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // directional_smoke_burst_001 white
   { key: 'ghost-skull-smoke', frameWidth: 64, frameHeight: 64, frameRate: 15, pixel: true }, // stylized_skull_smoke_burst_001 white
   // Movement and power-ups (Player, GameScene, LevelLoader)
   { key: 'jump-dust', frameWidth: 140, frameHeight: 50, frameRate: 14 }, // Particle1, mirrored to both sides
@@ -219,17 +218,6 @@ export const PIXEL_FX_SHEETS: readonly {
   { key: 'curse-strike', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // lightning_strike_001 violet
   { key: 'smoke-poof', frameWidth: 64, frameHeight: 64, frameRate: 20 }, // Puff
   { key: 'dizzy-stars', frameWidth: 166, frameHeight: 125, frameRate: 12, loop: true }, // Stunned (mace deaths)
-  // Trap deaths (DeathEffects) — Super Pixel Effects, packed by tools/pack-fx.py
-  { key: 'mine-explosion', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // symmetrical_explosion_001 orange
-  { key: 'zap-burst', frameWidth: 64, frameHeight: 64, frameRate: 24, pixel: true }, // lightning_burst_001 violet
-  { key: 'whack-impact', frameWidth: 96, frameHeight: 96, frameRate: 20, pixel: true }, // symmetrical_impact_003 yellow
-  { key: 'crush-dust', frameWidth: 64, frameHeight: 64, frameRate: 20, pixel: true }, // symmetrical_smoke_burst_001 brown
-  // Power-up pickups and auras (GameScene, Player) — Super Pixel Effects
-  { key: 'shield-up', frameWidth: 128, frameHeight: 128, frameRate: 24, pixel: true }, // spell_defense_up_001 blue
-  { key: 'haste-burst', frameWidth: 128, frameHeight: 128, frameRate: 30, pixel: true }, // spell_haste_001 green
-  { key: 'wings-burst', frameWidth: 256, frameHeight: 144, frameRate: 20, pixel: true }, // round_light_burst_001 yellow
-  { key: 'time-warp', frameWidth: 128, frameHeight: 128, frameRate: 20, pixel: true }, // scifi_warp_001 green
-  { key: 'star-sparkle', frameWidth: 96, frameHeight: 96, frameRate: 20, pixel: true, loop: true }, // status_sparkling_001 yellow
 ];
 
 // Anims are global, so this runs once, from Preloader.
@@ -442,9 +430,9 @@ export function attachStarSparkle(
   x: number,
   y: number
 ): Phaser.GameObjects.Sprite {
-  const sparkle = scene.add.sprite(x, y, 'star-sparkle', 0);
-  sparkle.setScale(1.3);
-  sparkle.play('star-sparkle');
+  const sparkle = scene.add.sprite(x, y, 'pickup-shimmer', 0).setName('star-aura');
+  sparkle.setScale(1.15).setTint(0xffd84a);
+  sparkle.play('pickup-shimmer');
   return sparkle;
 }
 
@@ -464,84 +452,26 @@ export function destroyElectricShield(
   });
 }
 
-const HYPERSPEED_ANIM_KEY = 'hyperspeed-lines';
-const HYPERSPEED_FRAME_RATE = 24;
-// Small enough to read as a trail behind the player rather than a burst
-// that engulfs them (the source frame is 259x258 — full size dwarfed even
-// the player's own 80px sprite).
-const HYPERSPEED_SCALE = 0.44;
-const HYPERSPEED_FADE_IN_MS = 120;
-const HYPERSPEED_FADE_OUT_MS = 220;
-const HYPERSPEED_ALPHA = 0.85;
+// Speed Boost: short ink dashes peel off the pencil's back and fade, like
+// motion lines drawn in the margin. Player emits one every few frames at a
+// random height between his head and feet (so none float above him); each
+// is a world object that stays put while he runs away from it, then fades.
+const SPEED_LINE_INK = 0x2b2b2b;
+const SPEED_LINE_MS = 220;
 
-function ensureHyperspeedAnim(scene: Phaser.Scene): void {
-  if (scene.anims.exists(HYPERSPEED_ANIM_KEY)) {
-    return;
-  }
-  scene.anims.create({
-    key: HYPERSPEED_ANIM_KEY,
-    frames: scene.anims.generateFrameNumbers('hyperspeed-lines'),
-    frameRate: HYPERSPEED_FRAME_RATE,
-    repeat: -1,
-  });
-}
-
-// Speed lines trailing the player for the Speed Boost power-up's duration
-// (durationMs — matches SPEED_BOOST_DURATION_MS, passed in by the caller
-// rather than imported here so this stays reusable for any timed-multiplier
-// pickup rather than hardcoding Speed Boost's own constant). Self-contained
-// (fades itself out and destroys itself on a timer) except for position —
-// same as attachElectricShield, the caller repositions the returned sprite
-// every update() tick to keep it centered on the moving player.
-export function playHyperspeedTrail(
-  scene: Phaser.Scene,
-  x: number,
-  y: number,
-  durationMs: number
-): Phaser.GameObjects.Sprite {
-  ensureHyperspeedAnim(scene);
-  const trail = scene.add.sprite(x, y, 'hyperspeed-lines');
-  trail.setScale(HYPERSPEED_SCALE);
-  // Origin at the trailing (right) edge, not the center — (x, y) is the
-  // player's back edge (see Player.syncEffectSprites/applySpeedBoost), and
-  // this keeps the whole effect streaming away behind that point instead of
-  // straddling it and bleeding back onto the player's body.
-  trail.setOrigin(1, 0.5);
-  // Normal blend, as with the shield: additive vanishes on the paper.
-  trail.setAlpha(0);
-  trail.play(HYPERSPEED_ANIM_KEY);
+export function emitSpeedLine(scene: Phaser.Scene, backX: number, y: number): void {
+  const length = Phaser.Math.Between(16, 34);
+  const line = scene.add.graphics({ x: backX, y }).setName('speed-line');
+  line.lineStyle(2.5, SPEED_LINE_INK, 0.7);
+  line.lineBetween(0, 0, -length, 0);
   scene.tweens.add({
-    targets: trail,
-    alpha: HYPERSPEED_ALPHA,
-    duration: HYPERSPEED_FADE_IN_MS,
+    targets: line,
+    x: backX - 26,
+    alpha: 0,
+    duration: SPEED_LINE_MS,
     ease: 'Quad.easeOut',
+    onComplete: () => line.destroy(),
   });
-  scene.time.delayedCall(Math.max(0, durationMs - HYPERSPEED_FADE_OUT_MS), () => {
-    if (!trail.active) return;
-    scene.tweens.add({
-      targets: trail,
-      alpha: 0,
-      duration: HYPERSPEED_FADE_OUT_MS,
-      ease: 'Quad.easeIn',
-      onComplete: () => trail.destroy(),
-    });
-  });
-  return trail;
-}
-
-// Pins a playHyperspeedTrail sprite to the player's body: its trailing
-// (right) edge at backX, squeezed vertically to exactly span topY..bottomY
-// (the character's drawn head-to-toes extent) so no streaks show above or
-// below them. Width keeps HYPERSPEED_SCALE — only the height is fitted, so
-// the streaks stay the same length whatever pose they're squeezed to.
-export function fitHyperspeedTrail(
-  trail: Phaser.GameObjects.Sprite,
-  backX: number,
-  topY: number,
-  bottomY: number
-): void {
-  trail.setPosition(backX, (topY + bottomY) / 2);
-  trail.setScale(HYPERSPEED_SCALE, Math.max(0, bottomY - topY) / trail.height);
 }
 
 // Squash pulses on the finish gate, one per victory-dance beat

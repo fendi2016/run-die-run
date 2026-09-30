@@ -136,22 +136,13 @@ export class Preloader extends Scene {
       this.load.spritesheet(key, `vfx/${key}.webp`, { frameWidth, frameHeight });
     }
 
-    // Power-up VFX (see Juice.attachElectricShield/playHyperspeedTrail),
-    // also from the VFX Free Pack. shield-electric is the source pack's
-    // full 30-frame loop (a genuine one-revolution rotation, unlike the
-    // death VFX above — trimming it would cut the rotation off mid-spin).
-    // hyperspeed-lines is trimmed to 18 of its 30 frames (same "no visual
-    // loss, just less file" reasoning as death-explosion — the streak
-    // pattern has no fade arc to preserve, just cycles), and its frames are
-    // halved from the pack's 517x515 — it's drawn ~114 px wide, so the
-    // full-size sheet was 19 MB of GPU memory for detail nobody sees.
+    // The Shield's electric ring (see Juice.attachElectricShield), also from
+    // the VFX Free Pack: the source pack's full 30-frame loop (a genuine
+    // one-revolution rotation, unlike the death VFX above, so trimming it
+    // would cut the rotation off mid-spin). The Zapper death reuses it.
     this.load.spritesheet('shield-electric', 'vfx/shield-electric.webp', {
       frameWidth: 265,
       frameHeight: 265,
-    });
-    this.load.spritesheet('hyperspeed-lines', 'vfx/hyperspeed-lines.webp', {
-      frameWidth: 259,
-      frameHeight: 258,
     });
 
     // Kenney UI pieces (CC0 kenney_scribble-platformer pack, PNG/Retina

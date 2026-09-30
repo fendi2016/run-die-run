@@ -112,6 +112,15 @@ const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // Per-frame ease toward the clear-screen framing (see frameFinish()).
 const FINISH_CAMERA_LERP = 0.12;
 const SPAWN_SCRIBBLE_RETRY_MS = 150;
+// Colour of the burst left where each power-up was picked up.
+const POWER_UP_POP_COLOR: Partial<Record<ObjectType, number>> = {
+  shield: 0x7fd3ff,
+  speedBoost: 0xffa64d,
+  wings: 0xfff1c2,
+  stopwatch: 0x9fb2ff,
+  star: 0xffdd3d,
+};
+const SLOW_TIME_TINT = 0xa9d4ff;
 const SPAWN_SCRIBBLE_WIDTH = PLAYER_SIZE * 0.6;
 // Offsets from the finish gate's top-center, in world px.
 const FINISH_FIREWORKS = [
@@ -1102,26 +1111,28 @@ export class GameScene extends Scene {
     switch (type) {
       case 'shield':
         this.player.grantShield();
-        playPixelFx(this, 'shield-up', x, y, { scale: 1.2 });
         break;
       case 'speedBoost':
         this.player.applySpeedBoost();
-        playPixelFx(this, 'haste-burst', x, y, { scale: 1.2 });
         break;
       case 'wings':
         this.player.grantWings();
-        playPixelFx(this, 'wings-burst', x, y, { scale: 0.9 });
         break;
       case 'stopwatch':
         this.slowTime();
-        playPixelFx(this, 'time-warp', x, y, { scale: 1.4 });
         break;
       case 'star':
         this.player.grantStar();
-        playPixelFx(this, 'firework-yellow', x, y, { scale: 1.2 });
         break;
       default:
         break;
+    }
+    // One doodle pop for every pickup, with a burst in its own colour.
+    const color = POWER_UP_POP_COLOR[type];
+    if (color !== undefined) {
+      playPixelFx(this, 'shield-zap', x, y, { scale: 1.3 });
+      playPixelFx(this, 'pickup-sparkle', x, y, { scale: 1.2 });
+      burstParticles(this, x, y, color, 12);
     }
     playSfx(this, 'pickup');
   }
@@ -1130,19 +1141,26 @@ export class GameScene extends Scene {
   // rideable) runs slower for a while. The run timer and the player are
   // untouched. Bats keep their speed.
   private slowTime(): void {
-    for (const tween of this.movingObjectTweens) tween.timeScale = SLOW_TIME_SCALE;
+    this.setSlowed(true);
     this.cameras.main.flash(160, 120, 190, 255, false);
     this.slowTimeTimer?.remove();
     this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
       this.slowTimeTimer = undefined;
-      for (const tween of this.movingObjectTweens) tween.timeScale = 1;
-      // Time snapping back to normal, around the player (not once the run
-      // is over: he's hidden in the sharpener, or already dead).
-      if (this.player && !this.runEnded) {
-        const { x, y } = this.player.sprite;
-        playPixelFx(this, 'time-warp', x, y - PLAYER_SIZE / 2, { scale: 1 });
-      }
+      this.setSlowed(false);
     });
+  }
+
+  // Everything the Stopwatch slows is tinted a cold blue while it's slow,
+  // so you can see what you've bought time on.
+  private setSlowed(slowed: boolean): void {
+    for (const tween of this.movingObjectTweens) {
+      tween.timeScale = slowed ? SLOW_TIME_SCALE : 1;
+      for (const target of tween.targets) {
+        if (!(target instanceof Phaser.GameObjects.Sprite || target instanceof Phaser.GameObjects.Image)) continue;
+        if (slowed) target.setTint(SLOW_TIME_TINT);
+        else target.clearTint();
+      }
+    }
   }
 
   // `objectId` is absent for a fall-death (running off the level, not a
@@ -1467,6 +1485,7 @@ export class GameScene extends Scene {
     this.resetMovingObjects?.();
     this.slowTimeTimer?.remove();
     this.slowTimeTimer = undefined;
+    this.setSlowed(false);
 
     // Defensive: onFinishReached leaves runEnded=true, and every normal
     // path out of a finish is the result overlay's next-level/editor-return
