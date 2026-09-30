@@ -124,11 +124,21 @@ export class EditorController {
     return true;
   }
 
-  // The Erase tool: removes whatever is on top in this cell (the same pick
-  // order as selectAt). The spawn can't be erased — a level needs one, so it's moved
-  // instead. Returns the erased object, if any.
+  // The Erase tool's first pick: whatever is on top in this cell (the same
+  // pick order as selectAt).
+  topObjectIdAt(x: number, y: number): string | undefined {
+    return this.topObjectAt(x, y)?.id;
+  }
+
   eraseAt(x: number, y: number): DraftObject | 'spawn' | undefined {
-    const found = this.topObjectAt(x, y);
+    const id = this.topObjectIdAt(x, y);
+    return id === undefined ? undefined : this.eraseById(id);
+  }
+
+  // The spawn can't be erased — a level needs one, so it's moved instead.
+  // Returns the erased object, if any.
+  eraseById(id: string): DraftObject | 'spawn' | undefined {
+    const found = this.objects.find((o) => o.id === id);
     if (!found) return undefined;
     if (found.type === 'spawn') return 'spawn';
     this.pushUndoSnapshot();

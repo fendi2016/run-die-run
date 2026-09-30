@@ -45,6 +45,11 @@ const DEFAULT_SPAWN = { x: GRID_CELL_SIZE * 1.5, y: GROUND_TOP_Y };
 const SELECTION_DEPTH = 1;
 const SELECTION_BOX_SIZE = 64;
 
+// Erase leniency, in world px: how far outside an object's drawn bounds a
+// tap still hits it, and how close to its center counts from any side.
+const ERASE_TAP_PADDING_PX = GRID_CELL_SIZE * 0.35;
+const ERASE_TAP_RADIUS_PX = GRID_CELL_SIZE * 1.1;
+
 // The mobile-first base level editor (spec section 12): tap-only
 // place/select/move/delete/undo/redo over a grid, plus Test (spec section
 // 13's "creator must personally beat it" gate) and Publish.
@@ -179,7 +184,7 @@ export class EditorScene extends Scene {
   }
 
   private onBoardTileTap(
-    _tap: unknown,
+    pointer: Phaser.Input.Pointer,
     tileXY: { x: number; y: number }
   ): void {
     if (this.testRequest || this.panZoom.shouldIgnoreTap()) return;
@@ -192,7 +197,8 @@ export class EditorScene extends Scene {
       return;
     }
     if (tool === 'erase') {
-      this.handleEraseTap(world.x, world.y);
+      const tapped = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      this.handleEraseTap(world.x, world.y, tapped.x, tapped.y);
       return;
     }
 
@@ -225,11 +231,14 @@ export class EditorScene extends Scene {
     }
   }
 
-  // One tap, one object gone — no select-then-Delete.
-  private handleEraseTap(x: number, y: number): void {
+  // One tap, one object gone — no select-then-Delete. (x, y) is the tapped
+  // cell, (tapX, tapY) the raw tap point used by the lenient fallbacks.
+  private handleEraseTap(x: number, y: number, tapX: number, tapY: number): void {
     let spawnTapped = false;
     this.applyMutation(() => {
-      const erased = this.controller.eraseAt(x, y);
+      const id = this.controller.topObjectIdAt(x, y) ?? this.nearestRenderedObjectId(tapX, tapY);
+      if (id === undefined) return false;
+      const erased = this.controller.eraseById(id);
       if (erased === 'spawn') {
         spawnTapped = true;
         return false;
@@ -240,6 +249,25 @@ export class EditorScene extends Scene {
       return true;
     }, 'Nothing to erase there.');
     if (spawnTapped) this.toolbar.showMessage('Every level needs a spawn. Use Select to move it.');
+  }
+
+  // Erase fallback when the tapped cell is empty: an object drawn under the
+  // tap (padded — a mace ball hangs a cell below the cell it's stored in),
+  // else the closest object center within about a cell.
+  private nearestRenderedObjectId(x: number, y: number): string | undefined {
+    let best: { id: string; distance: number } | undefined;
+    for (const [id, image] of this.renderedObjects) {
+      const bounds = image.getBounds();
+      const center = image.getCenter();
+      const distance = Math.hypot(x - center.x, y - center.y);
+      const pad = ERASE_TAP_PADDING_PX;
+      const underTap =
+        x >= bounds.left - pad && x <= bounds.right + pad &&
+        y >= bounds.top - pad && y <= bounds.bottom + pad;
+      const hit = underTap || distance <= ERASE_TAP_RADIUS_PX;
+      if (hit && (!best || distance < best.distance)) best = { id, distance };
+    }
+    return best?.id;
   }
 
   // A puff of smoke where a removed object was. Drawn above the objects,
