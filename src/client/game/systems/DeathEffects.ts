@@ -30,6 +30,18 @@ type DeathEffect = (
   displaySize: number
 ) => void;
 
+// Every full-body stand-in is tagged so a restart can clear it: several
+// deaths outlast the respawn delay, and a quick retry would otherwise show
+// the old body still falling next to the new pencil.
+const STAND_IN_NAME = 'death-stand-in';
+
+export function clearDeathStandIns(scene: Phaser.Scene): void {
+  for (const object of scene.children.list.filter((o) => o.name === STAND_IN_NAME)) {
+    scene.tweens.killTweensOf(object);
+    object.destroy();
+  }
+}
+
 // A copy of the player's current pose laid exactly over the real sprite.
 function playerStandIn(
   scene: Phaser.Scene,
@@ -38,7 +50,7 @@ function playerStandIn(
   textureKey: string,
   displaySize: number
 ): Phaser.GameObjects.Image {
-  const image = scene.add.image(x, y, textureKey);
+  const image = scene.add.image(x, y, textureKey).setName(STAND_IN_NAME);
   image.setOrigin(0.5, 1);
   image.setDisplaySize(displaySize, displaySize);
   return image;
@@ -283,6 +295,7 @@ const zapperFry: DeathEffect = (scene, x, y, textureKey, displaySize) => {
     delay: 50,
     repeat: 9,
     callback: () => {
+      if (!body.active) return;
       lit = !lit;
       body.setTint(lit ? 0xffffff : INK);
       body.setX(x + (lit ? 3 : -3));
@@ -296,6 +309,7 @@ const zapperFry: DeathEffect = (scene, x, y, textureKey, displaySize) => {
   scene.cameras.main.shake(260, 0.004);
   scene.time.delayedCall(520, () => {
     strobe.remove();
+    if (!body.active) return;
     body.clearTint().setX(x);
     playPixelFx(scene, 'ash-smoke', x, y, { scale: 1.5, originY: ASH_SMOKE_BASE_Y });
     scene.tweens.add({

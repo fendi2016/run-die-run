@@ -94,6 +94,7 @@ import {
   playPixelFx,
   stopFinishGateAnimation,
 } from '../systems/Juice';
+import { clearDeathStandIns } from '../systems/DeathEffects';
 import { drawDeathMarkers, fetchDeathMarkers, reportDeathPosition } from '../systems/DeathMarkers';
 import { playSfx } from '../systems/Sfx';
 import {
@@ -1135,8 +1136,9 @@ export class GameScene extends Scene {
     this.slowTimeTimer = this.time.delayedCall(SLOW_TIME_DURATION_MS, () => {
       this.slowTimeTimer = undefined;
       for (const tween of this.movingObjectTweens) tween.timeScale = 1;
-      // Time snapping back to normal, around the player.
-      if (this.player) {
+      // Time snapping back to normal, around the player (not once the run
+      // is over: he's hidden in the sharpener, or already dead).
+      if (this.player && !this.runEnded) {
         const { x, y } = this.player.sprite;
         playPixelFx(this, 'time-warp', x, y - PLAYER_SIZE / 2, { scale: 1 });
       }
@@ -1429,6 +1431,7 @@ export class GameScene extends Scene {
     if (!this.player) {
       return;
     }
+    clearDeathStandIns(this);
     this.attempt.abort();
     this.attempt = new AbortController();
     this.submitting = false;
