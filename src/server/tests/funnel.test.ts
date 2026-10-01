@@ -115,8 +115,8 @@ await test('new terrain blocks silhouette like ground/platform in the course pre
 
 await test('suggestions treat the new terrain blocks as open ground', () => {
   const objects = [
-    ...groundTiles(0, 600).map((o) => ({ ...o, type: 'brickBlock' as const })),
-    obj('s', 'spawn', 90), obj('f', 'finish', 540),
+    ...groundTiles(0, 1200).map((o) => ({ ...o, type: 'brickBlock' as const })),
+    obj('s', 'spawn', 90), obj('f', 'finish', 1140),
   ];
   const cells = suggestCurseCells(objects, 1);
   assert.equal(cells.length, 1);

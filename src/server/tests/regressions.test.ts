@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isCurseEligibilityResponse, parseDraftObjectsJson, TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE, type DraftObject } from '../../shared/editorApi';
+import { isCurseEligibilityResponse, parseDraftObjectsJson, TRAP_IN_START_ZONE_MESSAGE, type DraftObject } from '../../shared/editorApi';
 import type { ObjectType } from '../../shared/types';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
@@ -1148,23 +1148,24 @@ await test('new terrain blocks are surfaces, same as ground/platform', async () 
   );
 });
 
-await test('a curse can be placed anywhere on the map except a trap right by the spawn', async () => {
-  const base: DraftObject[] = [...objects, { id: 'ledge', type: 'platform', x: 450, y: 360 },
-    { id: 'blade', type: 'saw', x: 510, y: 480 }];
+await test('a curse can be placed anywhere except a trap in the first 10 columns', async () => {
+  const far = (x: number) => x + 600;
+  const base: DraftObject[] = [...objects, { id: 'ledge', type: 'platform', x: far(450), y: 360 },
+    { id: 'blade', type: 'saw', x: far(510), y: 480 }, { id: 'end', type: 'finish', x: far(330), y: 480 }];
   for (const spot of [
-    { x: 450, y: 360 }, // on a platform
-    { x: 510, y: 480 }, // on another hazard
-    { x: 330, y: 480 }, // on the finish
+    { x: far(450), y: 360 }, // on a platform
+    { x: far(510), y: 480 }, // on another hazard
+    { x: far(330), y: 480 }, // on the finish
   ]) {
     assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', ...spot }), []);
   }
-  // The spawn is at x 90: a trap within two cells either side is refused,
-  // two cells on is fine, and a platform or power-up may go right by it.
-  for (const x of [90, 150, 30]) {
-    assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x, y: 480 }),
-      [TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE]);
+  // Columns 1-10 (x < 600) are trap-free at every height; column 11 isn't.
+  for (const spot of [{ x: 30, y: 480 }, { x: 90, y: 420 }, { x: 330, y: 300 }, { x: 570, y: 480 }]) {
+    assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', ...spot }),
+      [TRAP_IN_START_ZONE_MESSAGE]);
   }
-  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x: 210, y: 480 }), []);
+  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x: 630, y: 480 }), []);
+  // Platforms and power-ups may still go there.
   assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'platform', x: 150, y: 360 }), []);
   assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'shield', x: 150, y: 420 }), []);
   assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: -600, y: 480 })
@@ -1209,7 +1210,7 @@ await test('a player waits for someone else to curse between curses, up to the p
 
   // Once someone else curses it, alice gets another — up to the cap.
   for (let i = 1; i < CURSES_PER_LEVEL; i++) {
-    assert.equal((await curseAndPublish(`other-${i}`, 400 + i * 60)).status, 'ok');
+    assert.equal((await curseAndPublish(`other-${i}`, 1000 + i * 60)).status, 'ok');
     assert.equal((await eligibility('alice')).canCurse, true);
     assert.equal((await curseAndPublish('alice', 820 + i * 60)).status, 'ok');
   }

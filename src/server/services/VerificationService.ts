@@ -12,8 +12,8 @@ import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
   isSurfaceType,
-  isTrapTooCloseToSpawn,
-  TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE,
+  isTrapInStartZone,
+  TRAP_IN_START_ZONE_MESSAGE,
   type DraftObject,
 } from '../../shared/editorApi';
 import type { LevelExtension } from '../../shared/levelExtend';
@@ -312,8 +312,8 @@ export function validateCurseObject(
     errors.push('Your object is outside the level boundaries.');
   }
 
-  if (isTrapTooCloseToSpawn(baseObjects, newObject.type, newObject.x)) {
-    errors.push(TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE);
+  if (isTrapInStartZone(newObject.type, newObject.x)) {
+    errors.push(TRAP_IN_START_ZONE_MESSAGE);
   }
 
   // Otherwise a curse can go anywhere: no occupied-cell or finish-blocking
