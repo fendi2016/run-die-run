@@ -11,6 +11,7 @@ import { isSketchyPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
+import { startSplashMusic } from './ui/musicHandoff';
 import { clearRateText, versionText } from '../shared/levelStatsText';
 import { sendAnalyticsEvent } from './analytics';
 
@@ -31,6 +32,9 @@ function expandInto(event: MouseEvent, target: SplashAutostart): void {
     // Storage can be unavailable in an embedded/private browser. The
     // expanded menu still provides every destination.
   }
+  // Only this click may start audio — game.html opens as a document that
+  // hasn't been tapped yet (see musicHandoff.ts).
+  startSplashMusic();
   requestExpandedMode(event, 'game');
 }
 

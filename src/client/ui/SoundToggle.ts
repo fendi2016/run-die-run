@@ -1,5 +1,6 @@
 import type * as Phaser from 'phaser';
 import { requireButton } from './domUtils';
+import { MUSIC_URL, MUSIC_VOLUME, MUTED_KEY, openMusicChannel, readMuted } from './musicHandoff';
 
 // Background music ("Evening Mood") plus the one global mute that also
 // silences Phaser's SFX. The music is a plain <audio> element rather than
@@ -7,9 +8,6 @@ import { requireButton } from './domUtils';
 // 2 MB download, and isn't decoded into ~30 MB of PCM in memory. AAC
 // (.m4a), not the delivered .ogg — Ogg Vorbis isn't reliably playable in
 // iOS webviews, and the Reddit app is one.
-const MUSIC_URL = '/assets/music/evening-mood.m4a';
-const MUSIC_VOLUME = 0.35;
-const MUTED_KEY = 'sketchy:sound-muted';
 
 // Set by initSound; the Preloader calls allowMusic() once its assets are in.
 let releaseMusic: (() => void) | undefined;
@@ -20,14 +18,6 @@ let releaseMusic: (() => void) | undefined;
 export function allowMusic(): void {
   releaseMusic?.();
   releaseMusic = undefined;
-}
-
-function readMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTED_KEY) === '1';
-  } catch {
-    return false;
-  }
 }
 
 function writeMuted(muted: boolean): void {
@@ -56,8 +46,22 @@ export function initSound(game: Phaser.Game): void {
   // left the music off for good before.
   let playing = false;
   let lastTime = 0;
+  // The splash's copy of the track (see musicHandoff.ts): where it was at
+  // and when we heard, so our copy picks up at the same spot.
+  let splashAt: number | undefined;
+  let splashHeardAt = 0;
+  const channel = openMusicChannel((message) => {
+    if (message.type !== 'time' || playing) return;
+    splashAt = message.at;
+    splashHeardAt = performance.now();
+  });
   music.addEventListener('timeupdate', () => {
-    if (!music.paused && music.currentTime !== lastTime) playing = true;
+    if (!music.paused && music.currentTime !== lastTime && !playing) {
+      playing = true;
+      // Ours is audible now — the splash's copy can stop.
+      channel.post({ type: 'stop' });
+      splashAt = undefined;
+    }
     lastTime = music.currentTime;
   });
   music.addEventListener('pause', () => {
@@ -73,6 +77,9 @@ export function initSound(game: Phaser.Game): void {
     // Reset a fake start first — play() on a track that claims to be
     // unpaused does nothing.
     music.pause();
+    if (splashAt !== undefined && performance.now() - splashHeardAt < 2000) {
+      music.currentTime = splashAt + (performance.now() - splashHeardAt) / 1000;
+    }
     music.play().catch(() => {
       // Refused until the player interacts (or the file failed) — the
       // next tap/key retries.
@@ -88,6 +95,7 @@ export function initSound(game: Phaser.Game): void {
     if (muted || document.hidden) {
       attempt++;
       music.pause();
+      channel.post({ type: 'stop' });
     } else {
       start();
     }
@@ -118,6 +126,8 @@ export function initSound(game: Phaser.Game): void {
   // Leaving the app (tab switch, Reddit backgrounded) pauses the music;
   // coming back resumes it unless muted.
   document.addEventListener('visibilitychange', sync);
+  // Closing the expanded view must silence the splash's copy too.
+  window.addEventListener('pagehide', () => channel.post({ type: 'stop' }));
   // Phaser's sound manager finishes booting after this runs; re-apply the
   // saved mute once it's ready so a muted player's SFX stay muted too.
   game.events.once('ready', sync);
