@@ -46,15 +46,3 @@ export async function saveDraft(objects: DraftObject[]): Promise<boolean> {
     return false;
   }
 }
-
-export async function clearDraft(): Promise<boolean> {
-  try {
-    const response = await fetch('/api/editor/draft', {
-      signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS),
-      method: 'DELETE',
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}

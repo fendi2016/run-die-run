@@ -19,7 +19,6 @@ export type EditorToolbarHandlers = {
   onDelete: () => void;
   onTest: () => void;
   onSave: () => void;
-  onNewLevel: () => void;
   onPublishRequested: () => void;
   onPublishConfirm: (title: string) => void;
   onPublishCancel: () => void;
@@ -55,9 +54,6 @@ export class EditorToolbar {
   private readonly publishDialog = requireElement('editor-publish-dialog');
   private readonly titleInput = requireInput('editor-title-input');
   private readonly moreDialog = requireElement('editor-more-dialog');
-  private readonly newLevelLabel = requireElement('editor-new-level-label');
-  // "New level" throws the current level away, so it takes a second tap.
-  private newLevelArmed = false;
   private readonly jsonDialog = requireElement('editor-json-dialog');
   private readonly jsonTextArea = requireTextArea('editor-json-textarea');
   private readonly jsonErrorEl = requireElement('editor-json-error');
@@ -89,15 +85,6 @@ export class EditorToolbar {
     requireButton('editor-save').addEventListener('click', () =>
       this.handlers?.onSave()
     );
-    requireButton('editor-new-level').addEventListener('click', () => {
-      if (!this.newLevelArmed) {
-        this.newLevelArmed = true;
-        this.newLevelLabel.textContent = 'Tap again to clear this level';
-        return;
-      }
-      this.hideMoreMenu();
-      this.handlers?.onNewLevel();
-    });
     this.publishBtn.addEventListener('click', () =>
       this.handlers?.onPublishRequested()
     );
@@ -220,8 +207,6 @@ export class EditorToolbar {
 
   hideMoreMenu(): void {
     this.moreDialog.classList.add('hidden');
-    this.newLevelArmed = false;
-    this.newLevelLabel.textContent = 'New level';
   }
 
   // `objects` is always the editor's live state at the moment JSON is

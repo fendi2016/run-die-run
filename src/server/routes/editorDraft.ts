@@ -46,9 +46,3 @@ editorDraft.put('/', async (c) => {
   await redis.set(editorDraftKey(username), JSON.stringify(body.objects));
   return c.json({ status: 'ok' });
 });
-
-editorDraft.delete('/', async (c) => {
-  const { username } = context;
-  if (username) await redis.del(editorDraftKey(username));
-  return c.json({ status: 'ok' });
-});

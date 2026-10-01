@@ -2,7 +2,7 @@ import { isDraftObject, type DraftObject } from './editorApi';
 
 // Wire contract for /api/editor/draft — the player's one saved-for-later
 // builder level. GET reads it (`objects: null` when there is none), PUT
-// saves it, DELETE clears it.
+// saves it. Publishing clears it.
 export type EditorDraftResponse = {
   objects: DraftObject[] | null;
 };

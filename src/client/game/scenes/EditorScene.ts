@@ -17,7 +17,6 @@ import type { LevelVersion } from '../../../shared/types';
 import { EditorToolbar } from '../../ui/EditorToolbar';
 import { EditorController } from '../editor/EditorController';
 import {
-  clearDraft,
   isDraftSaved,
   loadDraft,
   markDraftSaved,
@@ -169,7 +168,6 @@ export class EditorScene extends Scene {
       onDelete: () => this.deleteSelected(),
       onTest: () => void this.handleTest(),
       onSave: () => void this.handleSave(),
-      onNewLevel: () => void this.handleNewLevel(),
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),
       onPublishCancel: () => this.toolbar.hidePublishDialog(),
@@ -274,25 +272,6 @@ export class EditorScene extends Scene {
     this.toolbar.showMessage(
       "Couldn't save your level. Press Exit again to leave without saving."
     );
-  }
-
-  private async handleNewLevel(): Promise<void> {
-    if (this.draftRequest) return;
-    const request = new AbortController();
-    this.draftRequest = request;
-    this.toolbar.setEditingEnabled(false);
-    const cleared = await clearDraft();
-    if (request.signal.aborted) return;
-    this.draftRequest = undefined;
-    if (!cleared) {
-      this.toolbar.setEditingEnabled(true);
-      this.updateToolbarState();
-      this.toolbar.showMessage("Couldn't start a new level. Try again.");
-      return;
-    }
-    const objects = defaultObjects();
-    markDraftSaved(objects);
-    this.scene.restart({ objects });
   }
 
   private onBoardTileTap(

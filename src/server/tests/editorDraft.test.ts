@@ -12,9 +12,6 @@ mock.module('@devvit/web/server', {
         values.set(key, value);
         return 'OK';
       },
-      del: async (...keys: string[]) => {
-        for (const key of keys) values.delete(key);
-      },
     },
     context: {
       get username() {
@@ -56,12 +53,6 @@ await test('a saved builder draft comes back for its owner only', async () => {
   assert.equal((await save(LEVEL)).status, 200);
   assert.deepEqual(await load(), LEVEL);
   currentUsername = 'bob';
-  assert.equal(await load(), null);
-});
-
-await test('clearing the draft starts the player fresh', async () => {
-  await save(LEVEL);
-  assert.equal((await editorDraft.request('/', { method: 'DELETE' })).status, 200);
   assert.equal(await load(), null);
 });
 
