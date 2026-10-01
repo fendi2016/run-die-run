@@ -61,6 +61,14 @@
         "postFilter": "currentApp",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/undo-sabotage"
+      },
+      {
+        "label": "SKETCHY: remove a trap",
+        "description": "Pick one player-added trap on this post's level and remove it",
+        "location": "post",
+        "postFilter": "currentApp",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/remove-trap"
       }
     ]
   },
@@ -92,6 +100,7 @@
     }
   },
   "forms": {
-    "analyticsReport": "/internal/form/analytics-report"
+    "analyticsReport": "/internal/form/analytics-report",
+    "removeTrap": "/internal/form/remove-trap"
   }
 }

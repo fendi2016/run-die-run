@@ -12,10 +12,16 @@ export const levelCurrentVersionKey = (levelId: string): string =>
 export const levelVersionKey = (levelId: string, version: number): string =>
   `level:${levelId}:version:${version}`;
 
-// How many moderator undos a level has had. Each undo is its own version
-// that removes a sabotage, so sabotages in effect = version - 1 - 2 * undos.
+// How many moderator undos and trap removals a level has had. Each is its
+// own version that takes one sabotage away, so sabotages in effect =
+// version - 1 - 2 * undos.
 export const levelUndosKey = (levelId: string): string =>
   `level:${levelId}:undos`;
+
+// Trap object ids a moderator removed by hand (field -> '1'). An undo
+// restores an older snapshot of the level, so it filters these back out.
+export const levelRemovedTrapsKey = (levelId: string): string =>
+  `level:${levelId}:removedTraps`;
 
 export const versionLeaderboardKey = (
   levelId: string,

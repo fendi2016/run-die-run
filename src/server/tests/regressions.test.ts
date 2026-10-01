@@ -1855,6 +1855,57 @@ await test('an undone sabotage gives its owner the slot back and leaves their li
   assert.equal((await eligibility('bob')).canCurse, true);
 });
 
+await test('a moderator can remove one chosen player trap, and undo never brings it back', async () => {
+  const { listRemovableTraps, removeTrap, undoLatestSabotage } = await import('../services/UndoService');
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  const { getMyCurses } = await import('../services/TrapStatsService');
+  const seed = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+
+  // Only player-added traps are listed; the built-in ones never are.
+  const traps = await listRemovableTraps('meat-grinder');
+  assert.deepEqual(traps.map((t) => t.addedBy), ['bob', 'carol']);
+  const builtIn = seed?.objects.find((o) => o.type === 'candle');
+  assert.equal((await removeTrap('meat-grinder', builtIn?.id ?? '')).status, 'error');
+
+  const bobsTrap = traps[0];
+  assert.ok(bobsTrap);
+  if (!bobsTrap) return;
+  const removed = await removeTrap('meat-grinder', bobsTrap.id);
+  assert.deepEqual(removed, { status: 'ok', removedBy: 'bob', removedType: 'saw' });
+  const after = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(after?.objects.some((o) => o.id === bobsTrap.id), false);
+  assert.equal(after?.contributorUsername, 'carol');
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
+  assert.equal((await getMyCurses('bob')).length, 0);
+  assert.equal((await removeTrap('meat-grinder', bobsTrap.id)).status, 'error');
+
+  // Undo takes carol's out and restores the level before it, without bob's.
+  const undone = await undoLatestSabotage('meat-grinder');
+  assert.equal(undone.status === 'ok' && undone.undoneBy, 'carol');
+  assert.deepEqual((await getCurrentLevelVersion('meat-grinder'))?.objects, seed?.objects);
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 0);
+  // Bob's was the only one left and it's already gone.
+  assert.equal((await undoLatestSabotage('meat-grinder')).status, 'error');
+});
+
+await test('undo skips the newest trap when a moderator already removed it', async () => {
+  const { listRemovableTraps, removeTrap, undoLatestSabotage } = await import('../services/UndoService');
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  const seed = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  const carols = (await listRemovableTraps('meat-grinder')).find((t) => t.addedBy === 'carol');
+  assert.equal((await removeTrap('meat-grinder', carols?.id ?? '')).status, 'ok');
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
+
+  const undone = await undoLatestSabotage('meat-grinder');
+  assert.equal(undone.status === 'ok' && undone.undoneBy, 'bob');
+  assert.deepEqual((await getCurrentLevelVersion('meat-grinder'))?.objects, seed?.objects);
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 0);
+});
+
 await test('next level skips NIGHTMARE levels unless every one it looks at is NIGHTMARE', async () => {
   const { isNextLevelResponse } = await import('../../shared/discoveryApi');
   const { levelAttemptsKey } = await import('../core/redisKeys');

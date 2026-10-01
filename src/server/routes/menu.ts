@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { reddit } from '@devvit/web/server';
+import { context, reddit } from '@devvit/web/server';
 import { isT3, type FormField, type UiResponse } from '@devvit/web/shared';
-import { HUB_LEVEL_ID } from '../../shared/constants';
+import { GRID_CELL_SIZE, HUB_LEVEL_ID } from '../../shared/constants';
 import { levelIdFromPostData } from '../../shared/postData';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay, resolveLevelId } from '../services/DailyService';
 import { getLevelStats } from '../services/DiscoveryService';
-import { undoLatestSabotage } from '../services/UndoService';
+import { listRemovableTraps, removeTrap, undoLatestSabotage } from '../services/UndoService';
 import { labelFor } from '../../shared/objectLabels';
 import { isObjectType } from '../../shared/types';
 import {
@@ -134,20 +134,8 @@ menu.post('/reset-builtin-stats', async (c) => {
 // Pressing it again undoes the one before.
 menu.post('/undo-sabotage', async (c) => {
   try {
-    const body: unknown = await c.req.json();
-    if (
-      typeof body !== 'object' ||
-      body === null ||
-      !('targetId' in body) ||
-      typeof body.targetId !== 'string' ||
-      !isT3(body.targetId)
-    ) {
-      return c.json<UiResponse>({ showToast: 'Use this on a SKETCHY post' }, 400);
-    }
-    const post = await reddit.getPostById(body.targetId);
-    const levelId = await resolveLevelId(
-      levelIdFromPostData(await post.getPostData()) ?? HUB_LEVEL_ID
-    );
+    const levelId = await levelIdForMenuTarget(await c.req.json());
+    if (!levelId) return c.json<UiResponse>({ showToast: 'Use this on a SKETCHY post' }, 400);
     const result = await undoLatestSabotage(levelId);
     if (result.status === 'error') {
       return c.json<UiResponse>({ showToast: result.message }, 200);
@@ -163,5 +151,98 @@ menu.post('/undo-sabotage', async (c) => {
   } catch (error) {
     console.error(`Error undoing sabotage: ${error}`);
     return c.json<UiResponse>({ showToast: 'Failed to undo sabotage' }, 400);
+  }
+});
+
+// The level a post-menu action targets: the post's own level (a hub post
+// plays the hub level).
+async function levelIdForMenuTarget(body: unknown): Promise<string | undefined> {
+  if (
+    typeof body !== 'object' || body === null ||
+    !('targetId' in body) || typeof body.targetId !== 'string' || !isT3(body.targetId)
+  ) {
+    return undefined;
+  }
+  const post = await reddit.getPostById(body.targetId);
+  return resolveLevelId(levelIdFromPostData(await post.getPostData()) ?? HUB_LEVEL_ID);
+}
+
+// Post menu: pick one player-added trap on this post's level and remove it
+// (see UndoService.removeTrap). Built-in and creator traps aren't listed.
+menu.post('/remove-trap', async (c) => {
+  try {
+    const levelId = await levelIdForMenuTarget(await c.req.json());
+    if (!levelId) return c.json<UiResponse>({ showToast: 'Use this on a SKETCHY post' }, 400);
+    const traps = await listRemovableTraps(levelId);
+    if (traps.length === 0) {
+      return c.json<UiResponse>({ showToast: 'No player traps on this level.' });
+    }
+    return c.json<UiResponse>({
+      showForm: {
+        name: 'removeTrap',
+        form: {
+          title: 'Remove a trap',
+          description: 'Only traps players added are listed. The player gets that trap back to place again.',
+          acceptLabel: 'Remove',
+          fields: [
+            {
+              type: 'select',
+              name: 'trap',
+              label: 'Trap',
+              required: true,
+              options: traps.map((trap) => ({
+                label: `${labelFor(trap.type)} · column ${Math.floor(trap.x / GRID_CELL_SIZE) + 1} · u/${trap.addedBy}`,
+                value: JSON.stringify([levelId, trap.id]),
+              })),
+            },
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    console.error(`Error listing traps: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to list traps' }, 400);
+  }
+});
+
+async function isModerator(): Promise<boolean> {
+  const { username, subredditName } = context;
+  if (!username || !subredditName) return false;
+  const mods = await reddit.getModerators({ subredditName, username }).all();
+  return mods.some((mod) => mod.username.toLowerCase() === username.toLowerCase());
+}
+
+function parseTrapChoice(body: unknown): [string, string] | undefined {
+  if (typeof body !== 'object' || body === null || !('trap' in body)) return undefined;
+  const choice: unknown = Array.isArray(body.trap) ? body.trap[0] : body.trap;
+  if (typeof choice !== 'string') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(choice);
+    if (
+      Array.isArray(parsed) && parsed.length === 2 &&
+      typeof parsed[0] === 'string' && typeof parsed[1] === 'string'
+    ) {
+      return [parsed[0], parsed[1]];
+    }
+  } catch {
+    // Not one of our options.
+  }
+  return undefined;
+}
+
+forms.post('/remove-trap', async (c) => {
+  try {
+    if (!(await isModerator())) {
+      return c.json<UiResponse>({ showToast: 'Only moderators can remove traps.' }, 403);
+    }
+    const choice = parseTrapChoice(await c.req.json());
+    if (!choice) return c.json<UiResponse>({ showToast: 'Pick a trap to remove.' }, 400);
+    const result = await removeTrap(...choice);
+    if (result.status === 'error') return c.json<UiResponse>({ showToast: result.message });
+    const what = isObjectType(result.removedType) ? labelFor(result.removedType) : 'trap';
+    return c.json<UiResponse>({ showToast: `Removed u/${result.removedBy}'s ${what}.` });
+  } catch (error) {
+    console.error(`Error removing trap: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to remove the trap' }, 400);
   }
 });

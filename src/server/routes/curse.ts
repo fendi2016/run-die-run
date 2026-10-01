@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { context, realtime, reddit, redis } from '@devvit/web/server';
+import { isT3 } from '@devvit/web/shared';
 import {
   CURSE_CATEGORY_TYPES,
   CURSE_ERASABLE_TYPES,
@@ -529,7 +530,3 @@ curse.post('/comment', async (c) => {
   await redis.incrBy(commentsKey, 1);
   return c.json<CurseCommentResponse>({ status: 'ok' });
 });
-
-function isT3(id: string): id is `t3_${string}` {
-  return id.startsWith('t3_');
-}
