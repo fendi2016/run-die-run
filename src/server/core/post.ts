@@ -23,8 +23,9 @@ export async function createHubPost(): Promise<CreatedPost> {
 
 // One post per level: this is what puts a creator's level in the feed.
 // Also used by the daily scheduler (`daily` set), which reposts an existing
-// level — the first post ever made for a level becomes its canonical
-// thread (curse comments go there), later ones never replace it.
+// level, titled with just the level's name — the first post ever made for
+// a level becomes its canonical thread (curse comments go there), later
+// ones never replace it.
 export async function createLevelPost(opts: {
   levelId: string;
   title: string;
@@ -37,7 +38,7 @@ export async function createLevelPost(opts: {
       : `by u/${opts.creatorUsername}`;
   const title =
     opts.daily !== undefined
-      ? `SKETCHY Level of the Day #${opts.daily}: "${opts.title}" ${byline}`
+      ? opts.title
       : `"${opts.title}" ${byline} — can you beat it?`;
   const postData: SketchyPostData =
     opts.daily !== undefined
