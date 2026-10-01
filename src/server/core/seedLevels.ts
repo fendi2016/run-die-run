@@ -114,9 +114,9 @@ const firstBlood = level(
   6000
 );
 
-// Two more built-in levels: Meat Grinder's course (same ground, gaps,
+// Three more built-in levels: Meat Grinder's course (same ground, gaps,
 // staplers, floater and finish) with a few traps or power-ups added in its
-// open stretches. Both have been cleared by the playtest solver.
+// open stretches. All have been cleared by the playtest solver.
 function meatGrinderPlus(levelId: string, extras: LevelObject[]): LevelVersion {
   return level(levelId, [...meatGrinder.objects, ...extras], meatGrinder.verificationTimeMs);
 }
@@ -130,6 +130,10 @@ const mindYourHead = meatGrinderPlus('mind-your-head', [
   add('ceilingSpikes', 1620, HIGH), add('ceilingSpikes', 1680, HIGH),
   add('ceilingSpikes', 2650, HIGH), add('ceilingSpikes', 2710, HIGH),
 ]);
+// Boosts carry you into the gap and the staplers at speed.
+const lateForClass = meatGrinderPlus('late-for-class', [
+  add('speedBoost', 1250), add('speedBoost', 2250),
+]);
 const popQuiz = meatGrinderPlus('pop-quiz', [
   add('stopwatch', 1250), add('electricMine', 2650), add('spikeMine', 2900),
 ]);
@@ -138,6 +142,7 @@ export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
   [firstBlood.levelId]: firstBlood,
   [mindYourHead.levelId]: mindYourHead,
+  [lateForClass.levelId]: lateForClass,
   [popQuiz.levelId]: popQuiz,
 };
 
@@ -148,6 +153,7 @@ export const SEED_TITLES: Record<string, string> = {
   [meatGrinder.levelId]: 'Meat Grinder',
   [firstBlood.levelId]: 'First Blood',
   [mindYourHead.levelId]: 'Mind Your Head',
+  [lateForClass.levelId]: 'Late for Class',
   [popQuiz.levelId]: 'Pop Quiz',
 };
 
