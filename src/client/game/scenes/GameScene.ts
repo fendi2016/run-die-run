@@ -8,7 +8,6 @@ import {
 import type { T3 } from '@devvit/web/shared';
 import {
   CURSE_LOCKED_LEVEL_IDS,
-  DEV_SUBREDDIT,
   HUB_LEVEL_ID,
   STARTER_LEVEL_ID,
   STRUGGLE_DEATHS,
@@ -22,7 +21,6 @@ import {
   isLevelStats,
   type LevelStats,
 } from '../../../shared/discoveryApi';
-import { currentSubredditName } from '../../devvitContext';
 import { withTimeout } from '../../net';
 import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
@@ -527,19 +525,6 @@ export class GameScene extends Scene {
 
   private readonly onNavigationKey = (event: KeyboardEvent): void => {
     if (event.repeat || !this.player) return;
-    // Dev shortcut: warp to the finish sprite, then trigger the real finish
-    // sequence (the dive into the sharpener, result overlay) there —
-    // triggering in place left the camera (which
-    // just follows the player's x) nowhere near the gate. Dev subreddit
-    // only: anywhere else it would verify unbeaten levels and farm clears.
-    if (event.key === '7' && currentSubredditName() === DEV_SUBREDDIT) {
-      event.preventDefault();
-      if (this.finishSprite) {
-        this.player.reset(this.finishSprite.x, this.finishSprite.y, false);
-      }
-      this.onFinishReached(true);
-      return;
-    }
     if (event.key !== 'Escape') return;
     event.preventDefault();
     if (this.paused) this.resumeRun();
@@ -830,10 +815,7 @@ export class GameScene extends Scene {
     if (document.hidden) this.pauseRun();
   }
 
-  // `devWarp`: reached via the dev '7' key — plays the whole finish
-  // sequence but saves nothing, so testing never inflates a level's clears
-  // or verifies a level nobody beat.
-  private onFinishReached(devWarp = false): void {
+  private onFinishReached(): void {
     if (this.runEnded || !this.player || !this.levelVersion) {
       return;
     }
@@ -863,9 +845,6 @@ export class GameScene extends Scene {
       // The whole point of the game, said once, where it can't be missed:
       // clearing a level is what earns you a curse on it.
       this.resultOverlay.showTutorialOutro(() => this.leaveTutorial());
-    } else if (devWarp) {
-      void this.offerCurseAndNext(this.levelVersion.levelId);
-      this.resultOverlay.showSaveStatus('Dev warp: this clear was not saved.');
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
