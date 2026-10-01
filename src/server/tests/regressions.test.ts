@@ -1548,9 +1548,9 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills', async () =>
   assert.ok(isCursersLeaderboardResponse(leaderboardBody));
   if (!isCursersLeaderboardResponse(leaderboardBody)) return;
   // The seed author never shows; bob's candle has the only real kill.
-  assert.equal(leaderboardBody.topTen.length, 1);
-  assert.equal(leaderboardBody.topTen[0]?.username, 'bob');
-  assert.equal(leaderboardBody.topTen[0]?.kills, 1);
+  assert.equal(leaderboardBody.entries.length, 1);
+  assert.equal(leaderboardBody.entries[0]?.username, 'bob');
+  assert.equal(leaderboardBody.entries[0]?.kills, 1);
 });
 
 // Root cause of "blank screen on Play": `@devvit/realtime`'s connectRealtime

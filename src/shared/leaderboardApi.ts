@@ -10,7 +10,7 @@ export type CurserEntry = {
 };
 
 export type CursersLeaderboardResponse = {
-  topTen: CurserEntry[];
+  entries: CurserEntry[];
 };
 
 export function isCursersLeaderboardResponse(
@@ -19,7 +19,7 @@ export function isCursersLeaderboardResponse(
   return (
     typeof value === 'object' &&
     value !== null &&
-    'topTen' in value &&
-    Array.isArray(value.topTen)
+    'entries' in value &&
+    Array.isArray(value.entries)
   );
 }

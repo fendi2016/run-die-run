@@ -25,6 +25,7 @@ export class LeaderboardOverlay {
 
   private readonly root = requireElement('leaderboard-overlay');
   private readonly titleEl = requireElement('leaderboard-title');
+  private readonly scrollEl = requireElement('leaderboard-scroll');
   private readonly bodyEl = requireElement('leaderboard-body');
   private readonly closeBtn = requireButton('leaderboard-close');
   // Guards against a slow response landing after the panel was reopened
@@ -40,6 +41,7 @@ export class LeaderboardOverlay {
     this.titleEl.textContent = options.levelId
       ? 'TOP SABOTEURS — THIS LEVEL'
       : 'TOP SABOTEURS';
+    this.scrollEl.scrollTop = 0;
     void this.load(options.levelId);
   }
 
@@ -61,7 +63,7 @@ export class LeaderboardOverlay {
         this.renderMessage('Could not load leaderboard.');
         return;
       }
-      this.renderRows(body.topTen);
+      this.renderRows(body.entries);
     } catch {
       if (token === this.requestToken) {
         this.renderMessage('Could not load leaderboard.');
@@ -84,7 +86,8 @@ export class LeaderboardOverlay {
       this.renderMessage('No sabotage kills yet.');
       return;
     }
-    this.bodyEl.replaceChildren();
+    // Up to LEADERBOARD_TOP_N rows: build off-DOM, attach once.
+    const rows = document.createDocumentFragment();
     for (const [i, entry] of entries.entries()) {
       const row = document.createElement('tr');
       for (const text of [String(i + 1), `u/${entry.username}`, String(entry.kills)]) {
@@ -92,7 +95,8 @@ export class LeaderboardOverlay {
         cell.textContent = text;
         row.appendChild(cell);
       }
-      this.bodyEl.appendChild(row);
+      rows.appendChild(row);
     }
+    this.bodyEl.replaceChildren(rows);
   }
 }

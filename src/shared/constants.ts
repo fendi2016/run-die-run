@@ -78,4 +78,4 @@ export const CURSES_PER_LEVEL = 3;
 
 // How many entries a leaderboard listing (per-level times, or the global
 // Clear Streaks board) returns.
-export const LEADERBOARD_TOP_N = 10;
+export const LEADERBOARD_TOP_N = 1000;

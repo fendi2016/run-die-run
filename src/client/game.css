@@ -1143,15 +1143,33 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   text-align: center;
 }
 
+/* Up to LEADERBOARD_TOP_N rows: the panel is capped to the viewport and
+   only the table scrolls, header pinned, title and Close always visible. */
+#leaderboard-overlay .editor-dialog-panel {
+  max-height: min(86vh, 640px);
+  box-sizing: border-box;
+}
+
+#leaderboard-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 #leaderboard-table {
   min-width: 260px;
-  max-height: 50vh;
+  width: 100%;
   border-collapse: collapse;
   font-size: 14px;
   color: rgba(43, 43, 43, 0.85);
 }
 
 #leaderboard-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
   padding: 6px 10px;
   text-align: left;
   font-size: 12px;
@@ -1225,8 +1243,7 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
 
 /* Level browser overlay (spec sections 26-27): reuses .editor-dialog/
    .editor-dialog-panel (same modal chrome as leaderboard/publish/JSON), a
-   fixed-height panel with its own scrollable list instead of the sort of
-   scrolling the leaderboard's short table never needed. */
+   fixed-height panel with its own scrollable list. */
 #discovery-overlay .editor-dialog-panel {
   width: min(92vw, 480px);
   height: min(82vh, 640px);

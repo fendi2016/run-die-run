@@ -12,7 +12,7 @@ export const leaderboard = new Hono();
 async function topCursers(key: string): Promise<CursersLeaderboardResponse> {
   const raw = await redis.zRange(key, 0, LEADERBOARD_TOP_N, { by: 'rank', reverse: true });
   return {
-    topTen: raw
+    entries: raw
       .filter((entry) => entry.member !== SEED_AUTHOR)
       .slice(0, LEADERBOARD_TOP_N)
       .map((entry) => ({ username: entry.member, kills: entry.score })),
