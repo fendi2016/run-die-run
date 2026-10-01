@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
-import { context, realtime, redis } from '@devvit/web/server';
+import { context, realtime, reddit, redis } from '@devvit/web/server';
 import {
   CURSE_CATEGORY_TYPES,
   CURSE_ERASABLE_TYPES,
@@ -16,7 +16,9 @@ import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
   editorCandidateKey,
   levelCurrentVersionKey,
+  levelPostKey,
   levelVersionKey,
+  userCurseCommentsKey,
   userCursesKey,
 } from '../core/redisKeys';
 import { countCursesOnLevel, cursePlacedFields } from '../services/TrapStatsService';
@@ -32,6 +34,11 @@ import {
   validateCurseObject,
 } from '../services/VerificationService';
 import { trackSafely } from '../services/AnalyticsService';
+import {
+  CURSE_COMMENT_MAX_LENGTH,
+  isCurseCommentRequest,
+  type CurseCommentResponse,
+} from '../../shared/curseCommentApi';
 
 type ErrorResponse = {
   status: 'error';
@@ -468,3 +475,49 @@ curse.post('/publish', async (c) => {
     result.status === 'ok' ? 200 : 409
   );
 });
+
+// The optional comment offered after a trap goes live (see
+// curseCommentApi.ts): posted on the level's own post (else the post this
+// is running in) from the player's account — never from the app's. At
+// most one per trap they've placed on the level.
+curse.post('/comment', async (c) => {
+  const { username } = context;
+  if (!username) {
+    return c.json<CurseCommentResponse>({ status: 'error', message: 'Sign in to comment.' }, 401);
+  }
+  const body: unknown = await c.req.json().catch(() => undefined);
+  if (!isCurseCommentRequest(body)) {
+    return c.json<CurseCommentResponse>({ status: 'error', message: 'Invalid comment.' }, 400);
+  }
+  const text = body.text.trim();
+  if (text.length === 0 || text.length > CURSE_COMMENT_MAX_LENGTH) {
+    return c.json<CurseCommentResponse>(
+      { status: 'error', message: `Comments are 1–${CURSE_COMMENT_MAX_LENGTH} characters.` },
+      400
+    );
+  }
+  const placed = await countCursesOnLevel(username, body.levelId);
+  const commentsKey = userCurseCommentsKey(username, body.levelId);
+  if (Number((await redis.get(commentsKey)) ?? 0) >= placed) {
+    return c.json<CurseCommentResponse>(
+      { status: 'error', message: 'Place a trap on this level to comment about it.' },
+      403
+    );
+  }
+  const postId = (await redis.get(levelPostKey(body.levelId))) ?? context.postId;
+  if (!postId || !isT3(postId)) {
+    return c.json<CurseCommentResponse>({ status: 'error', message: 'This level has no post.' }, 404);
+  }
+  try {
+    await reddit.submitComment({ id: postId, text, runAs: 'USER' });
+  } catch (error) {
+    console.error(`Curse comment failed for ${body.levelId}: ${error}`);
+    return c.json<CurseCommentResponse>({ status: 'error', message: 'Could not post your comment.' }, 502);
+  }
+  await redis.incrBy(commentsKey, 1);
+  return c.json<CurseCommentResponse>({ status: 'ok' });
+});
+
+function isT3(id: string): id is `t3_${string}` {
+  return id.startsWith('t3_');
+}

@@ -182,3 +182,9 @@ export const analyticsDeviceKey = (day: string): string => `analytics:${day}:dev
 export const analyticsLoadKey = (day: string): string => `analytics:${day}:load`;
 export const analyticsFirstSeenKey = (username: string): string =>
   `analytics:firstSeen:${username}`;
+
+// How many comments this player has posted on a level's post via the
+// after-sabotage prompt (see curse.ts /comment): capped at the number of
+// traps they've placed there.
+export const userCurseCommentsKey = (username: string, levelId: string): string =>
+  `user:${username}:curseComments:${levelId}`;

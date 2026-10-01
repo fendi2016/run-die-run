@@ -3,6 +3,7 @@ import * as Phaser from 'phaser';
 import {
   connectRealtime,
   disconnectRealtime,
+  showForm,
   showShareSheet,
   showToast,
 } from '@devvit/web/client';
@@ -77,6 +78,7 @@ import {
   SLOW_TIME_DURATION_MS,
   SLOW_TIME_SCALE,
 } from '../constants';
+import { CURSE_COMMENT_SUGGESTIONS, isCurseCommentResponse } from '../../../shared/curseCommentApi';
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { PhysicsInterpolation } from '../systems/PhysicsInterpolation';
@@ -168,9 +170,6 @@ type GameSceneData = {
 
 // Levels the starter has already been offered on this session.
 const starterOfferedOn = new Set<string>();
-// Levels this player has left a curse on this session. Leaving your curse
-// is what unlocks Next Level after a clear (see onFinishReached).
-const cursedThisSession = new Set<string>();
 
 // Level-format phase (spec section 38, Phase 3): levels are fetched from
 // the server as data (LevelVersion) and built through the ObjectRegistry /
@@ -666,6 +665,7 @@ export class GameScene extends Scene {
     if (this.justCursed) {
       showToast('You made it worse. Nice.');
       void this.showNextLevelShortcut();
+      void this.offerCurseComment(levelVersion.levelId);
     }
   }
 
@@ -685,6 +685,39 @@ export class GameScene extends Scene {
     PreviewBackButton.instance().setLabel('Next Level →');
     PreviewBackButton.instance().setOnBack(() => this.scene.start('GameScene', { levelId }));
     PreviewBackButton.instance().show();
+  }
+
+  // Right after their trap goes live: a ready-made brag the player can edit
+  // and post on the level's post from their own account, or skip. Nothing
+  // is posted unless they tap Comment.
+  private async offerCurseComment(levelId: string): Promise<void> {
+    const suggestion =
+      CURSE_COMMENT_SUGGESTIONS[Math.floor(Math.random() * CURSE_COMMENT_SUGGESTIONS.length)];
+    try {
+      const result = await showForm({
+        title: 'Rub it in?',
+        description: 'Post a comment on this level so everyone knows who to blame.',
+        acceptLabel: 'Comment',
+        cancelLabel: 'Not now',
+        fields: [
+          { type: 'paragraph', name: 'text', label: 'Your comment', defaultValue: suggestion, required: true },
+        ],
+      });
+      if (result.action !== 'SUBMITTED') return;
+      const text = result.values.text ?? '';
+      const response = await fetch('/api/curse/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ levelId, text }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const body: unknown = await response.json();
+      if (isCurseCommentResponse(body)) {
+        showToast(body.status === 'ok' ? 'Comment posted.' : body.message);
+      }
+    } catch {
+      // Outside Reddit (no form host) or a network failure: nothing to offer.
+    }
   }
 
   // A live version-published toast is strictly cosmetic — it
@@ -875,9 +908,8 @@ export class GameScene extends Scene {
   // their own curse on top, not past the per-level cap. The starter stays
   // easy forever — no curse offered on it. Never for a preview/tutorial run.
   //
-  // Next Level stays locked until you've left your curse on this level —
-  // cursing is the game, not an optional extra. Levels you can't curse and
-  // ones you already cursed go straight on.
+  // Next Level is always offered too, under the curse button: adding a
+  // trap is the point, but nobody is forced to.
   private async offerCurseAndNext(levelId: string): Promise<void> {
     if (this.previewLevel || CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
       void this.findNextLevel();
@@ -891,11 +923,7 @@ export class GameScene extends Scene {
     if (canCurse) {
       this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
     }
-    if (!canCurse || cursedThisSession.has(levelId)) {
-      void this.findNextLevel();
-      return;
-    }
-    this.resultOverlay.showNext('Add a trap to unlock the next level.');
+    void this.findNextLevel();
   }
 
   // Best-effort: if the check fails, offer the curse and let propose (which
@@ -999,7 +1027,6 @@ export class GameScene extends Scene {
     this.time.delayedCall(FINISH_RESTART_DELAY_MS, () => {
       if (attempt.signal.aborted) return;
       if (published) {
-        cursedThisSession.add(previewReturn.levelId);
         this.scene.start('GameScene', { levelId: previewReturn.levelId, justCursed: true });
         return;
       }

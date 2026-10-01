@@ -394,7 +394,7 @@ try {
       page.locator('#run-result-next').boundingBox(),
     ]);
     assert.ok(wideCurse && wideNext, 'both buttons have layout boxes at 844x390');
-    assert.ok(Math.abs(wideCurse.y - wideNext.y) < 4, 'Leave Your Curse and Next Level share a row at 844x390');
+    assert.ok(wideNext.y > wideCurse.y + wideCurse.height, 'Next Level sits under Add a trap at 844x390');
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#run-result-next').scrollIntoViewIfNeeded();

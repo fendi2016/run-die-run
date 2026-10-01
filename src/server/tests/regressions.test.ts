@@ -1479,6 +1479,29 @@ await test('curse publish fires a versionPublished Realtime event on the level c
   assert.equal(redditCalls.filter((call) => call.method === 'submitComment').length, 0);
 });
 
+await test('after placing a trap a player may comment once per trap, as themselves', async () => {
+  const { levelPostKey } = await import('../core/redisKeys');
+  const comment = (username: string, text: string) =>
+    users.run(username, async () => {
+      const response = await curse.request('/comment', post({ levelId: 'meat-grinder', text }));
+      return { status: response.status, body: await response.json() };
+    });
+  await getCurrentLevelVersion('meat-grinder');
+  values.set(levelPostKey('meat-grinder'), 't3_level');
+
+  // No trap placed yet: nothing to comment about.
+  assert.equal((await comment('alice', 'No way you’re beating this now')).status, 403);
+  assert.equal((await curseAndPublish('alice', 700)).status, 'ok');
+  assert.equal((await comment('alice', '   ')).status, 400);
+  const ok = await comment('alice', 'No way you’re beating this now');
+  assert.equal(ok.status, 200);
+  assert.deepEqual(redditCalls.filter((call) => call.method === 'submitComment').map((call) => call.options), [
+    { id: 't3_level', text: 'No way you’re beating this now', runAs: 'USER' },
+  ]);
+  // One per trap: a second comment needs a second trap.
+  assert.equal((await comment('alice', 'again')).status, 403);
+});
+
 await test('a curse can erase a trap as it places its own (a swap), never ground, spawn or finish', async () => {
   const base = await getCurrentLevelVersion('meat-grinder');
   const erase = async (id: string | undefined) =>
