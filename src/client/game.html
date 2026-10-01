@@ -414,6 +414,14 @@
             <span class="editor-divider"></span>
             <button
               type="button"
+              id="editor-save"
+              class="editor-btn editor-btn-compact"
+            >
+              <span class="editor-btn-icon">&#8615;</span>
+              <span class="editor-btn-label">Save</span>
+            </button>
+            <button
+              type="button"
               id="editor-test"
               class="editor-btn editor-btn-compact"
             >
@@ -464,7 +472,11 @@
       </div>
       <div id="editor-more-dialog" class="editor-dialog hidden">
         <div class="editor-dialog-panel">
-          <label>Advanced</label>
+          <label>More</label>
+          <button type="button" id="editor-new-level" class="editor-btn editor-more-item">
+            <span class="editor-btn-icon">+</span>
+            <span class="editor-btn-label" id="editor-new-level-label">New level</span>
+          </button>
           <button type="button" id="editor-json-open" class="editor-btn editor-more-item">
             <span class="editor-btn-icon">{ }</span>
             <span class="editor-btn-label">Import / export JSON</span>

@@ -21,6 +21,7 @@ import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
   allLevelsByDateKey,
   editorCandidateKey,
+  editorDraftKey,
   levelCurrentVersionKey,
   levelMetaKey,
   levelVersionKey,
@@ -346,6 +347,8 @@ publish.post('/publish', async (c) => {
           score: createdAt,
         });
         await tx.del(editorCandidateKey(username));
+        // The saved-for-later draft is this level; it's published now.
+        await tx.del(editorDraftKey(username));
         return { commit: true, value: { status: 'ok', levelId, version: 1 } };
       }
     );

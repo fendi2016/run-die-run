@@ -69,6 +69,11 @@ export const levelContributorKillsKey = (levelId: string): string =>
 export const editorCandidateKey = (username: string): string =>
   `editor:candidate:${username}`;
 
+// A player's one saved-for-later builder draft (JSON DraftObject[]).
+// Cleared when they publish.
+export const editorDraftKey = (username: string): string =>
+  `editor:draft:${username}`;
+
 // Discovery (spec sections 25-27): a global index of published levelIds by
 // creation time (there's otherwise no way to enumerate all levels), plus
 // per-level attempt/clear counters and a rolling daily activity window

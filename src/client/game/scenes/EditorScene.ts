@@ -17,6 +17,13 @@ import type { LevelVersion } from '../../../shared/types';
 import { EditorToolbar } from '../../ui/EditorToolbar';
 import { EditorController } from '../editor/EditorController';
 import {
+  clearDraft,
+  isDraftSaved,
+  loadDraft,
+  markDraftSaved,
+  saveDraft,
+} from '../editor/draftStore';
+import {
   boardGridConfig,
   drawGrid,
   normalizeBoardRow,
@@ -42,6 +49,17 @@ type EditorSceneData = {
 };
 
 const DEFAULT_SPAWN = { x: GRID_CELL_SIZE * 1.5, y: GROUND_TOP_Y };
+
+function defaultObjects(): DraftObject[] {
+  return [
+    {
+      id: 'spawn-default',
+      type: 'spawn',
+      x: DEFAULT_SPAWN.x,
+      y: DEFAULT_SPAWN.y,
+    },
+  ];
+}
 // Above every placed object's own depth (all near 0 — see PaperScenery's
 // depth constants) so the selection art never disappears behind a sprite.
 const SELECTION_DEPTH = 1;
@@ -70,6 +88,11 @@ export class EditorScene extends Scene {
   private publishRequest: AbortController | undefined;
   private verified = false;
   private verifiedToken: string | undefined;
+  // Opened from the menu (no level handed in): load the saved draft.
+  private openSavedDraft = false;
+  private draftRequest: AbortController | undefined;
+  // Set after a failed save on Exit, so a second Exit leaves anyway.
+  private exitWithoutSaving = false;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
   // The Kenney ui_select corner-bracket art, scaled over the selected
@@ -95,15 +118,9 @@ export class EditorScene extends Scene {
   }
 
   init(data: EditorSceneData): void {
-    const defaultObjects: DraftObject[] = [
-      {
-        id: 'spawn-default',
-        type: 'spawn',
-        x: DEFAULT_SPAWN.x,
-        y: DEFAULT_SPAWN.y,
-      },
-    ];
-    this.controller = new EditorController(data.objects ?? defaultObjects);
+    this.openSavedDraft = data.objects === undefined;
+    this.exitWithoutSaving = false;
+    this.controller = new EditorController(data.objects ?? defaultObjects());
     this.verified = data.verifiedCandidateToken !== undefined;
     this.verifiedToken = data.verifiedCandidateToken;
     this.currentTool = 'select';
@@ -151,13 +168,15 @@ export class EditorScene extends Scene {
         this.applyMutation(() => this.controller.redo(), 'Nothing to redo.'),
       onDelete: () => this.deleteSelected(),
       onTest: () => void this.handleTest(),
+      onSave: () => void this.handleSave(),
+      onNewLevel: () => void this.handleNewLevel(),
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),
       onPublishCancel: () => this.toolbar.hidePublishDialog(),
       onJsonRequested: () =>
         this.toolbar.showJsonDialog(this.controller.getObjects()),
       onJsonLoad: (objects) => this.scene.start('EditorScene', { objects }),
-      onExit: () => this.scene.start('MainMenu'),
+      onExit: () => void this.handleExit(),
     });
     this.toolbar.setEditingEnabled(true);
     this.toolbar.setActiveTool('select');
@@ -178,6 +197,102 @@ export class EditorScene extends Scene {
 
     this.redrawObjects();
     this.redrawGrid();
+    if (this.openSavedDraft) void this.openDraft();
+  }
+
+  // Build from the menu picks up the player's saved level, if any.
+  private async openDraft(): Promise<void> {
+    const request = new AbortController();
+    this.draftRequest = request;
+    this.toolbar.setEditingEnabled(false);
+    this.toolbar.showMessage('Loading your saved level...');
+    // Nothing here to save yet, so Exit just leaves.
+    this.exitWithoutSaving = true;
+    let objects: DraftObject[] | null = null;
+    let failed = false;
+    try {
+      objects = await loadDraft();
+    } catch {
+      failed = true;
+    }
+    // The player may have left the editor while this was in flight.
+    if (request.signal.aborted) return;
+    this.draftRequest = undefined;
+    this.exitWithoutSaving = false;
+    // No draft counts as the empty starting level, so leaving that
+    // untouched doesn't save it.
+    markDraftSaved(objects ?? defaultObjects());
+    if (objects && objects.length > 0) {
+      this.scene.restart({ objects });
+      return;
+    }
+    this.toolbar.setEditingEnabled(true);
+    this.updateToolbarState();
+    if (failed) this.toolbar.showMessage("Couldn't load your saved level.");
+    else this.toolbar.hideMessage();
+  }
+
+  private async handleSave(): Promise<void> {
+    if (this.draftRequest) return;
+    const request = new AbortController();
+    this.draftRequest = request;
+    this.toolbar.showMessage('Saving...');
+    const saved = await saveDraft(this.controller.getObjects());
+    if (request.signal.aborted) return;
+    this.draftRequest = undefined;
+    if (saved) {
+      this.toolbar.hideMessage();
+      showToast('Level saved. Press Build to pick it up later.');
+    } else {
+      this.toolbar.showMessage("Couldn't save your level. Try again.");
+    }
+  }
+
+  // Exit always saves first, unless nothing changed since the last save.
+  private async handleExit(): Promise<void> {
+    const objects = this.controller.getObjects();
+    if (this.exitWithoutSaving || isDraftSaved(objects)) {
+      this.scene.start('MainMenu');
+      return;
+    }
+    if (this.draftRequest) return;
+    const request = new AbortController();
+    this.draftRequest = request;
+    this.toolbar.setEditingEnabled(false);
+    this.toolbar.showMessage('Saving...');
+    const saved = await saveDraft(objects);
+    if (request.signal.aborted) return;
+    this.draftRequest = undefined;
+    if (saved) {
+      showToast('Level saved for later.');
+      this.scene.start('MainMenu');
+      return;
+    }
+    this.exitWithoutSaving = true;
+    this.toolbar.setEditingEnabled(true);
+    this.updateToolbarState();
+    this.toolbar.showMessage(
+      "Couldn't save your level. Press Exit again to leave without saving."
+    );
+  }
+
+  private async handleNewLevel(): Promise<void> {
+    if (this.draftRequest) return;
+    const request = new AbortController();
+    this.draftRequest = request;
+    this.toolbar.setEditingEnabled(false);
+    const cleared = await clearDraft();
+    if (request.signal.aborted) return;
+    this.draftRequest = undefined;
+    if (!cleared) {
+      this.toolbar.setEditingEnabled(true);
+      this.updateToolbarState();
+      this.toolbar.showMessage("Couldn't start a new level. Try again.");
+      return;
+    }
+    const objects = defaultObjects();
+    markDraftSaved(objects);
+    this.scene.restart({ objects });
   }
 
   private onBoardTileTap(
@@ -358,6 +473,9 @@ export class EditorScene extends Scene {
     this.verifiedToken = undefined;
     this.toolbar.setEditingEnabled(false);
     const objects = this.controller.getObjects();
+    // A Test run can end anywhere (even Exit to Menu mid-run), so the
+    // level is saved for later on the way in.
+    if (!isDraftSaved(objects)) void saveDraft(objects);
     this.toolbar.showMessage('Checking level...');
     try {
       const request: ValidateLevelRequest = { objects };
@@ -468,6 +586,8 @@ export class EditorScene extends Scene {
   }
 
   private cleanup(): void {
+    this.draftRequest?.abort();
+    this.draftRequest = undefined;
     this.testRequest?.abort();
     this.testRequest = undefined;
     this.publishRequest?.abort();
