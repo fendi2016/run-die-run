@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
-import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
+import { EDITOR_MAX_COLUMNS, SEED_AUTHOR } from '../../../shared/constants';
 import {
   CURSE_ERASABLE_TYPES,
   isProposeCurseResponse,
@@ -43,6 +43,7 @@ import {
   renderSpawnMarker,
   terrainNeighborsIn,
 } from '../objects/ObjectRegistry';
+import { TUTORIAL_LEVEL, TUTORIAL_LEVEL_ID, finishTutorial } from '../levels/tutorial';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
 import { attachAmbience } from '../systems/TrapAmbience';
@@ -64,7 +65,13 @@ type CurseSceneData = {
   levelId: string;
   preselected?: CursePreselect;
   message?: string;
+  // The tutorial's practice trap (levelId TUTORIAL_LEVEL_ID): where the
+  // tutorial goes once it's done or skipped.
+  tutorialDestination?: string;
 };
+
+const TUTORIAL_TRAP_MESSAGE =
+  'Pick a trap and tap where it goes. Then Prove It: beat the level with your trap in it.';
 
 // The curse flow's placement screen (spec sections 14-15): a deliberately
 // smaller component than EditorScene. It renders the level's currently
@@ -83,6 +90,10 @@ export class CurseScene extends Scene {
 
   private toolbar!: CurseToolbar;
   private levelId = '';
+  // The tutorial's practice trap: the tutorial level, checked and played on
+  // this device only, never sent to the server.
+  private tutorial = false;
+  private tutorialDestination: string | undefined;
   private proposalRequest: object | undefined;
   private baseLevel: LevelVersion | undefined;
   private category: CurseCategory | undefined;
@@ -159,6 +170,8 @@ export class CurseScene extends Scene {
   init(data: CurseSceneData): void {
     this.proposalRequest = undefined;
     this.levelId = data.levelId;
+    this.tutorial = data.levelId === TUTORIAL_LEVEL_ID;
+    this.tutorialDestination = data.tutorialDestination;
     this.baseLevel = undefined;
     // The full palette opens straight onto Hazards — the usual curse.
     this.category = data.preselected?.category ?? 'hazard';
@@ -166,7 +179,8 @@ export class CurseScene extends Scene {
     this.pending = data.preselected?.object;
     this.pendingExtendTiles = data.preselected?.extendByTiles ?? 0;
     this.pendingRemoveId = data.preselected?.removeObjectId;
-    this.initialMessage = data.message;
+    this.initialMessage =
+      data.message ?? (this.tutorial && !data.preselected ? TUTORIAL_TRAP_MESSAGE : undefined);
     this.baseImages = [];
     this.extensionImages = [];
     this.baseMotionTweens = [];
@@ -200,8 +214,12 @@ export class CurseScene extends Scene {
       onRemove: () => this.showRemoveHint(),
       onClear: () => this.clearPending(),
       onProve: () => void this.handleProve(),
-      onCancel: () => this.scene.start('MainMenu'),
+      onCancel: () =>
+        this.tutorial
+          ? finishTutorial(this, this.tutorialDestination)
+          : this.scene.start('MainMenu'),
     });
+    this.toolbar.setCancelLabel(this.tutorial ? 'Skip' : 'Cancel');
     this.toolbar.setActiveCategory(this.category);
     this.toolbar.setActiveType(this.selectedType);
     this.updateClearEnabled();
@@ -222,6 +240,10 @@ export class CurseScene extends Scene {
   }
 
   private async loadBaseLevel(): Promise<void> {
+    if (this.tutorial) {
+      this.showBaseLevel(TUTORIAL_LEVEL);
+      return;
+    }
     try {
       const response = await fetch(
         `/api/levels/${encodeURIComponent(this.levelId)}`
@@ -235,14 +257,18 @@ export class CurseScene extends Scene {
         this.toolbar.showMessage('Unexpected server response.');
         return;
       }
-      this.baseLevel = body;
-      this.redrawBase();
-      this.redrawPending();
-      this.redrawExtension();
-      this.updateProveEnabled();
+      this.showBaseLevel(body);
     } catch {
       this.toolbar.showMessage('Failed to reach the server.');
     }
+  }
+
+  private showBaseLevel(level: LevelVersion): void {
+    this.baseLevel = level;
+    this.redrawBase();
+    this.redrawPending();
+    this.redrawExtension();
+    this.updateProveEnabled();
   }
 
   private selectCategory(category: CurseCategory): void {
@@ -654,6 +680,10 @@ export class CurseScene extends Scene {
     const levelId = this.levelId;
     const extendByTiles = this.pendingExtendTiles;
     const removeObjectId = this.pendingRemoveId;
+    if (this.tutorial) {
+      this.proveTutorialTrap(category, pending, extendByTiles, removeObjectId);
+      return;
+    }
     const requestId = {};
     this.proposalRequest = requestId;
     this.toolbar.setEditingEnabled(false);
@@ -709,6 +739,53 @@ export class CurseScene extends Scene {
         this.updateProveEnabled();
       }
     }
+  }
+
+  // The tutorial's Prove It: the same preview level the server would build
+  // at propose time (curse.ts), made here instead, since nothing about the
+  // practice trap is kept. Rechecks the one rule the server checks for a
+  // trap, since a drag can drop it into the level's first columns.
+  private proveTutorialTrap(
+    category: CurseCategory,
+    pending: DraftObject,
+    extendByTiles: number,
+    removeObjectId: string | undefined
+  ): void {
+    if (isTrapInStartZone(pending.type, pending.x)) {
+      this.toolbar.showMessage(TRAP_IN_START_ZONE_MESSAGE);
+      return;
+    }
+    const object: DraftObject = { ...pending, id: 'tutorial-trap' };
+    const extension = this.currentExtension();
+    const added = [...(extension ? [...extension.groundTiles, extension.finish] : []), object];
+    const previewLevel: LevelVersion = {
+      ...TUTORIAL_LEVEL,
+      version: TUTORIAL_LEVEL.version + 1,
+      parentVersion: TUTORIAL_LEVEL.version,
+      objects: [
+        ...TUTORIAL_LEVEL.objects.filter(
+          (o) => !(extension && o.type === 'finish') && o.id !== removeObjectId
+        ),
+        ...added.map((o) => ({
+          ...o,
+          properties: {},
+          addedBy: SEED_AUTHOR,
+          addedInVersion: TUTORIAL_LEVEL.version + 1,
+        })),
+      ],
+      addedObjectId: object.id,
+    };
+    this.scene.start('GameScene', {
+      previewLevel,
+      levelId: this.tutorialDestination,
+      previewReturn: {
+        kind: 'tutorialCurse',
+        category,
+        object,
+        extendByTiles: extendByTiles > 0 ? extendByTiles : undefined,
+        removeObjectId,
+      },
+    });
   }
 
   private cleanup(): void {

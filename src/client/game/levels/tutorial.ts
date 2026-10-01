@@ -1,12 +1,22 @@
-import { GRID_CELL_SIZE, GROUND_TOP_Y, SEED_AUTHOR } from '../../../shared/constants';
+import type { Scene } from 'phaser';
+import {
+  GRID_CELL_SIZE,
+  GROUND_TOP_Y,
+  HUB_LEVEL_ID,
+  SEED_AUTHOR,
+  STARTER_LEVEL_ID,
+} from '../../../shared/constants';
 import type { LevelObject, LevelVersion, ObjectType } from '../../../shared/types';
 import { isTutorialStatusResponse } from '../../../shared/tutorialApi';
+import { getRequestedLevelId } from '../levelSelection';
 
 // The first-play tutorial: a short level that teaches the one control, one
 // obstacle at a time (jump the stapler, hold longer across a gap, stay low
 // under a floater, a quick double), and the point of the game — beat a level,
 // then leave your curse on it (the last hints and the finish screen, see
-// RunResultOverlay.showTutorialOutro) — then hands off to the level the
+// RunResultOverlay.showTutorialOutro), then actually place a practice trap
+// on this same level and Prove It (CurseScene's tutorial mode and
+// GameScene's 'tutorialCurse' preview) — then hands off to the level the
 // player asked for. It lives on the client only — never published, so it can't be
 // cursed, browsed, or show up on any stats — and plays like a preview run.
 // Built by SEED_AUTHOR, so a death names no player.
@@ -175,4 +185,21 @@ export function markTutorialDone(): void {
   fetch('/api/tutorial/done', { method: 'POST' }).catch(() => {
     // The local flag still covers this device.
   });
+}
+
+// Done or skipped: never shown again on this device; carry on to the
+// level the player asked for in the first place (`destination`, else the
+// post's own level). A hub post (no level of its own) warms up on the
+// starter before Level of the Day; a level post goes straight to its level.
+export function finishTutorial(scene: Scene, destination: string | undefined): void {
+  markTutorialDone();
+  const levelId = destination ?? getRequestedLevelId();
+  if (levelId === HUB_LEVEL_ID) {
+    scene.scene.start('GameScene', {
+      levelId: STARTER_LEVEL_ID,
+      returnTo: { levelId: HUB_LEVEL_ID, title: "Today's level" },
+    });
+    return;
+  }
+  scene.scene.start('GameScene', { levelId: destination });
 }

@@ -35,6 +35,8 @@ export class CurseToolbar {
   }
 
   private handlers: CurseToolbarHandlers | undefined;
+  private readonly cancelBtn = requireButton('curse-cancel');
+  private readonly cancelLabel = requireElement('curse-cancel-label');
 
   private readonly root = requireElement('curse-ui');
   private readonly messageEl = requireElement('curse-message');
@@ -84,7 +86,7 @@ export class CurseToolbar {
     this.removeBtn.addEventListener('click', () => this.handlers?.onRemove());
     this.clearBtn.addEventListener('click', () => this.handlers?.onClear());
     this.proveBtn.addEventListener('click', () => this.handlers?.onProve());
-    requireButton('curse-cancel').addEventListener('click', () =>
+    this.cancelBtn.addEventListener('click', () =>
       this.handlers?.onCancel()
     );
   }
@@ -156,5 +158,10 @@ export class CurseToolbar {
   hideMessage(): void {
     this.messageEl.textContent = '';
     this.messageEl.classList.add('hidden');
+  }
+
+  // "Cancel" on a real sabotage; "Skip" in the tutorial's practice trap.
+  setCancelLabel(label: string): void {
+    this.cancelLabel.textContent = label;
   }
 }

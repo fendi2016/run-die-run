@@ -80,12 +80,24 @@ export class RunResultOverlay {
     this.curseBtn.onclick = null;
   }
 
-  // The tutorial's finish: explains the curse loop before the first real
-  // level, with a button to go on (no timed auto-advance, so it gets read).
-  showTutorialOutro(onContinue: () => void): void {
+  // The tutorial's finish: explains the curse loop, then hands the player
+  // the same green Add a trap button a real clear shows, to try it here
+  // (no timed auto-advance, so it gets read).
+  showTutorialOutro(onAddTrap: () => void): void {
     this.titleEl.textContent = 'YOU MADE IT!';
     this.showSaveStatus(
-      "Here's the twist: players build every level. Beat one and you get to sabotage it — one new trap that everyone after you has to survive. Then it's on to the next level."
+      "Here's the twist: players build every level. Beat one and you get to sabotage it — one new trap that everyone after you has to survive. Try it on this one."
+    );
+    this.saveStatus.classList.add('run-result-info');
+    this.setCurseHandler(onAddTrap);
+  }
+
+  // After the tutorial's practice trap is proven: the loop, said once more
+  // now that they've done it, then on to a real level.
+  showTutorialCurseOutro(onContinue: () => void): void {
+    this.titleEl.textContent = 'SABOTAGED!';
+    this.showSaveStatus(
+      "That's the game: beat a level, add a trap, and everyone after you has to survive it. This one was practice — on real levels, your trap stays."
     );
     this.saveStatus.classList.add('run-result-info');
     this.showNext('', 'Play a real level →', onContinue);

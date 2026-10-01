@@ -87,7 +87,13 @@ import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { PhysicsInterpolation } from '../systems/PhysicsInterpolation';
 import { getRequestedLevelId } from '../levelSelection';
-import { TUTORIAL_LEVEL, hintAt, hintTargetAt, markTutorialDone } from '../levels/tutorial';
+import {
+  TUTORIAL_LEVEL,
+  TUTORIAL_LEVEL_ID,
+  finishTutorial,
+  hintAt,
+  hintTargetAt,
+} from '../levels/tutorial';
 import { takePrefetchedLevel } from '../levelPrefetch';
 import {
   playScribbleIn,
@@ -144,6 +150,16 @@ type PreviewReturn =
   | {
       kind: 'curse';
       levelId: string;
+      category: CurseCategory;
+      object: DraftObject;
+      extendByTiles?: number;
+      removeObjectId?: string;
+    }
+  // The tutorial's practice trap: Prove It on the tutorial level, checked
+  // and kept on this device only. GameSceneData.levelId carries where the
+  // tutorial goes once it's done.
+  | {
+      kind: 'tutorialCurse';
       category: CurseCategory;
       object: DraftObject;
       extendByTiles?: number;
@@ -584,7 +600,18 @@ export class GameScene extends Scene {
       this.startRun(this.previewLevel);
       const previewReturn = this.previewReturn;
       const backToEditor = (): void => {
-        if (previewReturn?.kind === 'curse') {
+        if (previewReturn?.kind === 'tutorialCurse') {
+          this.scene.start('CurseScene', {
+            levelId: TUTORIAL_LEVEL_ID,
+            tutorialDestination: this.explicitLevelId,
+            preselected: {
+              category: previewReturn.category,
+              object: previewReturn.object,
+              extendByTiles: previewReturn.extendByTiles,
+              removeObjectId: previewReturn.removeObjectId,
+            },
+          });
+        } else if (previewReturn?.kind === 'curse') {
           this.scene.start('CurseScene', {
             levelId: previewReturn.levelId,
             preselected: {
@@ -890,8 +917,16 @@ export class GameScene extends Scene {
     if (this.tutorial) {
       PreviewBackButton.instance().hide();
       // The whole point of the game, said once, where it can't be missed:
-      // clearing a level is what earns you a curse on it.
-      this.resultOverlay.showTutorialOutro(() => this.leaveTutorial());
+      // clearing a level is what earns you a curse on it — then they try it.
+      this.resultOverlay.showTutorialOutro(() =>
+        this.scene.start('CurseScene', {
+          levelId: TUTORIAL_LEVEL_ID,
+          tutorialDestination: this.explicitLevelId,
+        })
+      );
+    } else if (this.previewReturn?.kind === 'tutorialCurse') {
+      PreviewBackButton.instance().hide();
+      this.resultOverlay.showTutorialCurseOutro(() => this.leaveTutorial());
     } else if (this.previewLevel && this.candidateToken) {
       void this.submitVerification(this.candidateToken, timeMs);
     } else {
@@ -1265,21 +1300,8 @@ export class GameScene extends Scene {
     reportDeathPosition({ levelId: level.levelId, version: level.version, x, y });
   }
 
-  // Done or skipped: never shown again on this device; carry on to the
-  // level the player asked for in the first place.
-  // A hub post (no level of its own) warms up on the starter before Level
-  // of the Day; a level post goes straight to its level.
   private leaveTutorial(): void {
-    markTutorialDone();
-    const destination = this.explicitLevelId ?? getRequestedLevelId();
-    if (destination === HUB_LEVEL_ID) {
-      this.scene.start('GameScene', {
-        levelId: STARTER_LEVEL_ID,
-        returnTo: { levelId: HUB_LEVEL_ID, title: "Today's level" },
-      });
-      return;
-    }
-    this.scene.start('GameScene', { levelId: this.explicitLevelId });
+    finishTutorial(this, this.explicitLevelId);
   }
 
   // Repeated early deaths on a community level: offer the starter once,
