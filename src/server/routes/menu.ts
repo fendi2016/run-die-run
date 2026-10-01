@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { UiResponse } from '@devvit/web/shared';
+import type { FormField, UiResponse } from '@devvit/web/shared';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay } from '../services/DailyService';
 import {
@@ -7,8 +7,48 @@ import {
   resetBuiltInLevelStats,
 } from '../services/DiscoveryService';
 import { reseedBuiltInLevels } from '../services/LevelService';
+import { buildReport } from '../services/AnalyticsService';
 
 export const menu = new Hono();
+export const forms = new Hono();
+
+// Moderator-only usage report (see AnalyticsService): the last 7 days,
+// shown read-only in a form.
+menu.post('/analytics', async (c) => {
+  try {
+    const report = await buildReport();
+    const section = (name: string, label: string, text: string, lines: number): FormField => ({
+      type: 'paragraph',
+      name,
+      label,
+      defaultValue: text,
+      lineHeight: lines,
+      disabled: true,
+    });
+    return c.json<UiResponse>({
+      showForm: {
+        name: 'analyticsReport',
+        form: {
+          title: 'SKETCHY stats (last 7 days, UTC)',
+          acceptLabel: 'Done',
+          fields: [
+            section('players', 'Players', report.players, 9),
+            section('retention', 'Coming back (by first day)', report.retention, 6),
+            section('funnel', 'Funnel', report.funnel, 9),
+            section('activity', 'Activity', report.activity, 4),
+            section('load', 'Loading', report.load, 7),
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    console.error(`Error building analytics report: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to load stats' }, 400);
+  }
+});
+
+// The report form has nothing to submit; closing it just lands here.
+forms.post('/analytics-report', (c) => c.json<UiResponse>({}));
 
 // Dev utility (see LevelService.reseedBuiltInLevels): a source edit to a
 // seed level in seedLevels.ts never reaches a subreddit where that level

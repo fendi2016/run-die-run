@@ -12,6 +12,7 @@ import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { clearRateText, versionText } from '../shared/levelStatsText';
+import { sendAnalyticsEvent } from './analytics';
 
 // The feed card is the game's main menu (same markup ids and menu.css as
 // game.html's #game-menu); every button expands into the game.
@@ -100,3 +101,4 @@ async function loadCurseBadge(): Promise<void> {
 
 void loadStats();
 void loadCurseBadge();
+sendAnalyticsEvent({ event: 'card' });

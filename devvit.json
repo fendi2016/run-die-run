@@ -34,6 +34,13 @@
         "endpoint": "/internal/menu/daily-level"
       },
       {
+        "label": "SKETCHY: stats",
+        "description": "Players, retention, funnel and load times for the last 7 days",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/analytics"
+      },
+      {
         "label": "SKETCHY: reseed built-in levels (dev)",
         "description": "Sync every built-in level with seedLevels.ts",
         "location": "subreddit",
@@ -74,5 +81,8 @@
         "cron": "0 16 * * *"
       }
     }
+  },
+  "forms": {
+    "analyticsReport": "/internal/form/analytics-report"
   }
 }

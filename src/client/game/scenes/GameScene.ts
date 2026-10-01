@@ -104,6 +104,7 @@ import {
 } from '../systems/LevelLoader';
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { movedObjectOf, setSlowTint, triggerBatFlight } from '../objects/ObjectRegistry';
+import { sendAnalyticsEvent } from '../../analytics';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // The scribble-in (Juice.playScribbleIn): on level load the player is
@@ -189,6 +190,9 @@ const FALL_SKULL_INSET_PX = 4;
 // see startRun() and update()). A tutorial run uses its own first hint
 // instead of this generic line.
 const TAP_TO_START_MESSAGE = 'Tap to start · hold to jump higher';
+
+// 'Started a run' counts once per page session (see analytics.ts).
+let playReported = false;
 
 export class GameScene extends Scene {
   private player: Player | undefined;
@@ -732,6 +736,10 @@ export class GameScene extends Scene {
   }
 
   private startRun(levelVersion: LevelVersion): void {
+    if (!playReported) {
+      playReported = true;
+      sendAnalyticsEvent({ event: 'play' });
+    }
     this.controls.hideDialog();
     const player = new Player(this, 0, 0);
     this.player = player;

@@ -23,6 +23,7 @@ import {
 } from '../core/redisKeys';
 import { getCurrentLevelVersion } from '../services/LevelService';
 import { recordCatch, recordPasses } from '../services/TrapStatsService';
+import { trackSafely } from '../services/AnalyticsService';
 import type {
   SubmitRunRequest,
   SubmitRunResponse,
@@ -216,6 +217,7 @@ runs.post('/', async (c) => {
   await refreshDiscoveryIndexSafely(levelId);
   // A clear got past every other player's trap in this version.
   await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
+  await trackSafely('clear', username);
 
   return c.json<SubmitRunResponse>({
     timeMs,
@@ -266,6 +268,7 @@ runs.post('/fall', async (c) => {
     return { commit: true, value: undefined };
   });
   await refreshDiscoveryIndexSafely(body.levelId);
+  await trackSafely('death', username);
   return c.json({ status: 'ok' });
 });
 
@@ -348,6 +351,7 @@ runs.post('/trap-kill', async (c) => {
 
   await refreshDiscoveryIndexSafely(body.levelId);
   await recordCatch(object.id, object.addedBy, username).catch(() => undefined);
+  await trackSafely('death', username);
 
   return c.json<TrapKillResponse>({
     objectId: object.id,

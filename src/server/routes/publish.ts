@@ -34,6 +34,7 @@ import {
   markCandidateVerified,
   validatePlacement,
 } from '../services/VerificationService';
+import { trackSafely } from '../services/AnalyticsService';
 
 type ErrorResponse = {
   status: 'error';
@@ -351,6 +352,7 @@ publish.post('/publish', async (c) => {
     if (result?.status === 'ok') {
       await refreshDiscoveryIndexSafely(result.levelId);
       await recordDailyUse('publish', username);
+      await trackSafely('publish', username);
       // After the commit, and best-effort: the level is already live and
       // playable from Browse, so a Reddit API failure here must not turn a
       // successful publish into an error.

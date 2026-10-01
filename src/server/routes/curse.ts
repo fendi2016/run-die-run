@@ -31,6 +31,7 @@ import {
   isVerifiedCandidate,
   validateCurseObject,
 } from '../services/VerificationService';
+import { trackSafely } from '../services/AnalyticsService';
 
 type ErrorResponse = {
   status: 'error';
@@ -442,6 +443,7 @@ curse.post('/publish', async (c) => {
   if (result.status === 'ok') {
     await refreshDiscoveryIndexSafely(result.levelId);
     await recordDailyUse('curse', username);
+    await trackSafely('curse', username);
     // A curse always lands on an already-live level (unlike the base
     // editor's first publish, which has no one subscribed yet) — this is
     // the one place spec section 29's "new version published"/"new

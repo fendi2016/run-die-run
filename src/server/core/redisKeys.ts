@@ -160,3 +160,20 @@ export const dailyCurrentKey = (): string => 'daily:current';
 // client's localStorage flag isn't there.
 export const userTutorialDoneKey = (username: string): string =>
   `user:${username}:tutorialDone`;
+
+// Game-wide analytics (see AnalyticsService), per UTC day (YYYY-MM-DD) and
+// expired after ANALYTICS_RETENTION_SECONDS: event totals (hash), unique
+// players per funnel step and active/new players (sorted sets of
+// usernames), day-1/day-7 returns of that day's new players, devices of
+// that day's players, and load-time buckets. A player's first-seen day is
+// kept for good so returns can be measured.
+export const analyticsCountsKey = (day: string): string => `analytics:${day}:counts`;
+export const analyticsStepKey = (day: string, step: string): string =>
+  `analytics:${day}:step:${step}`;
+export const analyticsActiveKey = (day: string): string => `analytics:${day}:active`;
+export const analyticsNewKey = (day: string): string => `analytics:${day}:new`;
+export const analyticsReturnsKey = (day: string): string => `analytics:${day}:returns`;
+export const analyticsDeviceKey = (day: string): string => `analytics:${day}:device`;
+export const analyticsLoadKey = (day: string): string => `analytics:${day}:load`;
+export const analyticsFirstSeenKey = (username: string): string =>
+  `analytics:firstSeen:${username}`;

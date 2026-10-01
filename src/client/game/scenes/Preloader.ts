@@ -13,6 +13,7 @@ import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
 import { createPixelFxAnims, PIXEL_FX_SHEETS, streamLateSpritesheets } from '../systems/Juice';
 import { SCENERY_ART } from '../systems/PaperScenery';
 import { allowMusic } from '../../ui/SoundToggle';
+import { deviceKind, sendAnalyticsEvent } from '../../analytics';
 
 const BAR_WIDTH = 460;
 
@@ -150,6 +151,7 @@ export class Preloader extends Scene {
 
   create() {
     if (this.failed) {
+      sendAnalyticsEvent({ event: 'loadFailed' });
       this.add
         .text(
           this.scale.width / 2,
@@ -176,6 +178,9 @@ export class Preloader extends Scene {
     //  Move to the MainMenu once the level prefetch has also landed (it
     //  normally beats the assets; the cap keeps a slow API from holding the
     //  bar at 100%).
-    void prefetchSettled(4000).then(() => this.scene.start('MainMenu'));
+    void prefetchSettled(4000).then(() => {
+      sendAnalyticsEvent({ event: 'open', device: deviceKind(), loadMs: Math.round(performance.now()) });
+      this.scene.start('MainMenu');
+    });
   }
 }
