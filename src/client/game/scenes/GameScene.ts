@@ -4,6 +4,7 @@ import {
   connectRealtime,
   disconnectRealtime,
   showShareSheet,
+  showToast,
 } from '@devvit/web/client';
 import type { T3 } from '@devvit/web/shared';
 import {
@@ -662,7 +663,10 @@ export class GameScene extends Scene {
     void this.loadLevelStats(levelVersion.levelId);
     this.canCurse = this.fetchCanCurse(levelVersion.levelId);
     this.startRun(levelVersion);
-    if (this.justCursed) void this.showNextLevelShortcut();
+    if (this.justCursed) {
+      showToast('You made it worse. Nice.');
+      void this.showNextLevelShortcut();
+    }
   }
 
   // Right after publishing a curse the player lands back in the level to
@@ -891,7 +895,7 @@ export class GameScene extends Scene {
       void this.findNextLevel();
       return;
     }
-    this.resultOverlay.showNext('Sabotage this level to unlock the next one.');
+    this.resultOverlay.showNext('Add a trap to unlock the next level.');
   }
 
   // Best-effort: if the check fails, offer the curse and let propose (which

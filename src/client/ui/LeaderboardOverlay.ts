@@ -39,8 +39,8 @@ export class LeaderboardOverlay {
   show(options: LeaderboardOverlayOptions = {}): void {
     this.root.classList.remove('hidden');
     this.titleEl.textContent = options.levelId
-      ? 'TOP SABOTEURS — THIS LEVEL'
-      : 'TOP SABOTEURS';
+      ? 'Top Troublemakers — This Level'
+      : 'Top Troublemakers';
     this.scrollEl.scrollTop = 0;
     void this.load(options.levelId);
   }

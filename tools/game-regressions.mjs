@@ -385,7 +385,7 @@ try {
     await finish();
     await page.waitForSelector('#run-result-curse-btn', { state: 'visible' });
     await page.waitForSelector('#run-result-next', { state: 'visible' });
-    assert.equal((await page.textContent('#run-result-curse-btn')).trim(), 'Sabotage This Level');
+    assert.equal((await page.textContent('#run-result-curse-btn')).trim(), 'Add a trap');
 
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('#run-result-next').scrollIntoViewIfNeeded();
