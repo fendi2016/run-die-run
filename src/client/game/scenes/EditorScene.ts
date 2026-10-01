@@ -13,6 +13,12 @@ import {
   type DraftObject,
   type ValidateLevelRequest,
 } from '../../../shared/editorApi';
+import {
+  isSeedLevelsResponse,
+  seedLevelCode,
+  snapSeedObjectsToGrid,
+  type SeedLevelForEditor,
+} from '../../../shared/seedEditorApi';
 import type { LevelVersion } from '../../../shared/types';
 import { EditorToolbar } from '../../ui/EditorToolbar';
 import { EditorController } from '../editor/EditorController';
@@ -59,6 +65,26 @@ function defaultObjects(): DraftObject[] {
     },
   ];
 }
+// Built-in levels a moderator can open (empty for everyone else), fetched
+// once per session.
+let seedLevelsRequest: Promise<SeedLevelForEditor[]> | undefined;
+
+function fetchSeedLevels(): Promise<SeedLevelForEditor[]> {
+  seedLevelsRequest ??= fetch('/api/editor/seeds')
+    .then((response) => response.json())
+    .then((json: unknown) => (isSeedLevelsResponse(json) ? json.levels : []))
+    .catch(() => {
+      seedLevelsRequest = undefined;
+      return [];
+    });
+  return seedLevelsRequest;
+}
+
+// The built-in level a moderator is editing. Module state rather than scene
+// data so it survives the Test run's round trip through GameScene; cleared
+// whenever the editor is opened from the menu.
+let editingSeed: SeedLevelForEditor | undefined;
+
 // Above every placed object's own depth (all near 0 — see PaperScenery's
 // depth constants) so the selection art never disappears behind a sprite.
 const SELECTION_DEPTH = 1;
@@ -118,6 +144,7 @@ export class EditorScene extends Scene {
 
   init(data: EditorSceneData): void {
     this.openSavedDraft = data.objects === undefined;
+    if (this.openSavedDraft) editingSeed = undefined;
     this.exitWithoutSaving = false;
     this.controller = new EditorController(data.objects ?? defaultObjects());
     this.verified = data.verifiedCandidateToken !== undefined;
@@ -171,8 +198,15 @@ export class EditorScene extends Scene {
       onPublishRequested: () => this.toolbar.showPublishDialog(),
       onPublishConfirm: (title) => void this.handlePublish(title),
       onPublishCancel: () => this.toolbar.hidePublishDialog(),
-      onJsonRequested: () =>
-        this.toolbar.showJsonDialog(this.controller.getObjects()),
+      onJsonRequested: () => {
+        const objects = this.controller.getObjects();
+        this.toolbar.showJsonDialog(
+          objects,
+          editingSeed &&
+            seedLevelCode(editingSeed.levelId, objects, editingSeed.verificationTimeMs)
+        );
+      },
+      onSeedLevelOpen: (levelId) => this.openSeedLevel(levelId),
       onJsonLoad: (objects) => this.scene.start('EditorScene', { objects }),
       onExit: () => void this.handleExit(),
     });
@@ -196,6 +230,32 @@ export class EditorScene extends Scene {
     this.redrawObjects();
     this.redrawGrid();
     if (this.openSavedDraft) void this.openDraft();
+    void this.showSeedLevels();
+  }
+
+  private async showSeedLevels(): Promise<void> {
+    const levels = await fetchSeedLevels();
+    if (!this.scene.isActive()) return;
+    this.toolbar.setSeedLevels(levels);
+    if (editingSeed) {
+      this.toolbar.showMessage(
+        `Editing built-in level ${editingSeed.title}. More → Import / export JSON → Copy as code. Changes aren't saved.`
+      );
+    }
+  }
+
+  // Moderators only: swap the editor over to a built-in level. The
+  // player's own unsaved work is saved for later first, and nothing from
+  // the built-in level is ever saved as their draft.
+  private openSeedLevel(levelId: string): void {
+    void fetchSeedLevels().then((levels) => {
+      const seed = levels.find((level) => level.levelId === levelId);
+      if (!seed || !this.scene.isActive()) return;
+      const objects = this.controller.getObjects();
+      if (!editingSeed && !isDraftSaved(objects)) void saveDraft(objects);
+      editingSeed = seed;
+      this.scene.restart({ objects: snapSeedObjectsToGrid(seed.objects) });
+    });
   }
 
   // Build from the menu picks up the player's saved level, if any.
@@ -231,6 +291,12 @@ export class EditorScene extends Scene {
   }
 
   private async handleSave(): Promise<void> {
+    if (editingSeed) {
+      this.toolbar.showMessage(
+        "Built-in levels aren't saved here. Use More → Import / export JSON → Copy as code."
+      );
+      return;
+    }
     if (this.draftRequest) return;
     const request = new AbortController();
     this.draftRequest = request;
@@ -249,7 +315,7 @@ export class EditorScene extends Scene {
   // Exit always saves first, unless nothing changed since the last save.
   private async handleExit(): Promise<void> {
     const objects = this.controller.getObjects();
-    if (this.exitWithoutSaving || isDraftSaved(objects)) {
+    if (this.exitWithoutSaving || editingSeed || isDraftSaved(objects)) {
       this.scene.start('MainMenu');
       return;
     }
@@ -454,7 +520,7 @@ export class EditorScene extends Scene {
     const objects = this.controller.getObjects();
     // A Test run can end anywhere (even Exit to Menu mid-run), so the
     // level is saved for later on the way in.
-    if (!isDraftSaved(objects)) void saveDraft(objects);
+    if (!editingSeed && !isDraftSaved(objects)) void saveDraft(objects);
     this.toolbar.showMessage('Checking level...');
     try {
       const request: ValidateLevelRequest = { objects };

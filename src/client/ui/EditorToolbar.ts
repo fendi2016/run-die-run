@@ -24,6 +24,7 @@ export type EditorToolbarHandlers = {
   onPublishCancel: () => void;
   onJsonRequested: () => void;
   onJsonLoad: (objects: DraftObject[]) => void;
+  onSeedLevelOpen: (levelId: string) => void;
   onExit: () => void;
 };
 
@@ -57,6 +58,11 @@ export class EditorToolbar {
   private readonly jsonDialog = requireElement('editor-json-dialog');
   private readonly jsonTextArea = requireTextArea('editor-json-textarea');
   private readonly jsonErrorEl = requireElement('editor-json-error');
+  private readonly copyCodeBtn = requireButton('editor-json-copy-code');
+  private readonly seedLevelsEl = requireElement('editor-seed-levels');
+  private readonly seedLevelListEl = requireElement('editor-seed-level-list');
+  // seedLevels.ts code for the built-in level being edited, if any.
+  private seedCode: string | undefined;
   private readonly toolButtons = new Map<EditorTool, HTMLButtonElement>();
 
   private constructor() {
@@ -113,6 +119,9 @@ export class EditorToolbar {
     requireButton('editor-json-copy').addEventListener('click', () => {
       void this.copyJson();
     });
+    this.copyCodeBtn.addEventListener('click', () => {
+      void this.copyText(this.seedCode ?? '', 'Copied — paste it into seedLevels.ts.');
+    });
     requireButton('editor-json-load').addEventListener('click', () => {
       const objects = parseDraftObjectsJson(this.jsonTextArea.value);
       if (!objects) {
@@ -126,9 +135,13 @@ export class EditorToolbar {
   }
 
   private async copyJson(): Promise<void> {
+    await this.copyText(this.jsonTextArea.value, 'Copied level JSON to clipboard.');
+  }
+
+  private async copyText(text: string, confirmation: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(this.jsonTextArea.value);
-      showToast('Copied level JSON to clipboard.');
+      await navigator.clipboard.writeText(text);
+      showToast(confirmation);
     } catch {
       this.showJsonError('Could not copy — your browser blocked clipboard access.');
     }
@@ -209,10 +222,31 @@ export class EditorToolbar {
     this.moreDialog.classList.add('hidden');
   }
 
+  // Moderators only: the built-in levels they can open from More.
+  setSeedLevels(levels: { levelId: string; title: string }[]): void {
+    this.seedLevelListEl.replaceChildren(
+      ...levels.map(({ levelId, title }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'editor-btn editor-more-item';
+        button.textContent = title;
+        button.addEventListener('click', () => {
+          this.hideMoreMenu();
+          this.handlers?.onSeedLevelOpen(levelId);
+        });
+        return button;
+      })
+    );
+    this.seedLevelsEl.classList.toggle('hidden', levels.length === 0);
+  }
+
   // `objects` is always the editor's live state at the moment JSON is
   // requested — the textarea is prefilled from it, but from then on it's
-  // just text the player can freely edit before Copy or Load.
-  showJsonDialog(objects: DraftObject[]): void {
+  // just text the player can freely edit before Copy or Load. `seedCode`
+  // is set while a moderator edits a built-in level.
+  showJsonDialog(objects: DraftObject[], seedCode?: string): void {
+    this.seedCode = seedCode;
+    this.copyCodeBtn.classList.toggle('hidden', seedCode === undefined);
     this.jsonTextArea.value = JSON.stringify(objects, null, 2);
     this.jsonErrorEl.classList.add('hidden');
     this.jsonDialog.classList.remove('hidden');

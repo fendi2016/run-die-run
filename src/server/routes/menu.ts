@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { context, reddit } from '@devvit/web/server';
+import { reddit } from '@devvit/web/server';
 import { isT3, type FormField, type UiResponse } from '@devvit/web/shared';
 import { GRID_CELL_SIZE, HUB_LEVEL_ID } from '../../shared/constants';
 import { levelIdFromPostData } from '../../shared/postData';
+import { isModerator } from '../core/moderators';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay, resolveLevelId } from '../services/DailyService';
 import { getLevelStats } from '../services/DiscoveryService';
@@ -204,13 +205,6 @@ menu.post('/remove-trap', async (c) => {
     return c.json<UiResponse>({ showToast: 'Failed to list traps' }, 400);
   }
 });
-
-async function isModerator(): Promise<boolean> {
-  const { username, subredditName } = context;
-  if (!username || !subredditName) return false;
-  const mods = await reddit.getModerators({ subredditName, username }).all();
-  return mods.some((mod) => mod.username.toLowerCase() === username.toLowerCase());
-}
 
 function parseTrapChoice(body: unknown): [string, string] | undefined {
   if (typeof body !== 'object' || body === null || !('trap' in body)) return undefined;

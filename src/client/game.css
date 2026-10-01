@@ -1092,6 +1092,17 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   font-size: 16px;
 }
 
+#editor-seed-levels,
+#editor-seed-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#editor-seed-levels.hidden {
+  display: none;
+}
+
 #editor-json-textarea {
   min-height: 220px;
   padding: 12px 14px;

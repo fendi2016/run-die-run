@@ -477,6 +477,10 @@
             <span class="editor-btn-icon">{ }</span>
             <span class="editor-btn-label">Import / export JSON</span>
           </button>
+          <div id="editor-seed-levels" class="hidden">
+            <label>Built-in levels (mods only)</label>
+            <div id="editor-seed-level-list"></div>
+          </div>
           <div class="editor-dialog-actions">
             <button type="button" id="editor-more-close" class="editor-btn">
               Close
@@ -499,6 +503,9 @@
             </button>
             <button type="button" id="editor-json-copy" class="editor-btn">
               Copy
+            </button>
+            <button type="button" id="editor-json-copy-code" class="editor-btn hidden">
+              Copy as code
             </button>
             <button
               type="button"
