@@ -196,6 +196,7 @@ const {
   userContributionsKey,
   clearedVersionsKey,
   streaksLeaderboardKey,
+  topCursersKey,
 } = await import('../core/redisKeys');
 const {
   isPublishLevelResponse,
@@ -900,9 +901,9 @@ await test('discovery wire guard rejects malformed cards', () => {
   );
 });
 
-// Phase 7 (spec section 23): dying to a community-added trap must grow
-// both the trap's own kill count and its contributor's running total.
-await test('trap-kill attribution grows the trap and contributor counters', async () => {
+// Phase 7 (spec section 23): dying to a trap grows its own kill count.
+// This candle is a built-in one, so the seed account gets no curser credit.
+await test('trap-kill attribution grows the trap counter, never credits the seed author', async () => {
   const base = await getCurrentLevelVersion('meat-grinder');
   const candleId = base?.objects.find((o) => o.type === 'candle')?.id;
   assert.ok(candleId);
@@ -920,7 +921,7 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   if (!isTrapKillResponse(firstBody)) return;
   assert.equal(firstBody.kills, 1);
   assert.equal(firstBody.addedBy, 'sketchy_seed');
-  assert.equal(firstBody.contributorTotalKills, 1);
+  assert.equal(firstBody.contributorTotalKills, 0);
 
   const second = await users.run('bob', () =>
     runs.request(
@@ -932,10 +933,10 @@ await test('trap-kill attribution grows the trap and contributor counters', asyn
   assert.ok(isTrapKillResponse(secondBody));
   if (!isTrapKillResponse(secondBody)) return;
   assert.equal(secondBody.kills, 2);
-  assert.equal(secondBody.contributorTotalKills, 2);
+  assert.equal(secondBody.contributorTotalKills, 0);
 
   assert.equal(await redis.get(trapKillsKey(candleId)), '2');
-  assert.equal(await redis.get(userContributionsKey('sketchy_seed')), '2');
+  assert.equal(await redis.get(userContributionsKey('sketchy_seed')), undefined);
 });
 
 await test('trap-kill attribution survives a curse that lands after the death, and rejects an unknown trap', async () => {
@@ -1515,8 +1516,8 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills', async () =>
   const candleId = base?.objects.find((o) => o.type === 'candle')?.id;
   assert.ok(candleId);
   if (!candleId) return;
-  // Two kills attributed to the seed author, one to bob, via separate
-  // players dying to candles placed by each.
+  // Two kills on a built-in (seed) candle, one on bob's, plus a seed entry
+  // left over from before seed kills stopped counting.
   for (const killer of ['alice', 'alice']) {
     await users.run(killer, () =>
       runs.request(
@@ -1539,17 +1540,17 @@ await test('the global TOP CURSERS leaderboard ranks by trap kills', async () =>
     )
   );
 
+  await redis.zIncrBy(topCursersKey(), 'sketchy_seed', 5);
+
   const leaderboardResponse = await leaderboard.request('/');
   assert.equal(leaderboardResponse.status, 200);
   const leaderboardBody: unknown = await leaderboardResponse.json();
   assert.ok(isCursersLeaderboardResponse(leaderboardBody));
   if (!isCursersLeaderboardResponse(leaderboardBody)) return;
-  // sketchy_seed (the candle's placeholder author) has 2 kills, bob's new
-  // saw has 1 — highest kills first.
-  assert.equal(leaderboardBody.topTen[0]?.username, 'sketchy_seed');
-  assert.equal(leaderboardBody.topTen[0]?.kills, 2);
-  assert.equal(leaderboardBody.topTen[1]?.username, 'bob');
-  assert.equal(leaderboardBody.topTen[1]?.kills, 1);
+  // The seed author never shows; bob's candle has the only real kill.
+  assert.equal(leaderboardBody.topTen.length, 1);
+  assert.equal(leaderboardBody.topTen[0]?.username, 'bob');
+  assert.equal(leaderboardBody.topTen[0]?.kills, 1);
 });
 
 // Root cause of "blank screen on Play": `@devvit/realtime`'s connectRealtime

@@ -5,6 +5,7 @@ import {
   queueDiscoveryActivity,
   refreshDiscoveryIndexSafely,
 } from '../services/DiscoveryService';
+import { SEED_AUTHOR } from '../../shared/constants';
 import { withTransaction } from '../core/transactions';
 import {
   clearedVersionsKey,
@@ -331,11 +332,16 @@ runs.post('/trap-kill', async (c) => {
         redis.get(contributorKey),
       ]);
       const kills = Number(currentKills ?? 0) + 1;
-      const contributorTotalKills = Number(currentContributorTotal ?? 0) + 1;
+      const credited = object.addedBy !== SEED_AUTHOR;
+      const contributorTotalKills = credited ? Number(currentContributorTotal ?? 0) + 1 : 0;
       await tx.incrBy(trapKey, 1);
-      await tx.incrBy(contributorKey, 1);
-      await tx.zIncrBy(levelContributorKillsKey(body.levelId), object.addedBy, 1);
-      await tx.zIncrBy(topCursersKey(), object.addedBy, 1);
+      // Built-in traps count for the trap, but the seed account isn't a
+      // curser: no contributor total or leaderboard credit.
+      if (credited) {
+        await tx.incrBy(contributorKey, 1);
+        await tx.zIncrBy(levelContributorKillsKey(body.levelId), object.addedBy, 1);
+        await tx.zIncrBy(topCursersKey(), object.addedBy, 1);
+      }
       return { commit: true, value: { kills, contributorTotalKills } };
     }
   );
