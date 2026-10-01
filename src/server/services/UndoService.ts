@@ -1,6 +1,12 @@
 import { redis } from '@devvit/web/server';
 import type { LevelVersion } from '../../shared/types';
-import { levelCurrentVersionKey, levelUndosKey, levelVersionKey } from '../core/redisKeys';
+import {
+  levelCurrentVersionKey,
+  levelUndosKey,
+  levelVersionKey,
+  userCursesKey,
+  userCursesSeenKey,
+} from '../core/redisKeys';
 import { withTransaction } from '../core/transactions';
 import { refreshDiscoveryIndexSafely } from './DiscoveryService';
 import { getCurrentLevelVersion, getLevelVersionAt } from './LevelService';
@@ -52,6 +58,12 @@ export async function undoLatestSabotage(levelId: string): Promise<UndoSabotageR
       await tx.set(levelVersionKey(levelId, version), JSON.stringify(restored));
       await tx.set(levelCurrentVersionKey(levelId), String(version));
       await tx.incrBy(levelUndosKey(levelId), 1);
+      // As if it was never placed: off the player's "Your sabotage" list,
+      // and no longer one of their CURSES_PER_LEVEL on this level.
+      if (shown.addedObjectId !== undefined) {
+        await tx.hDel(userCursesKey(shown.contributorUsername), [shown.addedObjectId]);
+        await tx.hDel(userCursesSeenKey(shown.contributorUsername), [shown.addedObjectId]);
+      }
       return { commit: true, value: true };
     }
   );

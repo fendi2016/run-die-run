@@ -133,6 +133,12 @@ const redis = {
       hIncrBy: async (key: string, field: string, increment: number) => {
         commands.push(() => hIncrBy(key, field, increment));
       },
+      hDel: async (key: string, fields: string[]) => {
+        commands.push(() => {
+          for (const field of fields) hashes.get(key)?.delete(field);
+          bump(key);
+        });
+      },
       del: async (key: string) => {
         commands.push(() => {
           values.delete(key);
@@ -1779,6 +1785,28 @@ await test("undoing a level's only sabotage lets its creator sabotage it first a
   assert.equal((await publishCurse('bob', proposed.body.candidateToken)).body.status, 'ok');
   assert.equal((await undoLatestSabotage('makers-level')).status, 'ok');
   assert.equal((await eligibility('maker', 'makers-level')).canCurse, true);
+});
+
+await test('an undone sabotage gives its owner the slot back and leaves their list', async () => {
+  const { undoLatestSabotage } = await import('../services/UndoService');
+  const { getMyCurses } = await import('../services/TrapStatsService');
+  // bob uses all three of his sabotages on the level (no two in a row).
+  for (const [username, x] of [['bob', 700], ['carol', 760], ['bob', 820], ['carol', 880], ['bob', 940]] as const) {
+    assert.equal((await curseAndPublish(username, x)).status, 'ok');
+  }
+  assert.equal((await eligibility('carol')).canCurse, true);
+  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
+  assert.equal((await eligibility('bob')).canCurse, false);
+  assert.equal((await getMyCurses('bob')).length, 3);
+
+  // Undo carol's last, then bob's third: bob is back to two, may sabotage
+  // again, and the undone trap is off his list.
+  assert.equal((await undoLatestSabotage('meat-grinder')).status, 'ok');
+  const undone = await undoLatestSabotage('meat-grinder');
+  assert.equal(undone.status === 'ok' && undone.undoneBy, 'bob');
+  assert.equal((await getMyCurses('bob')).length, 2);
+  assert.equal((await getMyCurses('carol')).length, 2);
+  assert.equal((await eligibility('bob')).canCurse, true);
 });
 
 await test('next level skips NIGHTMARE levels unless every one it looks at is NIGHTMARE', async () => {
