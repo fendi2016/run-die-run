@@ -114,9 +114,31 @@ const firstBlood = level(
   6000
 );
 
+// Two more built-in levels: Meat Grinder's course (same ground, gaps,
+// staplers, floater and finish) with a few traps or power-ups added in its
+// open stretches. Both have been cleared by the playtest solver.
+function meatGrinderPlus(levelId: string, extras: LevelObject[]): LevelVersion {
+  return level(levelId, [...meatGrinder.objects, ...extras], meatGrinder.verificationTimeMs);
+}
+const add = (type: LevelObject['type'], x: number, y = GROUND_TOP_Y): LevelObject =>
+  placed(`${type}-${x}`, type, x, y);
+// Height for the ceiling spikes, which don't sit on the ground.
+const HIGH = GROUND_TOP_Y - 120;
+
+// Spikes hang just over the pencil's head: stay down under them.
+const mindYourHead = meatGrinderPlus('mind-your-head', [
+  add('ceilingSpikes', 1620, HIGH), add('ceilingSpikes', 1680, HIGH),
+  add('ceilingSpikes', 2650, HIGH), add('ceilingSpikes', 2710, HIGH),
+]);
+const popQuiz = meatGrinderPlus('pop-quiz', [
+  add('stopwatch', 1250), add('electricMine', 2650), add('spikeMine', 2900),
+]);
+
 export const SEED_LEVELS: Record<string, LevelVersion> = {
   [meatGrinder.levelId]: meatGrinder,
   [firstBlood.levelId]: firstBlood,
+  [mindYourHead.levelId]: mindYourHead,
+  [popQuiz.levelId]: popQuiz,
 };
 
 // Built-in levels have no published metadata (that's written by the
@@ -125,6 +147,8 @@ export const SEED_LEVELS: Record<string, LevelVersion> = {
 export const SEED_TITLES: Record<string, string> = {
   [meatGrinder.levelId]: 'Meat Grinder',
   [firstBlood.levelId]: 'First Blood',
+  [mindYourHead.levelId]: 'Mind Your Head',
+  [popQuiz.levelId]: 'Pop Quiz',
 };
 
 export function levelDisplayTitle(levelId: string, publishedTitle: string | undefined): string {
