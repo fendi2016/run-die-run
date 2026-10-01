@@ -1,3 +1,5 @@
+import { EDITOR_SPAWN_BUFFER_CELLS, GRID_CELL_SIZE } from './constants';
+import { HAZARD_TYPES } from './hazards';
 import {
   GROUND_LIKE_TYPES,
   PLATFORM_LIKE_TYPES,
@@ -59,6 +61,23 @@ export function isSurfaceType(type: ObjectType): boolean {
     PLATFORM_LIKE_TYPES.has(type)
   );
 }
+
+// A sabotage trap can't go right by the spawn, or a run could die before
+// the player can react. Same distance the level editor keeps hazards from
+// the spawn (EDITOR_SPAWN_BUFFER_CELLS, either side); platforms and
+// power-ups may still go there. Shared so the curse screen can refuse the
+// tap and the server enforces the same rule.
+export function isTrapTooCloseToSpawn(
+  objects: readonly { type: ObjectType; x: number }[],
+  type: ObjectType,
+  x: number
+): boolean {
+  if (!HAZARD_TYPES.has(type)) return false;
+  const bufferPx = EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE;
+  return objects.some((o) => o.type === 'spawn' && Math.abs(o.x - x) < bufferPx);
+}
+
+export const TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE = 'Traps can’t go right by the start. Place it further along.';
 
 export type DraftObject = {
   id: string;

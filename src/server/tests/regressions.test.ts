@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isCurseEligibilityResponse, parseDraftObjectsJson, type DraftObject } from '../../shared/editorApi';
+import { isCurseEligibilityResponse, parseDraftObjectsJson, TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE, type DraftObject } from '../../shared/editorApi';
 import type { ObjectType } from '../../shared/types';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
@@ -1148,17 +1148,25 @@ await test('new terrain blocks are surfaces, same as ground/platform', async () 
   );
 });
 
-await test('a curse can be placed anywhere on the map', async () => {
+await test('a curse can be placed anywhere on the map except a trap right by the spawn', async () => {
   const base: DraftObject[] = [...objects, { id: 'ledge', type: 'platform', x: 450, y: 360 },
     { id: 'blade', type: 'saw', x: 510, y: 480 }];
   for (const spot of [
     { x: 450, y: 360 }, // on a platform
     { x: 510, y: 480 }, // on another hazard
-    { x: 90, y: 420 }, // on the spawn
     { x: 330, y: 480 }, // on the finish
   ]) {
     assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', ...spot }), []);
   }
+  // The spawn is at x 90: a trap within two cells either side is refused,
+  // two cells on is fine, and a platform or power-up may go right by it.
+  for (const x of [90, 150, 30]) {
+    assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x, y: 480 }),
+      [TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE]);
+  }
+  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'candle', x: 210, y: 480 }), []);
+  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'platform', x: 150, y: 360 }), []);
+  assert.deepEqual(validateCurseObject(base, { id: 'c', type: 'shield', x: 150, y: 420 }), []);
   assert.ok(validateCurseObject(base, { id: 'c', type: 'candle', x: -600, y: 480 })
     .includes('Your object is outside the level boundaries.'));
 });

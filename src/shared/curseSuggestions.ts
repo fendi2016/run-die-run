@@ -3,7 +3,7 @@ import { HAZARD_TYPES } from './hazards';
 import { GROUND_LIKE_TYPES, PLATFORM_LIKE_TYPES, type LevelObject } from './types';
 
 // Where to suggest placing a curse. Suggestions are hints only — a curse
-// can still go anywhere.
+// can still go anywhere but a trap right by the spawn (isTrapTooCloseToSpawn).
 // Up to `count` spread-out ground cells that make a fair first trap: open
 // ground (ground on both sides, so not a gap edge), a few cells clear of
 // the spawn and finish, and two cells clear of any trap or platform.

@@ -5,6 +5,8 @@ import { EDITOR_MAX_COLUMNS } from '../../../shared/constants';
 import {
   CURSE_ERASABLE_TYPES,
   isProposeCurseResponse,
+  isTrapTooCloseToSpawn,
+  TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE,
   type CurseCategory,
   type DraftObject,
   type ProposeCurseRequest,
@@ -307,9 +309,9 @@ export class CurseScene extends Scene {
     const row = normalizeBoardRow(tileXY.y);
     const world = this.board.tileXYToWorldXY(tileXY.x, row);
 
-    // With a curse type picked, a tap always places it — anywhere, even
-    // on top of an existing platform or object; Prove It is what decides
-    // whether the result is allowed. With no type picked (e.g. after the
+    // With a curse type picked, a tap places it — anywhere but a trap right
+    // by the spawn, even on top of an existing platform or object; Prove It
+    // is what decides whether the result is allowed. With no type picked (e.g. after the
     // Erase button, see showRemoveHint), tapping a trap or platform marks
     // it to be erased instead.
     if (!this.selectedType) {
@@ -321,6 +323,11 @@ export class CurseScene extends Scene {
         return;
       }
       this.toolbar.showMessage('Choose what to place first.');
+      return;
+    }
+
+    if (isTrapTooCloseToSpawn(this.baseLevel.objects, this.selectedType, world.x)) {
+      this.toolbar.showMessage(TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE);
       return;
     }
 

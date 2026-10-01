@@ -12,6 +12,8 @@ import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
   isSurfaceType,
+  isTrapTooCloseToSpawn,
+  TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE,
   type DraftObject,
 } from '../../shared/editorApi';
 import type { LevelExtension } from '../../shared/levelExtend';
@@ -310,9 +312,13 @@ export function validateCurseObject(
     errors.push('Your object is outside the level boundaries.');
   }
 
-  // Deliberately no occupied-cell, spawn-distance or finish-blocking
-  // checks: a curse can go anywhere on the map. The mandatory verified run
-  // (Prove It) is what guarantees the cursed level is still beatable.
+  if (isTrapTooCloseToSpawn(baseObjects, newObject.type, newObject.x)) {
+    errors.push(TRAP_TOO_CLOSE_TO_SPAWN_MESSAGE);
+  }
+
+  // Otherwise a curse can go anywhere: no occupied-cell or finish-blocking
+  // checks. The mandatory verified run (Prove It) is what guarantees the
+  // cursed level is still beatable.
 
   return errors;
 }
