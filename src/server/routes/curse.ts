@@ -18,6 +18,7 @@ import {
   levelCurrentVersionKey,
   levelPostKey,
   levelVersionKey,
+  userCommentPromptedKey,
   userCurseCommentsKey,
   userCursesKey,
 } from '../core/redisKeys';
@@ -37,6 +38,7 @@ import { trackSafely } from '../services/AnalyticsService';
 import {
   CURSE_COMMENT_MAX_LENGTH,
   isCurseCommentRequest,
+  type CommentPromptResponse,
   type CurseCommentResponse,
 } from '../../shared/curseCommentApi';
 
@@ -480,6 +482,16 @@ curse.post('/publish', async (c) => {
 // curseCommentApi.ts): posted on the level's own post (else the post this
 // is running in) from the player's account — never from the app's. At
 // most one per trap they've placed on the level.
+// The prompt is offered once per player, ever: the first call claims it.
+curse.post('/comment-prompt', async (c) => {
+  const { username } = context;
+  if (!username) return c.json<CommentPromptResponse>({ offer: false });
+  const key = userCommentPromptedKey(username);
+  if (await redis.get(key)) return c.json<CommentPromptResponse>({ offer: false });
+  await redis.set(key, '1');
+  return c.json<CommentPromptResponse>({ offer: true });
+});
+
 curse.post('/comment', async (c) => {
   const { username } = context;
   if (!username) {

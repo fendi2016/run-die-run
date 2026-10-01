@@ -1502,6 +1502,20 @@ await test('after placing a trap a player may comment once per trap, as themselv
   assert.equal((await comment('alice', 'again')).status, 403);
 });
 
+await test('the comment prompt is offered to a player only once, ever', async () => {
+  const { isCommentPromptResponse } = await import('../../shared/curseCommentApi');
+  const prompt = (username: string) =>
+    users.run(username, async () => {
+      const body: unknown = await (await curse.request('/comment-prompt', { method: 'POST' })).json();
+      assert.ok(isCommentPromptResponse(body));
+      return body.offer;
+    });
+  assert.equal(await prompt('alice'), true);
+  assert.equal(await prompt('alice'), false);
+  assert.equal(await prompt('alice'), false);
+  assert.equal(await prompt('bob'), true);
+});
+
 await test('a curse can erase a trap as it places its own (a swap), never ground, spawn or finish', async () => {
   const base = await getCurrentLevelVersion('meat-grinder');
   const erase = async (id: string | undefined) =>

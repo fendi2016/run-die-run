@@ -78,7 +78,11 @@ import {
   SLOW_TIME_DURATION_MS,
   SLOW_TIME_SCALE,
 } from '../constants';
-import { CURSE_COMMENT_SUGGESTIONS, isCurseCommentResponse } from '../../../shared/curseCommentApi';
+import {
+  CURSE_COMMENT_SUGGESTIONS,
+  isCommentPromptResponse,
+  isCurseCommentResponse,
+} from '../../../shared/curseCommentApi';
 import { Player } from '../entities/Player';
 import { JUMP_DOWN_EVENT } from '../systems/InputSystem';
 import { PhysicsInterpolation } from '../systems/PhysicsInterpolation';
@@ -689,11 +693,17 @@ export class GameScene extends Scene {
 
   // Right after their trap goes live: a ready-made brag the player can edit
   // and post on the level's post from their own account, or skip. Nothing
-  // is posted unless they tap Comment.
+  // is posted unless they tap Comment. Offered once per player, ever.
   private async offerCurseComment(levelId: string): Promise<void> {
     const suggestion =
       CURSE_COMMENT_SUGGESTIONS[Math.floor(Math.random() * CURSE_COMMENT_SUGGESTIONS.length)];
     try {
+      const prompt = await fetch('/api/curse/comment-prompt', {
+        method: 'POST',
+        signal: AbortSignal.timeout(15000),
+      });
+      const promptBody: unknown = await prompt.json();
+      if (!isCommentPromptResponse(promptBody) || !promptBody.offer) return;
       const result = await showForm({
         title: 'Rub it in?',
         description: 'Post a comment on this level so everyone knows who to blame.',

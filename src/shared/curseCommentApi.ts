@@ -10,6 +10,14 @@ export const CURSE_COMMENT_SUGGESTIONS = [
   'I made this level worse. Can you still beat it? 😈',
 ] as const;
 
+// POST /api/curse/comment-prompt: whether to offer the prompt now. Only
+// the first call per player ever answers true (it marks it as offered).
+export type CommentPromptResponse = { offer: boolean };
+
+export function isCommentPromptResponse(value: unknown): value is CommentPromptResponse {
+  return typeof value === 'object' && value !== null && 'offer' in value && typeof value.offer === 'boolean';
+}
+
 export type CurseCommentRequest = {
   levelId: string;
   text: string;

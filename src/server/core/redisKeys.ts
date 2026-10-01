@@ -188,3 +188,8 @@ export const analyticsFirstSeenKey = (username: string): string =>
 // traps they've placed there.
 export const userCurseCommentsKey = (username: string, levelId: string): string =>
   `user:${username}:curseComments:${levelId}`;
+
+// '1' once this player has been offered the after-sabotage comment prompt.
+// It's only ever offered once, whether they posted or not.
+export const userCommentPromptedKey = (username: string): string =>
+  `user:${username}:commentPrompted`;
