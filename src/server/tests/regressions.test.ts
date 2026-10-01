@@ -1616,7 +1616,7 @@ await test('menu stats reads only its level counters and metadata without scanni
       title: 'Fixture', creatorUsername: 'builder', createdAt: 1,
     }));
     const expected = {
-      title: 'Fixture', creatorUsername: 'builder', version: 1,
+      title: 'Fixture', creatorUsername: 'builder', version: 1, sabotages: 0,
       attempts: 123, clears: 0, difficulty: 'NIGHTMARE',
     };
     assert.deepEqual(await getLevelStats('stats-fixture'), expected);
@@ -1732,4 +1732,70 @@ await test("a built-in level's seed version is served from source, not a stale s
   }));
   const level = await getCurrentLevelVersion('meat-grinder');
   assert.equal(level?.objects.some((o) => o.type === 'bat'), false);
+});
+
+await test('a moderator undo restores the level before its latest sabotage, one step per press', async () => {
+  const { undoLatestSabotage } = await import('../services/UndoService');
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  const seed = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  const afterBob = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+
+  const first = await undoLatestSabotage('meat-grinder');
+  assert.equal(first.status, 'ok');
+  if (first.status !== 'ok') return;
+  assert.equal(first.undoneBy, 'carol');
+  assert.equal(first.undoneType, 'saw');
+  const v4 = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(v4?.version, 4);
+  assert.equal(v4?.restoredFrom, 2);
+  assert.deepEqual(v4?.objects, afterBob?.objects);
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
+
+  assert.equal((await undoLatestSabotage('meat-grinder')).status, 'ok');
+  const v5 = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(v5?.restoredFrom, 1);
+  assert.deepEqual(v5?.objects, seed?.objects);
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 0);
+  assert.equal((await undoLatestSabotage('meat-grinder')).status, 'error');
+
+  // A sabotage after an undo builds on the restored level, and undoing it
+  // goes back to that restored level, not to the sabotages undone before.
+  assert.equal((await curseAndPublish('dave', 820)).status, 'ok');
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
+  const undone = await undoLatestSabotage('meat-grinder');
+  assert.equal(undone.status === 'ok' && undone.undoneBy, 'dave');
+  assert.deepEqual((await getCurrentLevelVersion('meat-grinder'))?.objects, seed?.objects);
+});
+
+await test("undoing a level's only sabotage lets its creator sabotage it first again", async () => {
+  const { undoLatestSabotage } = await import('../services/UndoService');
+  storeLevel('makers-level', Date.now());
+  const proposed = await proposeCurse('bob', 'makers-level', { id: 'x', type: 'saw', x: 700, y: 480 });
+  assert.equal(proposed.body.status, 'ok');
+  if (proposed.body.status !== 'ok') return;
+  await markCandidateVerified('bob', proposed.body.candidateToken, 2000);
+  assert.equal((await publishCurse('bob', proposed.body.candidateToken)).body.status, 'ok');
+  assert.equal((await undoLatestSabotage('makers-level')).status, 'ok');
+  assert.equal((await eligibility('maker', 'makers-level')).canCurse, true);
+});
+
+await test('next level skips NIGHTMARE levels unless every one it looks at is NIGHTMARE', async () => {
+  const { isNextLevelResponse } = await import('../../shared/discoveryApi');
+  const { levelAttemptsKey } = await import('../core/redisKeys');
+  storeLevel('older', Date.now() - 2000);
+  storeLevel('wall', Date.now() - 1000);
+  storeLevel('newer', Date.now());
+  set(levelAttemptsKey('wall'), '100');
+  const next = async (after: string) => {
+    const body: unknown = await (await discovery.request(`/next?after=${after}`)).json();
+    assert.ok(isNextLevelResponse(body));
+    return body.next?.levelId;
+  };
+  assert.equal(await next('newer'), 'older');
+  for (const levelId of ['older', 'newer', ...Object.keys(SEED_LEVELS)]) {
+    set(levelAttemptsKey(levelId), '100');
+  }
+  assert.equal(await next('newer'), 'wall');
 });

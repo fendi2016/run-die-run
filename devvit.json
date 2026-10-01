@@ -53,6 +53,14 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reset-builtin-stats"
+      },
+      {
+        "label": "SKETCHY: undo last sabotage",
+        "description": "Remove the newest trap from this post's level (press again to undo the one before)",
+        "location": "post",
+        "postFilter": "currentApp",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/undo-sabotage"
       }
     ]
   },

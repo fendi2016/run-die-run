@@ -18,6 +18,20 @@ async function persistSeedVersion(
   await redis.set(levelVersionKey(levelId, seed.version), JSON.stringify(seed));
 }
 
+// One stored version of a level, as written (no read-time cleanup). A
+// built-in level's own seed version comes from source.
+export async function getLevelVersionAt(
+  levelId: string,
+  version: number
+): Promise<LevelVersion | undefined> {
+  const seed = SEED_LEVELS[levelId];
+  if (seed && seed.version === version) return seed;
+  const raw = await redis.get(levelVersionKey(levelId, version));
+  if (raw === undefined) return undefined;
+  const parsed: unknown = JSON.parse(raw);
+  return isLevelVersion(parsed) ? parsed : undefined;
+}
+
 // Fetches the currently-published version of a level.
 //
 // Known seed levels are written into Redis the first time they're

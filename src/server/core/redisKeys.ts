@@ -12,6 +12,11 @@ export const levelCurrentVersionKey = (levelId: string): string =>
 export const levelVersionKey = (levelId: string, version: number): string =>
   `level:${levelId}:version:${version}`;
 
+// How many moderator undos a level has had. Each undo is its own version
+// that removes a sabotage, so sabotages in effect = version - 1 - 2 * undos.
+export const levelUndosKey = (levelId: string): string =>
+  `level:${levelId}:undos`;
+
 export const versionLeaderboardKey = (
   levelId: string,
   version: number

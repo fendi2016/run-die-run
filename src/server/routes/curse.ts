@@ -100,12 +100,13 @@ function isPublishCurseBody(
 // curse at a time (someone else has to curse it after yours before you get
 // another) and at most CURSES_PER_LEVEL on any one level. A version 1's
 // contributor is the level's creator, and publishing isn't a curse, so the
-// one-at-a-time rule only applies once a curse exists.
+// one-at-a-time rule only applies once a curse exists (a moderator undo
+// back to version 1 restores the creator as contributor).
 async function curseBlockReason(
   username: string,
   level: LevelVersion
 ): Promise<string | undefined> {
-  if (level.parentVersion !== null && level.contributorUsername === username) {
+  if ((level.restoredFrom ?? level.version) > 1 && level.contributorUsername === username) {
     return 'Yours is the latest sabotage here — wait for someone else to sabotage it first.';
   }
   if ((await countCursesOnLevel(username, level.levelId)) >= CURSES_PER_LEVEL) {

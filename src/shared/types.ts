@@ -110,6 +110,9 @@ export type LevelVersion = {
   addedObjectId?: string;
   verificationTimeMs: number;
   createdAt: number;
+  // Set on a moderator undo: this version's objects are a copy of
+  // `restoredFrom`'s, the level as it was before the undone sabotage.
+  restoredFrom?: number;
 };
 
 // A single completed run, submitted to the server for leaderboard ranking.
@@ -167,6 +170,7 @@ export function isLevelVersion(value: unknown): value is LevelVersion {
     'verificationTimeMs' in value &&
     typeof value.verificationTimeMs === 'number' &&
     'createdAt' in value &&
-    typeof value.createdAt === 'number'
+    typeof value.createdAt === 'number' &&
+    (!('restoredFrom' in value) || typeof value.restoredFrom === 'number')
   );
 }

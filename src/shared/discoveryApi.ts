@@ -6,6 +6,7 @@ export type LevelSummary = {
   title: string;
   creatorUsername: string;
   version: number;
+  sabotages: number;
   difficulty: Difficulty;
   attempts: number;
   clears: number;
@@ -27,6 +28,8 @@ export type LevelStats = {
   title: string;
   creatorUsername: string;
   version: number;
+  // Sabotages in effect (moderator undos take theirs back out).
+  sabotages: number;
   attempts: number;
   clears: number;
   difficulty: Difficulty;
@@ -43,6 +46,8 @@ export function isLevelStats(value: unknown): value is LevelStats {
     typeof value.creatorUsername === 'string' &&
     'version' in value &&
     isCount(value.version) &&
+    'sabotages' in value &&
+    isCount(value.sabotages) &&
     'attempts' in value &&
     isCount(value.attempts) &&
     'clears' in value &&
@@ -87,6 +92,8 @@ export function isLevelSummary(value: unknown): value is LevelSummary {
     'version' in value &&
     isCount(value.version) &&
     value.version > 0 &&
+    'sabotages' in value &&
+    isCount(value.sabotages) &&
     'difficulty' in value &&
     isDifficulty(value.difficulty) &&
     'attempts' in value &&

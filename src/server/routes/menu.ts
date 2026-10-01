@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
-import type { FormField, UiResponse } from '@devvit/web/shared';
+import { reddit } from '@devvit/web/server';
+import { isT3, type FormField, type UiResponse } from '@devvit/web/shared';
+import { HUB_LEVEL_ID } from '../../shared/constants';
+import { levelIdFromPostData } from '../../shared/postData';
 import { createHubPost } from '../core/post';
-import { postLevelOfTheDay } from '../services/DailyService';
+import { postLevelOfTheDay, resolveLevelId } from '../services/DailyService';
+import { getLevelStats } from '../services/DiscoveryService';
+import { undoLatestSabotage } from '../services/UndoService';
+import { labelFor } from '../../shared/objectLabels';
+import { isObjectType } from '../../shared/types';
 import {
   refreshDiscoveryIndex,
   resetBuiltInLevelStats,
@@ -119,5 +126,42 @@ menu.post('/reset-builtin-stats', async (c) => {
   } catch (error) {
     console.error(`Error resetting built-in level stats: ${error}`);
     return c.json<UiResponse>({ showToast: 'Failed to reset stats' }, 400);
+  }
+});
+
+// Post menu: take the latest sabotage back out of the level this post plays
+// (see UndoService), for a level that got too hard for anyone to beat.
+// Pressing it again undoes the one before.
+menu.post('/undo-sabotage', async (c) => {
+  try {
+    const body: unknown = await c.req.json();
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('targetId' in body) ||
+      typeof body.targetId !== 'string' ||
+      !isT3(body.targetId)
+    ) {
+      return c.json<UiResponse>({ showToast: 'Use this on a SKETCHY post' }, 400);
+    }
+    const post = await reddit.getPostById(body.targetId);
+    const levelId = await resolveLevelId(
+      levelIdFromPostData(await post.getPostData()) ?? HUB_LEVEL_ID
+    );
+    const result = await undoLatestSabotage(levelId);
+    if (result.status === 'error') {
+      return c.json<UiResponse>({ showToast: result.message }, 200);
+    }
+    const what = isObjectType(result.undoneType) ? labelFor(result.undoneType) : 'sabotage';
+    const left = (await getLevelStats(levelId))?.sabotages ?? 0;
+    return c.json<UiResponse>(
+      {
+        showToast: `Removed u/${result.undoneBy}'s ${what}. ${left} sabotage${left === 1 ? '' : 's'} left.`,
+      },
+      200
+    );
+  } catch (error) {
+    console.error(`Error undoing sabotage: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to undo sabotage' }, 400);
   }
 });

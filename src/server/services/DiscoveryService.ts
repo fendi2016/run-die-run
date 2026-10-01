@@ -17,6 +17,7 @@ import {
   levelDailyClearsKey,
   levelMetaKey,
   levelPostKey,
+  levelUndosKey,
   versionLeaderboardKey,
 } from '../core/redisKeys';
 import { levelDisplayTitle, SEED_LEVELS } from '../core/seedLevels';
@@ -38,6 +39,12 @@ export function difficultyFor(attempts: number, clears: number): Difficulty {
   if (rate >= 0.1) return 'HARD';
   if (rate >= 0.03) return 'CURSED';
   return 'NIGHTMARE';
+}
+
+// Every version after the first is a sabotage or a moderator undo, and an
+// undo also takes one sabotage back out.
+export function sabotagesInEffect(version: number, undos: number): number {
+  return Math.max(0, version - 1 - 2 * undos);
 }
 
 export async function queueDiscoveryActivity(
@@ -94,24 +101,27 @@ function metadata(
 export async function getLevelStats(
   levelId: string
 ): Promise<LevelStats | undefined> {
-  const [rawMeta, rawAttempts, rawClears, rawVersion, postId] =
+  const [rawMeta, rawAttempts, rawClears, rawVersion, postId, rawUndos] =
     await Promise.all([
       redis.get(levelMetaKey(levelId)),
       redis.get(levelAttemptsKey(levelId)),
       redis.get(levelClearsKey(levelId)),
       redis.get(levelCurrentVersionKey(levelId)),
       redis.get(levelPostKey(levelId)),
+      redis.get(levelUndosKey(levelId)),
     ]);
   const meta = metadata(rawMeta);
   const seed = SEED_LEVELS[levelId];
   if (!meta && !seed) return undefined;
   const attempts = Number(rawAttempts ?? 0);
   const clears = Number(rawClears ?? 0);
+  // A seed level has no current-version key until its first load.
+  const version = Number(rawVersion ?? 1);
   const stats: LevelStats = {
     title: levelDisplayTitle(levelId, meta?.title),
     creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
-    // A seed level has no current-version key until its first load.
-    version: Number(rawVersion ?? 1),
+    version,
+    sabotages: sabotagesInEffect(version, Number(rawUndos ?? 0)),
     attempts,
     clears,
     difficulty: difficultyFor(attempts, clears),
@@ -136,7 +146,7 @@ async function summarizeLevel(
 ): Promise<LevelSummary | undefined> {
   const level = await getCurrentLevelVersion(levelId);
   if (!level) return undefined;
-  const [rawMeta, rawAttempts, rawClears, players, dailyClears, records] =
+  const [rawMeta, rawAttempts, rawClears, players, dailyClears, records, rawUndos] =
     await Promise.all([
       redis.get(levelMetaKey(levelId)),
       redis.get(levelAttemptsKey(levelId)),
@@ -148,18 +158,21 @@ async function summarizeLevel(
       redis.zRange(versionLeaderboardKey(levelId, level.version), 0, 0, {
         by: 'rank',
       }),
+      redis.get(levelUndosKey(levelId)),
     ]);
   const meta = metadata(rawMeta);
   const seed = SEED_LEVELS[levelId];
   if (!meta && !seed) return undefined;
   const attempts = Number(rawAttempts ?? 0);
   const clears = Number(rawClears ?? 0);
+  const sabotages = sabotagesInEffect(level.version, Number(rawUndos ?? 0));
   return {
     levelId,
     title: levelDisplayTitle(levelId, meta?.title),
     creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
     createdAt: meta?.createdAt ?? seed?.createdAt ?? level.createdAt,
     version: level.version,
+    sabotages,
     attempts,
     clears,
     difficulty: difficultyFor(attempts, clears),
@@ -170,8 +183,7 @@ async function summarizeLevel(
       players.length +
       players.reduce((total, entry) => total + entry.score, 0) +
       Number(dailyClears ?? 0) +
-      level.version -
-      1,
+      sabotages,
   };
 }
 
@@ -212,7 +224,7 @@ async function queueIndexes(
   });
   await tx.zAdd(discoveryIndexKey('curses'), {
     member,
-    score: summary.version - 1,
+    score: summary.sabotages,
   });
   await tx.zAdd(discoveryTrendingKey(day), {
     member,
@@ -232,6 +244,7 @@ function scoreSourceKeys(levelId: string, day: number, version: number): string[
     levelDailyPlayersKey(levelId, day),
     levelDailyClearsKey(levelId, day),
     versionLeaderboardKey(levelId, version),
+    levelUndosKey(levelId),
   ];
 }
 
@@ -351,7 +364,12 @@ export async function discoverLevels(
 }
 
 // Next Level after a clear: the level after `levelId` in the newest-first
-// order, wrapping round, or undefined when there's no other level.
+// order, wrapping round, or undefined when there's no other level. It skips
+// NIGHTMARE levels so a player isn't sent straight into one nobody beats;
+// if every level it looks at is NIGHTMARE, the first of them still beats
+// having no Next Level at all.
+const NEXT_LEVEL_LOOKAHEAD = 20;
+
 export async function nextNewestLevel(
   levelId: string
 ): Promise<{ levelId: string; title: string } | undefined> {
@@ -361,12 +379,16 @@ export async function nextNewestLevel(
     .slice(index + 1)
     .concat(ids.slice(0, Math.max(0, index)))
     .filter((id) => id !== levelId);
-  // A few tries only: an id whose level data is gone is skipped.
-  for (const id of candidates.slice(0, 5)) {
+  // A bounded look-ahead; an id whose level data is gone is skipped.
+  let fallback: { levelId: string; title: string } | undefined;
+  for (const id of candidates.slice(0, NEXT_LEVEL_LOOKAHEAD)) {
     const stats = await getLevelStats(id);
-    if (stats) return { levelId: id, title: stats.title };
+    if (!stats) continue;
+    const next = { levelId: id, title: stats.title };
+    if (stats.difficulty !== 'NIGHTMARE') return next;
+    fallback ??= next;
   }
-  return undefined;
+  return fallback;
 }
 
 // Dev/moderator tool: zero a built-in level's attempt/clear counters (and
