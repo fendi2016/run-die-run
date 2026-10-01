@@ -5,6 +5,7 @@ import {
   GRID_CELL_SIZE,
   GROUND_TOP_Y,
 } from '../../../shared/constants';
+import { TRAP_FREE_START_CELLS } from '../../../shared/editorApi';
 
 // The set of object types the base editor (spec section 12) can place.
 // Falling Block isn't part of the MVP object set (spec section 39) and
@@ -172,6 +173,22 @@ export function drawGrid(
   // like just another grid line.
   graphics.lineStyle(3, INK_COLOR, GROUND_LINE_ALPHA);
   graphics.lineBetween(clampedLeft, GROUND_TOP_Y, clampedRight, GROUND_TOP_Y);
+}
+
+const START_ZONE_FILL_ALPHA = 0.14;
+const START_ZONE_EDGE_ALPHA = 0.5;
+
+// Shades the level's first TRAP_FREE_START_CELLS columns red, every row
+// down to the ground line, with a firmer line at the zone's right edge.
+// Fixed in world space, so it's drawn once.
+export function drawTrapFreeStartZone(graphics: Phaser.GameObjects.Graphics): void {
+  const top = GROUND_TOP_Y - (EDITOR_MAX_ROWS - 1) * GRID_CELL_SIZE;
+  const right = TRAP_FREE_START_CELLS * GRID_CELL_SIZE;
+  graphics.clear();
+  graphics.fillStyle(ACCENT_COLOR, START_ZONE_FILL_ALPHA);
+  graphics.fillRect(0, top, right, GROUND_TOP_Y - top);
+  graphics.lineStyle(2, ACCENT_COLOR, START_ZONE_EDGE_ALPHA);
+  graphics.lineBetween(right, top, right, GROUND_TOP_Y);
 }
 
 // A small deterministic "wobble" derived from a numeric seed, in the range

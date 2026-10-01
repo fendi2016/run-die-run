@@ -29,6 +29,7 @@ import {
   clampBoardColumn,
   drawGrid,
   drawSketchRect,
+  drawTrapFreeStartZone,
   normalizeBoardRow,
   ACCENT_COLOR,
   EDITOR_BOARD_ROWS,
@@ -118,6 +119,10 @@ export class CurseScene extends Scene {
   private pendingRemoveId: string | undefined;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
+  // The red-shaded first columns where a trap can't go (isTrapInStartZone),
+  // shown while Hazards is the category, since platforms and power-ups may
+  // still go there.
+  private startZoneGraphics!: Phaser.GameObjects.Graphics;
   private pendingGraphics!: Phaser.GameObjects.Graphics;
   private baseImages: Phaser.GameObjects.Sprite[] = [];
   // The erasable ones among baseImages, by object id, for Erase's lenient
@@ -194,6 +199,8 @@ export class CurseScene extends Scene {
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
     this.gridGraphics = this.add.graphics();
+    this.startZoneGraphics = this.add.graphics();
+    drawTrapFreeStartZone(this.startZoneGraphics);
     this.pendingGraphics = this.add.graphics();
 
     this.board = this.rexBoard.add.board({
@@ -221,6 +228,7 @@ export class CurseScene extends Scene {
     });
     this.toolbar.setCancelLabel(this.tutorial ? 'Skip' : 'Cancel');
     this.toolbar.setActiveCategory(this.category);
+    this.updateStartZone();
     this.toolbar.setActiveType(this.selectedType);
     this.updateClearEnabled();
     this.toolbar.setProveEnabled(false);
@@ -274,6 +282,7 @@ export class CurseScene extends Scene {
   private selectCategory(category: CurseCategory): void {
     if (this.proposalRequest) return;
     this.category = category;
+    this.updateStartZone();
     this.selectedType = undefined;
     this.pending = undefined;
     this.toolbar.setActiveType(undefined);
@@ -281,6 +290,10 @@ export class CurseScene extends Scene {
     this.toolbar.hideMessage();
     this.redrawPending();
     this.updateProveEnabled();
+  }
+
+  private updateStartZone(): void {
+    this.startZoneGraphics.setVisible(this.category === 'hazard');
   }
 
   private selectType(type: ObjectType): void {
