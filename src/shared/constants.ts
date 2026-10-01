@@ -61,6 +61,12 @@ export type SplashAutostart = 'game' | 'editor' | 'browse' | 'leaderboard' | 'st
 // not-yet-community-created levels.
 export const SEED_AUTHOR = 'sketchy_seed';
 
+// The playtest subreddit from devvit.json's `dev.subreddit`. Debug-only
+// affordances (the finish-line warp key) check this at runtime instead of
+// a Vite DEV flag — `devvit playtest` ships a production build too, so a
+// build-time flag would be off in the one place those tools are needed.
+export const DEV_SUBREDDIT = 'sketchy_game_dev';
+
 // Per-user daily caps on publishing levels (each one is a new post) and
 // cursing, so one account can't flood the subreddit.
 export const LEVEL_PUBLISHES_PER_DAY = 10;
