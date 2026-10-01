@@ -15,7 +15,7 @@ export const myCurses = new Hono();
 myCurses.get('/', async (c) => {
   const { username } = context;
   if (!username) {
-    return c.json<ErrorResponse>({ status: 'error', message: 'Must be signed in to see your curses' }, 401);
+    return c.json<ErrorResponse>({ status: 'error', message: 'Must be signed in to see your sabotage' }, 401);
   }
   return c.json<MyCursesResponse>({ curses: await getMyCurses(username) });
 });

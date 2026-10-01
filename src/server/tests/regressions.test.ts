@@ -1202,7 +1202,7 @@ await test('a player waits for someone else to curse between curses, up to the p
   assert.equal((await curseAndPublish('someone-else', 1300)).status, 'ok');
   const capped = await eligibility('alice');
   assert.equal(capped.canCurse, false);
-  assert.match(capped.reason ?? '', /all \d+ of your curses/);
+  assert.match(capped.reason ?? '', /the max \d+ times/);
   assert.equal((await curseAndPublish('alice', 1400)).status, 'error');
 });
 
@@ -1223,7 +1223,7 @@ await test('curses of since-removed trap types still count toward the per-level 
   ]));
   const capped = await eligibility('alice');
   assert.equal(capped.canCurse, false);
-  assert.match(capped.reason ?? '', /all \d+ of your curses/);
+  assert.match(capped.reason ?? '', /the max \d+ times/);
 });
 
 await test('the starter level cannot be cursed', async () => {

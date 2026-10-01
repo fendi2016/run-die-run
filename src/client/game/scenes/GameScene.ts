@@ -904,7 +904,7 @@ export class GameScene extends Scene {
       void this.findNextLevel();
       return;
     }
-    this.resultOverlay.showNext('Leave your curse to unlock the next level.');
+    this.resultOverlay.showNext('Sabotage this level to unlock the next one.');
   }
 
   // Best-effort: if the check fails, offer the curse and let propose (which
@@ -980,8 +980,8 @@ export class GameScene extends Scene {
     previewReturn: Extract<PreviewReturn, { kind: 'curse' }>
   ): Promise<void> {
     const attempt = this.attempt;
-    this.resultOverlay.showSaveStatus('Publishing curse…');
-    let message = 'Could not publish your curse — please try again.';
+    this.resultOverlay.showSaveStatus('Publishing your sabotage…');
+    let message = 'Could not publish your sabotage — please try again.';
     let conflict = false;
     let published = false;
     try {
@@ -1042,7 +1042,7 @@ export class GameScene extends Scene {
       if (attempt.signal.aborted) return;
       if (response.status === 401) {
         // Signed out: no curse is possible, so don't hold Next Level hostage.
-        this.resultOverlay.showSaveStatus('Sign in to Reddit to save scores and leave curses.');
+        this.resultOverlay.showSaveStatus('Sign in to Reddit to save scores and sabotage levels.');
         this.resultOverlay.hideCurse();
         void this.findNextLevel();
         return;

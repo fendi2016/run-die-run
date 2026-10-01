@@ -14,9 +14,9 @@ export function clearRateText(stats: LevelStats): string {
   return `${shown}% clear rate`;
 }
 
-// Every published version after the first is one curse.
+// Every published version after the first is one sabotage.
 export function versionText(stats: LevelStats): string {
   const curses = stats.version - 1;
-  if (curses === 0) return 'No curses yet';
-  return `${curses} ${curses === 1 ? 'curse' : 'curses'}`;
+  if (curses === 0) return 'Not sabotaged yet';
+  return `Sabotaged ${curses === 1 ? 'once' : `${curses} times`}`;
 }

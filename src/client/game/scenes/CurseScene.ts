@@ -263,7 +263,7 @@ export class CurseScene extends Scene {
     this.updateClearEnabled();
     this.redrawPending();
     this.updateProveEnabled();
-    this.toolbar.showMessage('Tap anywhere to place your curse.');
+    this.toolbar.showMessage('Tap anywhere to place your sabotage.');
   }
 
   // Keep tap placement and drag repositioning in sync with the toolbar.
@@ -320,7 +320,7 @@ export class CurseScene extends Scene {
         this.toggleRemoveTarget(erasable);
         return;
       }
-      this.toolbar.showMessage('Choose a curse type first.');
+      this.toolbar.showMessage('Choose what to place first.');
       return;
     }
 
@@ -353,7 +353,7 @@ export class CurseScene extends Scene {
         depth: CURSE_FX_DEPTH,
       });
       this.toolbar.showMessage(
-        `${labelFor(object.type)} marked to erase — now place your curse, then prove it's possible.`
+        `${labelFor(object.type)} marked to erase — now place your sabotage, then prove it's possible.`
       );
     }
     this.updateClearEnabled();
@@ -371,7 +371,7 @@ export class CurseScene extends Scene {
     this.selectedType = undefined;
     this.toolbar.setActiveType(undefined);
     this.toolbar.showMessage(
-      "Tap a trap or platform to erase it. You still place a curse of your own."
+      "Tap a trap or platform to erase it. You still place sabotage of your own."
     );
   }
 
@@ -442,7 +442,7 @@ export class CurseScene extends Scene {
     }
     this.pendingExtendTiles = max;
     this.toolbar.showMessage(
-      "Level extended — now place a curse, then prove it's possible."
+      "Level extended — now place your sabotage, then prove it's possible."
     );
     this.redrawBase();
     this.redrawExtension();
@@ -651,7 +651,7 @@ export class CurseScene extends Scene {
     this.proposalRequest = requestId;
     this.toolbar.setEditingEnabled(false);
     this.updateProveEnabled();
-    this.toolbar.showMessage('Checking your curse...');
+    this.toolbar.showMessage('Checking your sabotage...');
     try {
       const request: ProposeCurseRequest = {
         levelId,

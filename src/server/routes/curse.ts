@@ -105,10 +105,10 @@ async function curseBlockReason(
   level: LevelVersion
 ): Promise<string | undefined> {
   if (level.parentVersion !== null && level.contributorUsername === username) {
-    return 'Yours is the latest curse here — wait for someone else to curse it first.';
+    return 'Yours is the latest sabotage here — wait for someone else to sabotage it first.';
   }
   if ((await countCursesOnLevel(username, level.levelId)) >= CURSES_PER_LEVEL) {
-    return `You've left all ${CURSES_PER_LEVEL} of your curses on this level.`;
+    return `You've sabotaged this level the max ${CURSES_PER_LEVEL} times.`;
   }
   return undefined;
 }
@@ -120,7 +120,7 @@ curse.get('/eligibility/:levelId', async (c) => {
   const levelId = c.req.param('levelId');
   const { username } = context;
   if (!username) {
-    return c.json<CurseEligibilityResponse>({ canCurse: false, reason: 'Sign in to leave curses.' });
+    return c.json<CurseEligibilityResponse>({ canCurse: false, reason: 'Sign in to sabotage levels.' });
   }
   if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
     return c.json<CurseEligibilityResponse>({ canCurse: false });
@@ -147,7 +147,7 @@ curse.post('/propose', async (c) => {
   const { username } = context;
   if (!username) {
     return c.json<ErrorResponse>(
-      { status: 'error', message: 'Must be signed in to curse a level' },
+      { status: 'error', message: 'Must be signed in to sabotage a level' },
       401
     );
   }
@@ -163,13 +163,13 @@ curse.post('/propose', async (c) => {
   }
   if (!isProposeCurseBody(body)) {
     return c.json<ErrorResponse>(
-      { status: 'error', message: 'Invalid curse request' },
+      { status: 'error', message: 'Invalid sabotage request' },
       400
     );
   }
   if (CURSE_LOCKED_LEVEL_IDS.has(body.levelId)) {
     return c.json<ProposeCurseResponse>(
-      { status: 'error', errors: ["This level can't be cursed."] },
+      { status: 'error', errors: ["This level can't be sabotaged."] },
       403
     );
   }
@@ -177,7 +177,7 @@ curse.post('/propose', async (c) => {
     return c.json<ProposeCurseResponse>(
       {
         status: 'error',
-        errors: [`You've used all ${CURSES_PER_DAY} curses for today — come back tomorrow.`],
+        errors: [`You've used all ${CURSES_PER_DAY} sabotages for today — come back tomorrow.`],
       },
       429
     );
@@ -185,7 +185,7 @@ curse.post('/propose', async (c) => {
   if (!CURSE_TYPES.has(body.object.type)) {
     return c.json<ProposeCurseResponse>({
       status: 'error',
-      errors: ['That object type cannot be used to curse a level.'],
+      errors: ['That object type cannot be used to sabotage a level.'],
     });
   }
 
@@ -306,7 +306,7 @@ curse.post('/publish', async (c) => {
   const { username } = context;
   if (!username) {
     return c.json<ErrorResponse>(
-      { status: 'error', message: 'Must be signed in to curse a level' },
+      { status: 'error', message: 'Must be signed in to sabotage a level' },
       401
     );
   }
@@ -332,7 +332,7 @@ curse.post('/publish', async (c) => {
     return c.json<PublishCurseResponse>(
       {
         status: 'error',
-        message: "This curse hasn't been verified — beat it first.",
+        message: "This sabotage hasn't been verified — beat it first.",
       },
       400
     );
@@ -350,13 +350,13 @@ curse.post('/publish', async (c) => {
   const newVersionNumber = parentVersion + 1;
   if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
     return c.json<PublishCurseResponse>(
-      { status: 'error', message: "This level can't be cursed." },
+      { status: 'error', message: "This level can't be sabotaged." },
       403
     );
   }
   if ((await countCursesOnLevel(username, levelId)) >= CURSES_PER_LEVEL) {
     return c.json<PublishCurseResponse>(
-      { status: 'error', message: `You've left all ${CURSES_PER_LEVEL} of your curses on this level.` },
+      { status: 'error', message: `You've sabotaged this level the max ${CURSES_PER_LEVEL} times.` },
       403
     );
   }
@@ -389,7 +389,7 @@ curse.post('/publish', async (c) => {
           value: {
             status: 'error',
             message:
-              'THE LEVEL CHANGED — someone cursed it while you were proving your addition. Beat the newest version to publish it.',
+              'THE LEVEL CHANGED — someone sabotaged it while you were proving your addition. Beat the newest version to publish it.',
             conflict: true,
           },
         };

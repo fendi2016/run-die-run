@@ -58,7 +58,7 @@ export class StatsOverlay {
       if (token !== this.requestToken || !response.ok || !isMyCursesResponse(body)) return;
       if (body.curses.length === 0) {
         const empty = document.createElement('li');
-        empty.textContent = 'No curses yet — beat a level and leave one.';
+        empty.textContent = 'No sabotage yet — beat a level and booby-trap it.';
         this.cursesEl.replaceChildren(empty);
         return;
       }

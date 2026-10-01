@@ -38,8 +38,8 @@ export class LeaderboardOverlay {
   show(options: LeaderboardOverlayOptions = {}): void {
     this.root.classList.remove('hidden');
     this.titleEl.textContent = options.levelId
-      ? 'TOP CURSERS — THIS LEVEL'
-      : 'TOP CURSERS';
+      ? 'TOP SABOTEURS — THIS LEVEL'
+      : 'TOP SABOTEURS';
     void this.load(options.levelId);
   }
 
@@ -81,7 +81,7 @@ export class LeaderboardOverlay {
 
   private renderRows(entries: { username: string; kills: number }[]): void {
     if (entries.length === 0) {
-      this.renderMessage('No curse kills yet.');
+      this.renderMessage('No sabotage kills yet.');
       return;
     }
     this.bodyEl.replaceChildren();

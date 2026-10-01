@@ -86,7 +86,7 @@ export const TUTORIAL_HINTS: TutorialHintEntry[] = [
   {
     fromX: 2680,
     toX: LEVEL_END_X,
-    text: 'Dive into the sharpener, then leave your own curse!',
+    text: 'Dive into the sharpener, then sabotage the level!',
     targetObjectId: 'finish',
   },
 ];

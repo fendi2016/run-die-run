@@ -42,7 +42,7 @@
       },
       {
         "label": "SKETCHY: reset built-in level stats (dev)",
-        "description": "Zero the built-in levels' attempt/clear counts (keeps curses)",
+        "description": "Zero the built-in levels' attempt/clear counts (keeps sabotage)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reset-builtin-stats"

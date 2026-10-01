@@ -85,7 +85,7 @@ export class RunResultOverlay {
   showTutorialOutro(onContinue: () => void): void {
     this.titleEl.textContent = 'YOU MADE IT!';
     this.showSaveStatus(
-      "Here's the twist: players build every level. Beat one and you get to leave your curse — one new trap that everyone after you has to survive. Then it's on to the next level."
+      "Here's the twist: players build every level. Beat one and you get to sabotage it — one new trap that everyone after you has to survive. Then it's on to the next level."
     );
     this.saveStatus.classList.add('run-result-info');
     this.showNext('', 'Play a real level →', onContinue);
