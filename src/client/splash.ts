@@ -13,12 +13,14 @@ import { initFollowButton } from './ui/followButton';
 import { startSplashMusic } from './ui/musicHandoff';
 import { clearRateText, deadliestTrapText, versionText } from '../shared/levelStatsText';
 import { showKillLine } from './ui/killLine';
+import { startMenuGag } from './ui/menuGag';
 import { sendAnalyticsEvent } from './analytics';
 
 // The feed card is the game's main menu (same markup ids and menu.css as
 // game.html's #game-menu); every button expands into the game.
 
 initFollowButton(requireButton('game-menu-follow-btn'));
+startMenuGag();
 
 // `requestExpandedMode` only takes a devvit.json entrypoint name, not a
 // route — there's no way to tell it "land on GameScene" directly. Instead,

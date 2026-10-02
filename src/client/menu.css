@@ -73,106 +73,183 @@
   box-shadow: 0 0 0 var(--ink);
 }
 
+/* Plain notebook paper (the level backdrop) with the gag strip along the
+   bottom; the big standing pencil art was dropped to keep the card calm. */
 #game-menu-scene {
+  --gag-h: 104px;
   position: relative;
   flex: 1;
-  background-image: linear-gradient(
-      rgba(43, 43, 43, 0) 0%,
-      rgba(43, 43, 43, 0.04) 55%,
-      rgba(43, 43, 43, 0.14) 100%
-    ),
-    url('/assets/ui/menu-background.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background: url('/assets/ui/paper-bg.webp') 0 0 / 512px auto repeat var(--paper);
   overflow: hidden;
 }
 
-/* Portrait phones get their own composition (pencil centred, standing on
-   two rows of blocks so PLAY sits below his feet); the wide art would crop
-   him out. Anchored to the bottom so shorter screens lose sky, not ground. */
-@media (orientation: portrait) {
+/* Clouds only where there's side room beside the centred group, so one
+   never sits behind the title. */
+@media (min-aspect-ratio: 3/2) {
   #game-menu-scene {
-    background-image: linear-gradient(
-        rgba(43, 43, 43, 0) 0%,
-        rgba(43, 43, 43, 0.04) 55%,
-        rgba(43, 43, 43, 0.14) 100%
-      ),
-      url('/assets/ui/menu-background-portrait.webp');
-    background-position: center bottom;
+    background:
+      url('/assets/background/cloud-a.webp') left 4% top 10% / min(17%, 240px) auto no-repeat,
+      url('/assets/background/cloud-c.webp') right 5% top 22% / min(13%, 190px) auto no-repeat,
+      url('/assets/ui/paper-bg.webp') 0 0 / 512px auto repeat var(--paper);
   }
 }
 
-/* Title + Play + Browse/Build/Leaderboard as one group, so the eye lands
-   on the logo and slides straight down into the one big thing to tap.
-   Positioned in the open sky/paper beside or above the pencil — never over
-   his face or body — with its own breakpoints below mirroring the old
-   per-element ones so the group still dodges him at every aspect ratio. */
+@media (orientation: landscape) and (max-height: 420px) {
+  #game-menu-scene {
+    --gag-h: 62px;
+  }
+}
+
+/* Title + Play + Browse/Build/Leaderboard as one group, centred in the
+   paper above the gag strip, so the eye lands on the logo and slides
+   straight down into the one big thing to tap. */
 #game-menu-cta {
   position: absolute;
   z-index: 1;
+  top: 0;
+  bottom: var(--gag-h);
+  left: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  left: 50%;
-  top: 6%;
   width: min(85%, 380px);
   transform: translateX(-50%);
 }
 
-/* Short/wide portrait screens (in-feed view, browser bars, tablets):
-   background-size: cover crops less off the sides and more off the top for
-   these ratios, so the pencil reads bigger and reaches higher — the whole
-   group has to sit smaller and higher still to stay clear of his eraser. */
 @media (orientation: portrait) and (min-aspect-ratio: 1/2) {
   #game-menu-cta {
-    top: 2%;
     gap: 6px;
-    width: min(55%, 240px);
   }
 }
 
-/* Landscape: the pencil stands left of centre looking right, so the group
-   sits right of him, above where his gaze leads. */
-@media (orientation: landscape) {
-  #game-menu-cta {
-    left: 63%;
-    top: 10%;
-    width: min(46%, 360px);
-  }
-}
-
-/* Short landscape (phones on their side): less headroom between the
-   header and the ground row, so shrink the gap rather than let Play
-   crowd the secondary row or spill past the fold. */
 @media (orientation: landscape) and (max-height: 420px) {
   #game-menu-cta {
-    top: 6%;
-    gap: 8px;
+    gap: 6px;
   }
 }
 
-/* Near-square portrait (a feed card, a tablet with bars): the tall art's
-   pencil fills the middle and there's no sky left for the group, so use the
-   wide art pushed right-to-left — pencil at the left edge, group beside
-   him, same composition as landscape. */
-@media (orientation: portrait) and (min-aspect-ratio: 2/3) {
-  #game-menu-scene {
-    background-image: linear-gradient(
-        rgba(43, 43, 43, 0) 0%,
-        rgba(43, 43, 43, 0.04) 55%,
-        rgba(43, 43, 43, 0.14) 100%
-      ),
-      url('/assets/ui/menu-background.webp');
-    background-position: 24% center;
+/* The gag (ui/menuGag.ts): the pencil runs along a strip of ground into a
+   saw, KABOOM, respawns, again. Decoration only — never takes a tap. */
+#menu-gag {
+  --ground-h: 40px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--gag-h);
+  pointer-events: none;
+  /* Over the group: KABOOM may briefly overlap Play on a short card, and
+     taps pass straight through anyway. */
+  z-index: 2;
+}
+
+#menu-gag-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--ground-h);
+  background: url('/assets/paper/tiles/ground-center-1.webp') 0 0 / auto 100% repeat-x;
+}
+
+#menu-gag > .menu-gag-sprite {
+  position: absolute;
+  left: 0;
+  background-repeat: no-repeat;
+  will-change: transform;
+}
+
+/* Half sunk into the ground, like a buzzsaw coming up through the floor. */
+#menu-gag-saw {
+  --size: 50px;
+  bottom: calc(var(--ground-h) - 16px);
+  width: var(--size);
+  height: var(--size);
+}
+
+#menu-gag-saw-spin {
+  width: 100%;
+  height: 100%;
+  background: url('/assets/hazards/saw-spin.webp') center / contain no-repeat;
+  animation: menu-gag-spin 0.6s linear infinite;
+}
+
+@keyframes menu-gag-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 19-frame run strip (one stride), played at the game's 22fps. */
+#menu-gag-runner {
+  --size: 66px;
+  bottom: calc(var(--ground-h) - 6px);
+  width: var(--size);
+  height: var(--size);
+  background-image: url('/assets/ui/menu-gag-run.webp');
+  background-size: calc(var(--size) * 19) 100%;
+  animation: menu-gag-run 864ms steps(19) infinite;
+}
+
+@keyframes menu-gag-run {
+  to {
+    background-position: calc(var(--size) * -19) 0;
+  }
+}
+
+#menu-gag-kaboom {
+  width: 96px;
+  height: 59px;
+  bottom: calc(var(--ground-h) + 2px);
+  background: url('/assets/vfx/death-kaboom.webp') center / contain no-repeat;
+  opacity: 0;
+}
+
+/* Pixel-art sheets, stepped by menuGag.ts via background-position. */
+#menu-gag-blood,
+#menu-gag-poof {
+  width: 72px;
+  height: 72px;
+  bottom: calc(var(--ground-h) - 8px);
+  background-size: auto 100%;
+  image-rendering: pixelated;
+  opacity: 0;
+}
+
+#menu-gag-blood {
+  background-image: url('/assets/vfx/blood-splatter.webp');
+}
+
+#menu-gag-poof {
+  background-image: url('/assets/vfx/smoke-poof.webp');
+  image-rendering: auto;
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  #menu-gag {
+    --ground-h: 22px;
   }
 
-  #game-menu-cta {
-    left: 71%;
-    /* Below the art's cloud line, so no cloud sits behind the title. */
-    top: 24%;
-    width: 56%;
+  #menu-gag-runner {
+    --size: 48px;
+  }
+
+  #menu-gag-saw {
+    --size: 38px;
+  }
+
+  #menu-gag-kaboom {
+    width: 78px;
+    height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #menu-gag-runner,
+  #menu-gag-saw-spin {
+    animation: none;
   }
 }
 
@@ -192,6 +269,12 @@
 @media (orientation: landscape) and (max-height: 420px) {
   #game-menu-title {
     width: min(65%, 220px);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 340px) {
+  #game-menu-title {
+    width: min(55%, 180px);
   }
 }
 
@@ -416,10 +499,11 @@
 /* Quiet credit line, not another outlined box: a soft translucent wash
    (no border) so it stays readable over either art variant without
    competing with the group above it. */
-/* Bottom-right: the pencil always stands left of centre or in the middle,
-   so this corner is open ground in every layout. */
+/* Bottom-right, on the gag's ground strip: the pencil dies at the saw
+   before he ever reaches this corner. */
 #game-menu-attribution {
   position: absolute;
+  z-index: 3;
   right: max(10px, env(safe-area-inset-right));
   bottom: 8px;
   display: flex;
@@ -433,6 +517,14 @@
   background: rgba(255, 253, 246, 0.6);
   border-radius: var(--radius-sm);
   backdrop-filter: blur(3px);
+}
+
+/* Portrait has room to spare above the ground, and a full-width credit
+   line on the ground would cover the saw. */
+@media (orientation: portrait) {
+  #game-menu-attribution {
+    bottom: calc(var(--gag-h) + 6px);
+  }
 }
 
 #game-menu-attribution-label {

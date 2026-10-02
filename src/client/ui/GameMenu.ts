@@ -4,6 +4,7 @@ import { getRequestedLevelId } from '../game/levelSelection';
 import { isLevelStats } from '../../shared/discoveryApi';
 import { deadliestTrapText } from '../../shared/levelStatsText';
 import { showKillLine } from './killLine';
+import { startMenuGag } from './menuGag';
 import { requireButton, requireElement } from './domUtils';
 import { initFollowButton } from './followButton';
 import { LeaderboardOverlay } from './LeaderboardOverlay';
@@ -49,6 +50,7 @@ export class GameMenu {
     );
     requireButton('game-menu-stats-chip').addEventListener('click', () => this.openStats());
     initFollowButton(requireButton('game-menu-follow-btn'));
+    startMenuGag();
   }
 
   openLeaderboard(): void {
