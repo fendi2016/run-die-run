@@ -20,9 +20,12 @@ const STRIDE_PER_HEIGHT = 2.05;
 const RUN_HEIGHTS_PER_S = 4.2;
 const SAW_AT = 0.86; // fraction of Play's width
 const SAW_RADIUS = 0.4; // of the runner's height
-// Counter-clockwise (negative is anticlockwise on a y-down canvas).
-const SAW_SPIN = (-Math.PI * 2) / 0.6;
-const SAW_SPIN_GRINDING = (-Math.PI * 2) / 0.2;
+// Counter-clockwise (negative is anticlockwise on a y-down canvas). The 14
+// teeth are ~26 degrees apart, so a turn faster than ~13 degrees a frame
+// strobes and reads as spinning the wrong way: 1s a turn idle, and grinding
+// as fast as 60fps allows.
+const SAW_SPIN = (-Math.PI * 2) / 1.0;
+const SAW_SPIN_GRINDING = (-Math.PI * 2) / 0.6;
 
 const HOP_MS = 280;
 const GRIND_MS = 1800;

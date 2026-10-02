@@ -79,8 +79,11 @@ export const SLOW_TIME_DURATION_MS = 4000;
 export const MOVING_SAW_AMPLITUDE_PX = 90;
 export const MOVING_SAW_PERIOD_MS = 900;
 // One full spin of the sawblade art, driven by a continuous angle tween
-// (ObjectRegistry) rather than the old 8-frame saw-spin sheet.
-export const SAW_ROTATION_PERIOD_MS = 700;
+// (ObjectRegistry) rather than the old 8-frame saw-spin sheet. Counter-
+// clockwise. Kept under ~13 degrees a frame even at 30fps: the blade's 14
+// identical teeth are ~26 degrees apart, so anything faster strobes and
+// reads as spinning the wrong way.
+export const SAW_ROTATION_PERIOD_MS = 1000;
 // A Moving Platform travels farther and slower than a Moving Saw — it
 // needs to be rideable/predictable, not a fast-twitch hazard.
 export const MOVING_PLATFORM_AMPLITUDE_PX = 160;
