@@ -73,10 +73,9 @@
   box-shadow: 0 0 0 var(--ink);
 }
 
-/* Plain notebook paper (the level backdrop) with the gag strip along the
-   bottom; the big standing pencil art was dropped to keep the card calm. */
+/* Plain notebook paper (the level backdrop); the big standing pencil art
+   was dropped to keep the card calm — the pencil runs across Play instead. */
 #game-menu-scene {
-  --gag-h: 104px;
   position: relative;
   flex: 1;
   background: url('/assets/ui/paper-bg.webp') 0 0 / 512px auto repeat var(--paper);
@@ -94,20 +93,16 @@
   }
 }
 
-@media (orientation: landscape) and (max-height: 420px) {
-  #game-menu-scene {
-    --gag-h: 62px;
-  }
-}
-
 /* Title + Play + Browse/Build/Leaderboard as one group, centred in the
-   paper above the gag strip, so the eye lands on the logo and slides
-   straight down into the one big thing to tap. */
+   paper, so the eye lands on the logo and slides straight down into the
+   one big thing to tap. --runner-h sizes the gag running across Play. */
 #game-menu-cta {
+  --runner-h: 64px;
   position: absolute;
   z-index: 1;
   top: 0;
-  bottom: var(--gag-h);
+  /* Clear of the "Made by" credit in the bottom corner. */
+  bottom: 34px;
   left: 50%;
   display: flex;
   flex-direction: column;
@@ -120,56 +115,50 @@
 
 @media (orientation: portrait) and (min-aspect-ratio: 1/2) {
   #game-menu-cta {
+    --runner-h: 56px;
     gap: 6px;
   }
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
   #game-menu-cta {
+    --runner-h: 46px;
     gap: 6px;
   }
 }
 
-/* The gag (ui/menuGag.ts): the pencil runs along a strip of ground into a
+/* The gag (ui/menuGag.ts), inside the Play button so it rides the
+   button's pulse and press: the pencil runs along Play's top edge into a
    saw, KABOOM, respawns, again. Decoration only — never takes a tap. */
 #menu-gag {
-  --ground-h: 40px;
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: var(--gag-h);
+  /* Feet on the button's top border. */
+  bottom: calc(100% + 1px);
+  height: var(--runner-h);
   pointer-events: none;
-  /* Over the group: KABOOM may briefly overlap Play on a short card, and
-     taps pass straight through anyway. */
-  z-index: 2;
-}
-
-#menu-gag-ground {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: var(--ground-h);
-  background: url('/assets/paper/tiles/ground-center-1.webp') 0 0 / auto 100% repeat-x;
 }
 
 #menu-gag > .menu-gag-sprite {
   position: absolute;
   left: 0;
+  bottom: 0;
+  display: block;
   background-repeat: no-repeat;
   will-change: transform;
 }
 
-/* Half sunk into the ground, like a buzzsaw coming up through the floor. */
+/* Half sunk into the button, like a buzzsaw coming up through it. */
 #menu-gag-saw {
-  --size: 50px;
-  bottom: calc(var(--ground-h) - 16px);
+  --size: calc(var(--runner-h) * 0.62);
+  bottom: calc(var(--size) * -0.38);
   width: var(--size);
   height: var(--size);
 }
 
 #menu-gag-saw-spin {
+  display: block;
   width: 100%;
   height: 100%;
   background: url('/assets/hazards/saw-spin.webp') center / contain no-repeat;
@@ -182,27 +171,22 @@
   }
 }
 
-/* 19-frame run strip (one stride), played at the game's 22fps. */
+/* 19-frame run strip (one stride), each frame 114x128; menuGag.ts picks the
+   frame from distance covered so the feet never skate. Drawn 1.25x wider
+   than the art, like the game (PLAYER_DISPLAY_WIDTH_SCALE). */
 #menu-gag-runner {
-  --size: 66px;
-  bottom: calc(var(--ground-h) - 6px);
-  width: var(--size);
-  height: var(--size);
+  --frame-w: calc(var(--runner-h) * 0.890625 * 1.25);
+  width: var(--frame-w);
+  height: var(--runner-h);
   background-image: url('/assets/ui/menu-gag-run.webp');
-  background-size: calc(var(--size) * 19) 100%;
-  animation: menu-gag-run 864ms steps(19) infinite;
-}
-
-@keyframes menu-gag-run {
-  to {
-    background-position: calc(var(--size) * -19) 0;
-  }
+  background-size: calc(var(--frame-w) * 19) 100%;
+  visibility: hidden;
 }
 
 #menu-gag-kaboom {
-  width: 96px;
-  height: 59px;
-  bottom: calc(var(--ground-h) + 2px);
+  width: calc(var(--runner-h) * 1.5);
+  height: calc(var(--runner-h) * 0.92);
+  bottom: calc(var(--runner-h) * 0.15);
   background: url('/assets/vfx/death-kaboom.webp') center / contain no-repeat;
   opacity: 0;
 }
@@ -210,9 +194,9 @@
 /* Pixel-art sheets, stepped by menuGag.ts via background-position. */
 #menu-gag-blood,
 #menu-gag-poof {
-  width: 72px;
-  height: 72px;
-  bottom: calc(var(--ground-h) - 8px);
+  width: calc(var(--runner-h) * 1.1);
+  height: calc(var(--runner-h) * 1.1);
+  bottom: calc(var(--runner-h) * -0.1);
   background-size: auto 100%;
   image-rendering: pixelated;
   opacity: 0;
@@ -227,27 +211,7 @@
   image-rendering: auto;
 }
 
-@media (orientation: landscape) and (max-height: 420px) {
-  #menu-gag {
-    --ground-h: 22px;
-  }
-
-  #menu-gag-runner {
-    --size: 48px;
-  }
-
-  #menu-gag-saw {
-    --size: 38px;
-  }
-
-  #menu-gag-kaboom {
-    width: 78px;
-    height: 48px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  #menu-gag-runner,
   #menu-gag-saw-spin {
     animation: none;
   }
@@ -354,8 +318,10 @@
 
 /* The one big thing to tap — everything else in the group is smaller. */
 .game-menu-play {
+  position: relative;
   min-width: 210px;
-  margin-top: 14px;
+  /* Headroom for the pencil running along the top edge. */
+  margin-top: calc(var(--runner-h) * 0.85);
   padding: 14px 60px;
   background: var(--accent);
   color: var(--accent-ink);
@@ -403,7 +369,6 @@
 @media (orientation: portrait) and (min-aspect-ratio: 1/2) {
   .game-menu-play {
     min-width: 175px;
-    margin-top: 10px;
     padding: 10px 38px;
     font-size: 27px;
   }
@@ -411,7 +376,6 @@
 
 @media (orientation: landscape) and (max-height: 420px) {
   .game-menu-play {
-    margin-top: 4px;
     padding: 9px 34px;
     font-size: 23px;
   }
@@ -499,11 +463,9 @@
 /* Quiet credit line, not another outlined box: a soft translucent wash
    (no border) so it stays readable over either art variant without
    competing with the group above it. */
-/* Bottom-right, on the gag's ground strip: the pencil dies at the saw
-   before he ever reaches this corner. */
+/* Bottom-right: open paper in every layout. */
 #game-menu-attribution {
   position: absolute;
-  z-index: 3;
   right: max(10px, env(safe-area-inset-right));
   bottom: 8px;
   display: flex;
@@ -517,14 +479,6 @@
   background: rgba(255, 253, 246, 0.6);
   border-radius: var(--radius-sm);
   backdrop-filter: blur(3px);
-}
-
-/* Portrait has room to spare above the ground, and a full-width credit
-   line on the ground would cover the saw. */
-@media (orientation: portrait) {
-  #game-menu-attribution {
-    bottom: calc(var(--gag-h) + 6px);
-  }
 }
 
 #game-menu-attribution-label {

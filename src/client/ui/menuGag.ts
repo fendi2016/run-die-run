@@ -1,24 +1,30 @@
 import { requireElement } from './domUtils';
 
-// The menu's death gag (#menu-gag, shared by the feed card and game.html's
-// menu): the pencil runs in, hits the saw, KABOOM + blood, respawns with a
-// poof, and does it again. Timings mirror the game's own death (Juice.ts
-// kaboom pop/hold/fade, 20fps pixel sheets, 600ms respawn).
-const RUN_SPEED_PX_PER_S = 230;
-// On wide screens the run speeds up rather than dragging on.
-const MAX_RUN_MS = 1700;
-const SAW_AT = 0.45; // fraction of the strip's width
-const SPAWN_AT = 0.06;
+// The menu's death gag (#menu-gag inside the Play button, shared by the feed
+// card and game.html's menu): the pencil runs along Play's top edge, hits
+// the saw at its far end, KABOOM + blood, respawns with a poof, again.
+// Timings mirror the game's own death (Juice.ts kaboom pop/hold/fade, 20fps
+// pixel sheets, 600ms respawn).
+const RUN_FRAMES = 19;
+// One stride covers this many runner-heights, same ratio as in the game
+// (620px/s over a 228ms cycle for a ~69px-tall drawn pencil), so the run
+// frame comes from distance covered and the feet stay planted.
+const STRIDE_PER_HEIGHT = 2.05;
+// Slower than the game's ~9 heights/s so the joke is readable.
+const RUN_HEIGHTS_PER_S = 4.2;
+const SAW_AT = 0.86; // fraction of Play's width
 const RESPAWN_MS = 600;
-const BEAT_AFTER_DEATH_MS = 900;
+const BEAT_AFTER_DEATH_MS = 700;
 const KABOOM_POP_MS = 90;
 const KABOOM_HOLD_MS = 220;
 const KABOOM_FADE_MS = 160;
+const KABOOM_MS = KABOOM_POP_MS + KABOOM_HOLD_MS + KABOOM_FADE_MS;
 const BLOOD_FRAMES = 10;
 const POOF_FRAMES = 7;
 const SHEET_FPS = 20;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const nextFrame = (): Promise<number> => new Promise((resolve) => requestAnimationFrame(resolve));
 
 let started = false;
 
@@ -40,11 +46,18 @@ function placeAt(sprite: HTMLElement, centerX: number): void {
   sprite.style.transform = `translateX(${centerX - sprite.offsetWidth / 2}px)`;
 }
 
-// Reduced motion: the pencil just stands a little short of the saw.
+function showRunFrame(runner: HTMLElement, frame: number): void {
+  runner.style.backgroundPosition = `${-frame * runner.offsetWidth}px 0`;
+}
+
+// Reduced motion: the pencil just stands on Play, short of the saw.
 function placeStatic(): void {
   const width = el('menu-gag').clientWidth;
+  const runner = el('menu-gag-runner');
   placeAt(el('menu-gag-saw'), width * SAW_AT);
-  placeAt(el('menu-gag-runner'), width * (SAW_AT - 0.2));
+  placeAt(runner, width * 0.3);
+  showRunFrame(runner, 0);
+  runner.style.visibility = 'visible';
 }
 
 // Plays a one-row pixel sheet once on `sprite`, centred at x.
@@ -67,29 +80,31 @@ async function kaboom(x: number): Promise<void> {
     transform: `translateX(${left}px) rotate(${tilt}deg) scale(${scale})`,
     opacity,
   });
-  const total = KABOOM_POP_MS + KABOOM_HOLD_MS + KABOOM_FADE_MS;
   await sprite.animate(
     [
       { ...at(0.6, 0), offset: 0, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-      { ...at(1, 1), offset: KABOOM_POP_MS / total },
-      { ...at(1, 1), offset: (KABOOM_POP_MS + KABOOM_HOLD_MS) / total, easing: 'ease-in' },
+      { ...at(1, 1), offset: KABOOM_POP_MS / KABOOM_MS },
+      { ...at(1, 1), offset: (KABOOM_POP_MS + KABOOM_HOLD_MS) / KABOOM_MS, easing: 'ease-in' },
       { ...at(1.1, 0), offset: 1 },
     ],
-    { duration: total }
+    { duration: KABOOM_MS }
   ).finished;
 }
 
-function shake(target: HTMLElement): void {
-  target.animate(
-    [
-      { transform: 'translate(0, 0)' },
-      { transform: 'translate(-3px, 2px)' },
-      { transform: 'translate(3px, -2px)' },
-      { transform: 'translate(-2px, 1px)' },
-      { transform: 'translate(0, 0)' },
-    ],
-    { duration: 160 }
-  );
+// Runs from spawnX to hitX (centre x), picking each frame's pose from the
+// distance covered so far.
+async function run(runner: HTMLElement, spawnX: number, hitX: number): Promise<void> {
+  const height = runner.offsetHeight;
+  const speed = height * RUN_HEIGHTS_PER_S;
+  const stride = height * STRIDE_PER_HEIGHT;
+  const start = await nextFrame();
+  for (let now = start; ; now = await nextFrame()) {
+    const travelled = Math.min(((now - start) / 1000) * speed, hitX - spawnX);
+    placeAt(runner, spawnX + travelled);
+    showRunFrame(runner, Math.floor((travelled / stride) * RUN_FRAMES) % RUN_FRAMES);
+    runner.style.visibility = 'visible';
+    if (spawnX + travelled >= hitX) return;
+  }
 }
 
 // Only runs while the gag is on screen: the expanded game hides the menu
@@ -101,39 +116,25 @@ function isVisible(gag: HTMLElement): boolean {
 async function loop(): Promise<void> {
   const gag = el('menu-gag');
   const runner = el('menu-gag-runner');
-  let first = true;
+  const saw = el('menu-gag-saw');
   for (;;) {
     if (!isVisible(gag)) {
-      first = true;
       await sleep(500);
       continue;
     }
     const width = gag.clientWidth;
     const sawX = width * SAW_AT;
-    placeAt(el('menu-gag-saw'), sawX);
-    const spawnX = first ? -runner.offsetWidth : width * SPAWN_AT;
-    // He dies when his front foot reaches the saw's teeth.
-    const hitX = sawX - el('menu-gag-saw').offsetWidth * 0.55;
+    placeAt(saw, sawX);
+    // Spawns on Play's left end; dies when his front foot reaches the teeth.
+    const spawnX = runner.offsetWidth * 0.35;
+    const hitX = sawX - saw.offsetWidth * 0.5 - runner.offsetWidth * 0.3;
 
-    runner.style.visibility = 'visible';
-    if (!first) void playSheet(el('menu-gag-poof'), spawnX, POOF_FRAMES);
-    first = false;
-    const half = runner.offsetWidth / 2;
-    await runner.animate(
-      [
-        { transform: `translateX(${spawnX - half}px)` },
-        { transform: `translateX(${hitX - half}px)` },
-      ],
-      {
-        duration: Math.min(((hitX - spawnX) / RUN_SPEED_PX_PER_S) * 1000, MAX_RUN_MS),
-        fill: 'forwards',
-      }
-    ).finished;
+    void playSheet(el('menu-gag-poof'), spawnX, POOF_FRAMES);
+    await run(runner, spawnX, hitX);
 
     runner.style.visibility = 'hidden';
-    shake(gag);
-    void playSheet(el('menu-gag-blood'), hitX, BLOOD_FRAMES);
-    await kaboom(hitX);
-    await sleep(RESPAWN_MS + BEAT_AFTER_DEATH_MS - (KABOOM_POP_MS + KABOOM_HOLD_MS + KABOOM_FADE_MS));
+    void playSheet(el('menu-gag-blood'), hitX + runner.offsetWidth * 0.2, BLOOD_FRAMES);
+    await kaboom(sawX);
+    await sleep(RESPAWN_MS + BEAT_AFTER_DEATH_MS - KABOOM_MS);
   }
 }
