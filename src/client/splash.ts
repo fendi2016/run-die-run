@@ -11,8 +11,8 @@ import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { startSplashMusic } from './ui/musicHandoff';
-import { clearRateText, deadliestTrapText, versionText } from '../shared/levelStatsText';
-import { showKillLine } from './ui/killLine';
+import { clearRateText, versionText } from '../shared/levelStatsText';
+import { showKillCount } from './ui/killLine';
 import { startMenuGag } from './ui/menuGag';
 import { sendAnalyticsEvent } from './analytics';
 
@@ -66,7 +66,7 @@ async function loadStats(): Promise<void> {
     }
 
     requireElement('splash-plays-value').textContent = body.attempts.toLocaleString();
-    showKillLine(deadliestTrapText(body));
+    showKillCount(body);
     requireElement('game-menu-creator-name').textContent =
       body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
     const avatar = document.getElementById('splash-creator-avatar');

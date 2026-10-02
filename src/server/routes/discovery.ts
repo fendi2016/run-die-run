@@ -8,7 +8,7 @@ import {
 } from '../../shared/discoveryApi';
 import { SEED_AUTHOR } from '../../shared/constants';
 import { resolveLevelId } from '../services/DailyService';
-import { deadliestTrap } from '../services/TrapStatsService';
+import { levelTrapKills } from '../services/TrapStatsService';
 import {
   discoverLevels,
   getLevelStats,
@@ -68,13 +68,13 @@ discovery.get('/stats/:levelId', async (c) => {
   const levelId = await resolveLevelId(c.req.param('levelId'));
   const stats = await getLevelStats(levelId);
   if (!stats) return c.json({ status: 'error', message: 'Unknown level' }, 404);
-  const [avatar, trap] = await Promise.all([
+  const [avatar, kills] = await Promise.all([
     creatorAvatarUrl(stats.creatorUsername),
-    deadliestTrap(levelId).catch(() => undefined),
+    levelTrapKills(levelId).catch(() => 0),
   ]);
   const body: LevelStats = { ...stats };
   if (avatar) body.creatorAvatarUrl = avatar;
-  if (trap) body.deadliestTrap = trap;
+  if (kills > 0) body.trapKills = kills;
   return c.json(body);
 });
 discovery.get('/levels', async (c) => {

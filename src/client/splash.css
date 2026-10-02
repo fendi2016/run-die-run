@@ -154,3 +154,18 @@ button:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Narrow cards: "☠ 2,476" drops under the play count, smaller, rather than
+   pushing the row into Follow and Build. */
+@media (max-width: 520px) {
+  #splash-plays #menu-kills:not(.hidden) {
+    display: block;
+    margin-top: 2px;
+    font-size: 17px;
+    text-align: center;
+  }
+
+  #splash-plays #menu-kills .menu-kills-sep {
+    display: none;
+  }
+}

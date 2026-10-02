@@ -20,7 +20,11 @@
         <!-- Middle column: the play count, and on a level
              post the level's name under it. -->
         <div id="splash-header-center">
-          <div id="splash-plays"><span id="splash-plays-value">···</span> plays</div>
+          <div id="splash-plays">
+            <span id="splash-plays-value">···</span> plays<span id="menu-kills" class="hidden">
+              <span class="menu-kills-sep">·</span> <span class="menu-kills-skull" role="img" aria-label="kills">☠</span>
+              <span id="menu-kills-value"></span></span>
+          </div>
           <div id="splash-level" class="hidden">
             <span id="splash-level-title"></span>
             <span id="splash-level-meta"></span>
@@ -32,10 +36,6 @@
         <div id="game-menu-cta">
           <img id="game-menu-title" src="/assets/ui/title-logo.webp" alt="SKETCHY" />
           <p id="game-menu-tagline">Beat it. Make it worse. Pass it on.</p>
-          <p id="game-menu-kills" class="hidden">
-            <span class="game-menu-kills-skull" aria-hidden="true">☠</span>
-            <span id="game-menu-kills-text"></span>
-          </p>
           <button type="button" id="game-menu-play" class="game-menu-play">
             Play
           </button>

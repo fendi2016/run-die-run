@@ -1,5 +1,4 @@
 import type { LevelStats } from './discoveryApi';
-import { SEED_AUTHOR } from './constants';
 
 // Shared by the feed card (splash) and the in-game menu so both describe a
 // level the same way.
@@ -21,13 +20,3 @@ export function versionText(stats: LevelStats): string {
   return `Sabotaged ${sabotages === 1 ? 'once' : `${sabotages} times`}`;
 }
 
-// The feed card's hook: the level's deadliest trap, or '' when none has
-// enough kills to be worth bragging about.
-export function deadliestTrapText(stats: LevelStats): string {
-  const trap = stats.deadliestTrap;
-  if (!trap) return '';
-  const kills = trap.kills.toLocaleString();
-  return trap.addedBy === SEED_AUTHOR
-    ? `One trap here has killed ${kills} players`
-    : `u/${trap.addedBy}'s trap has killed ${kills} players`;
-}

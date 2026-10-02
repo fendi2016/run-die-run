@@ -36,13 +36,10 @@ export type LevelStats = {
   postId?: string;
   // The creator's Reddit avatar, for the feed card's "Made by" credit.
   creatorAvatarUrl?: string;
-  // The level's deadliest trap, the feed card's hook line ("☠ 340 killed
-  // by u/x's trap"). Absent until one has scored DEADLIEST_TRAP_MIN_KILLS.
-  deadliestTrap?: DeadliestTrap;
+  // Every kill this level's traps have scored, shown next to the play
+  // count ("☠ 476"). Absent until the first one.
+  trapKills?: number;
 };
-export type DeadliestTrap = { kills: number; addedBy: string };
-// Below this a kill count reads as weak rather than scary.
-export const DEADLIEST_TRAP_MIN_KILLS = 5;
 
 export function isLevelStats(value: unknown): value is LevelStats {
   return (
@@ -64,17 +61,7 @@ export function isLevelStats(value: unknown): value is LevelStats {
     isDifficulty(value.difficulty) &&
     (!('postId' in value) || typeof value.postId === 'string') &&
     (!('creatorAvatarUrl' in value) || typeof value.creatorAvatarUrl === 'string') &&
-    (!('deadliestTrap' in value) || isDeadliestTrap(value.deadliestTrap))
-  );
-}
-function isDeadliestTrap(value: unknown): value is DeadliestTrap {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'kills' in value &&
-    isCount(value.kills) &&
-    'addedBy' in value &&
-    typeof value.addedBy === 'string'
+    (!('trapKills' in value) || isCount(value.trapKills))
   );
 }
 

@@ -1,6 +1,5 @@
 import { redis } from '@devvit/web/server';
 import { SEED_AUTHOR } from '../../shared/constants';
-import { DEADLIEST_TRAP_MIN_KILLS, type DeadliestTrap } from '../../shared/discoveryApi';
 import { HAZARD_TYPES } from '../../shared/hazards';
 import type { MyCurse } from '../../shared/myCursesApi';
 import { NOTORIETY_MIN_KILLS } from '../../shared/trapNotoriety';
@@ -22,21 +21,14 @@ import { getCurrentLevelVersion } from './LevelService';
 // never the owner's own runs. Every writer is best-effort — callers catch.
 const MAX_LISTED = 20;
 
-// The trap in a level's current version with the most kills (every death,
-// not unique players — the bigger, scarier number for the feed card).
-export async function deadliestTrap(levelId: string): Promise<DeadliestTrap | undefined> {
+// Every kill scored by the traps in a level's current version (all deaths,
+// not unique players), for the count next to the plays on the menu.
+export async function levelTrapKills(levelId: string): Promise<number> {
   const level = await getCurrentLevelVersion(levelId);
-  if (!level) return undefined;
+  if (!level) return 0;
   const traps = level.objects.filter((o) => HAZARD_TYPES.has(o.type));
   const kills = await Promise.all(traps.map((o) => redis.get(trapKillsKey(o.id))));
-  let best: DeadliestTrap | undefined;
-  traps.forEach((trap, i) => {
-    const count = Number(kills[i] ?? 0);
-    if (count >= DEADLIEST_TRAP_MIN_KILLS && count > (best?.kills ?? 0)) {
-      best = { kills: count, addedBy: trap.addedBy };
-    }
-  });
-  return best;
+  return kills.reduce((sum, count) => sum + Number(count ?? 0), 0);
 }
 
 // Kill counts of one version's traps that have earned a notoriety badge,
