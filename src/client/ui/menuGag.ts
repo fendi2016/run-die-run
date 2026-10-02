@@ -2,11 +2,11 @@ import { requireElement } from './domUtils';
 
 // The menu's death gag, drawn on one canvas (#menu-gag) over the whole menu
 // (shared by the feed card and game.html's menu): the pencil runs along
-// Play's top edge, trips onto the saw and ends up hunched over the blade,
-// which slowly cuts him in half at the waist while blood sprays all over
-// the card; the two pieces drop off either side, everything fades, he
-// respawns with a poof. One rAF loop and
-// plain drawImage/arc calls — no DOM churn — so it stays smooth on phones.
+// Play's top edge, hops onto the saw, and gets sharpened — wood shavings
+// fly everywhere and pile up on Play while he grinds shorter and shorter,
+// until only his eraser pops out and bounces away. Then the shavings fade
+// and he respawns with a poof. One rAF loop and plain drawImage/arc calls,
+// no DOM churn, so it stays smooth on phones.
 
 // Run strip: 19 frames of 114x128, one stride (ui/menu-gag-run.webp).
 const RUN_FRAMES = 19;
@@ -22,38 +22,37 @@ const SAW_AT = 0.86; // fraction of Play's width
 const SAW_RADIUS = 0.4; // of the runner's height
 // Counter-clockwise (negative is anticlockwise on a y-down canvas).
 const SAW_SPIN = (-Math.PI * 2) / 0.6;
-const SAW_SPIN_CUTTING = (-Math.PI * 2) / 0.25;
+const SAW_SPIN_GRINDING = (-Math.PI * 2) / 0.2;
 
-const TRIP_MS = 220;
-const CUT_MS = 1600;
-const FALL_MS = 450;
-const HOLD_MS = 700;
-const FADE_MS = 350;
+const HOP_MS = 280;
+const GRIND_MS = 1800;
+const ERASER_MS = 1500;
+const FADE_MS = 400;
 const POOF_MS = 350;
 const POOF_FRAMES = 7;
-// Hunched over the blade: clockwise turn of each piece from upright. The
-// top half folds forward over the saw (head hanging down the far side),
-// the legs trail back down the near side — and both droop further as the
-// blade sinks in.
-const HUNCH_TOP = 2.3;
-const HUNCH_LEGS = 0.8;
-const DROOP = 0.2;
-// A piece lying flat sits this much of the frame width above Play (the
-// pencil art is narrower than its frame).
-const REST_LIFT = 0.3;
+// The eraser and its metal band: the top of every run frame.
+const ERASER_FRAC = 0.3;
 
-const BLOOD_COLORS = ['#e0303a', '#b3121f', '#ff4d5a'];
-const MAX_DROPS = 700;
+const WOOD = '#e9c58f';
+const WOOD_EDGE = '#a8743c';
+const PAINT = '#f6c21c';
+const GRAPHITE = '#4a4a4a';
+const MAX_SHAVINGS = 260;
 
-type Drop = {
+type Shaving = {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  r: number;
-  color: string;
+  size: number;
+  angle: number;
+  spin: number;
+  // Curl colour: bare wood, painted edge, or a fleck of graphite.
+  kind: 'wood' | 'paint' | 'graphite';
   stuck: boolean;
 };
+
+type Eraser = { x: number; y: number; vx: number; vy: number; angle: number; spin: number };
 
 type Layout = {
   dpr: number;
@@ -65,7 +64,7 @@ type Layout = {
   runnerH: number;
 };
 
-type Phase = 'run' | 'trip' | 'cut' | 'fall' | 'hold' | 'fade';
+type Phase = 'run' | 'hop' | 'grind' | 'eraser' | 'fade';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -77,7 +76,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
-const easeIn = (t: number): number => t * t;
 const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
 
 let started = false;
@@ -106,10 +104,12 @@ class MenuGag {
   private phaseStart = 0;
   private lastTime = 0;
   private sawAngle = 0;
-  // His pose when he hit the saw, and Play's top edge this frame.
+  // His pose when he hit the saw, where he hopped from, and the eraser
+  // once it pops free.
   private frame = 0;
-  private floorY = 0;
-  private drops: Drop[] = [];
+  private hitX = 0;
+  private eraser: Eraser | undefined;
+  private shavings: Shaving[] = [];
 
   constructor(
     private readonly runImage: HTMLImageElement,
@@ -184,119 +184,87 @@ class MenuGag {
     const w = h * (FRAME_W / FRAME_H) * WIDTH_SCALE;
     const sawR = h * SAW_RADIUS;
     const feetY = l.playTop + 1;
-    this.floorY = feetY + 1;
     const spawnX = l.playLeft + w * 0.35;
-    const sawRestX = l.playLeft + l.playWidth * SAW_AT;
-    // Mostly out of Play, so there's a blade for him to fold over.
-    const sawRestY = feetY - sawR * 0.15;
+    const sawX = l.playLeft + l.playWidth * SAW_AT;
+    // Mostly out of Play, so there's a blade to stand on.
+    const sawY = feetY - sawR * 0.15;
+    // Where he stands on the blade: its top, a little into the teeth.
+    const bladeTop = sawY - sawR * 0.8;
 
     if (this.reducedMotion) {
-      this.drawSaw(l, sawRestX, sawRestY, sawR, 0);
+      this.drawSaw(l, sawX, sawY, sawR, 0);
       this.drawWhole(l.playLeft + l.playWidth * 0.3, feetY, w, h, 0);
       return;
     }
 
-    this.sawAngle += dt * (this.phase === 'cut' ? SAW_SPIN_CUTTING : SAW_SPIN);
-    // The saw behind him; where it's cutting, a sliver of blade is drawn
-    // again over his waist (below) so it reads as going through him.
-    this.drawSaw(l, sawRestX, sawRestY, sawR, this.sawAngle);
-    // Blood behind him too, so it flies out from behind the body instead of
-    // burying it.
-    this.updateDrops(l, dt, h);
-    this.drawDrops(this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1);
-    let waist: { x: number; y: number } | undefined;
-    // He stops when his front foot meets the teeth.
-    const hitX = sawRestX - sawR - w * 0.25;
-    // Hunched: his waist rests on top of the blade, then sinks to its hub.
-    const bladeTop = sawRestY - sawR * 0.9;
-    const upright = { x: hitX, y: feetY - h / 2, top: 0, legs: 0 };
-    const hunched = { x: sawRestX, y: bladeTop, top: HUNCH_TOP, legs: HUNCH_LEGS };
-    let fade = 1;
+    this.sawAngle += dt * (this.phase === 'grind' ? SAW_SPIN_GRINDING : SAW_SPIN);
+    this.updateShavings(l, dt, h);
+    this.drawShavings(this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1);
 
     switch (this.phase) {
       case 'run': {
+        const hitX = sawX - sawR - w * 0.25;
         const speed = h * RUN_HEIGHTS_PER_S;
         const x = Math.min(spawnX + (t / 1000) * speed, hitX);
-        const travelled = x - spawnX;
-        this.frame = Math.floor((travelled / (h * STRIDE_PER_HEIGHT)) * RUN_FRAMES) % RUN_FRAMES;
+        this.frame =
+          Math.floor(((x - spawnX) / (h * STRIDE_PER_HEIGHT)) * RUN_FRAMES) % RUN_FRAMES;
         if (t < POOF_MS) this.drawPoof(spawnX, feetY, h, t);
         this.drawWhole(x, feetY, w, h, this.frame);
-        if (x >= hitX) this.enter('trip', now);
+        if (x >= hitX) {
+          this.hitX = hitX;
+          this.enter('hop', now);
+        }
         break;
       }
-      case 'trip': {
-        // Pitches forward and lands folded over the blade.
-        const p = easeOut(clamp01(t / TRIP_MS));
-        const x = upright.x + (hunched.x - upright.x) * p;
-        const y = upright.y + (hunched.y - upright.y) * p - Math.sin(p * Math.PI) * h * 0.2;
-        this.drawBody(x, y, w, h, upright.top + (hunched.top - upright.top) * p, upright.legs + (hunched.legs - upright.legs) * p, 0);
-        if (p > 0.6) waist = { x, y };
-        if (t >= TRIP_MS) this.enter('cut', now);
+      case 'hop': {
+        // Boing — up and onto the top of the blade.
+        const p = clamp01(t / HOP_MS);
+        const x = this.hitX + (sawX - this.hitX) * easeOut(p);
+        const y = feetY + (bladeTop - feetY) * p - Math.sin(p * Math.PI) * h * 0.55;
+        this.drawWhole(x, y, w, h, this.frame);
+        if (t >= HOP_MS) this.enter('grind', now);
         break;
       }
-      case 'cut': {
-        // The blade slowly sinks into his middle; he twitches; blood goes
-        // everywhere; the two halves start to come apart.
-        const p = clamp01(t / CUT_MS);
-        // Partway into the blade, not to the hub, so he stays on top of Play.
-        const y = hunched.y + (sawRestY - hunched.y) * 0.5 * p;
-        const shake = Math.sin(now / 6) * 1.8;
-        const gap = p * p * w * 0.25;
-        this.drawBody(
-          hunched.x + shake,
-          y + Math.cos(now / 9) * 1.2,
-          w,
-          h,
-          hunched.top + DROOP * p,
-          hunched.legs + DROOP * p,
-          gap
-        );
-        this.spray(hunched.x, y, h, dt, 560);
-        waist = { x: hunched.x, y };
-        if (t >= CUT_MS) this.enter('fall', now);
+      case 'grind': {
+        // Sharpened from the feet up: he sinks into the blade (only what's
+        // above it is drawn) until just the eraser is left.
+        const p = clamp01(t / GRIND_MS);
+        const eaten = h * (1 - ERASER_FRAC) * p;
+        const jitter = Math.sin(now / 5) * 1.6;
+        this.drawEaten(sawX + jitter, bladeTop + eaten, w, h, bladeTop);
+        this.emitShavings(sawX, bladeTop, h, dt, 110);
+        if (t >= GRIND_MS) {
+          // Pop! The eraser shoots up and back across Play.
+          this.eraser = {
+            x: sawX,
+            y: bladeTop - h * ERASER_FRAC * 0.5,
+            vx: -h * 2.2,
+            vy: -h * 9,
+            angle: 0,
+            spin: -14,
+          };
+          this.enter('eraser', now);
+        }
         break;
       }
-      case 'fall': {
-        // Cut through: each piece slides off its side of the blade and lands
-        // flat on Play.
-        const p = easeIn(clamp01(t / FALL_MS));
-        const startY = sawRestY;
-        const restY = feetY - w * REST_LIFT;
-        const topAngle = hunched.top + DROOP;
-        const legsAngle = hunched.legs + DROOP;
-        this.drawPiece('top', sawRestX + w * 0.25 + p * sawR * 1.4, startY + (restY - startY) * p, w, h, topAngle + (Math.PI / 2 - topAngle) * p);
-        this.drawPiece('legs', sawRestX - w * 0.25 - p * sawR * 1.4, startY + (restY - startY) * p, w, h, legsAngle + (Math.PI / 2 - legsAngle) * p);
-        this.spray(sawRestX, sawRestY - sawR * 0.5, h, dt, 300 * (1 - p));
-        if (t >= FALL_MS) this.enter('hold', now);
+      case 'eraser': {
+        this.updateEraser(l, dt, h);
+        this.drawEraser(w, h, 1);
+        if (t >= ERASER_MS) this.enter('fade', now);
         break;
       }
-      case 'hold':
       case 'fade': {
-        if (this.phase === 'fade') fade = 1 - clamp01(t / FADE_MS);
-        const restY = feetY - w * REST_LIFT;
-        ctx.globalAlpha = fade;
-        this.drawPiece('top', sawRestX + w * 0.25 + sawR * 1.4, restY, w, h, Math.PI / 2);
-        this.drawPiece('legs', sawRestX - w * 0.25 - sawR * 1.4, restY, w, h, Math.PI / 2);
-        ctx.globalAlpha = 1;
-        if (this.phase === 'hold') {
-          this.spray(sawRestX, sawRestY - sawR * 0.5, h, dt, 50);
-          if (t >= HOLD_MS) this.enter('fade', now);
-        } else if (t >= FADE_MS) {
-          this.drops = [];
+        this.drawEraser(w, h, 1 - clamp01(t / FADE_MS));
+        if (t >= FADE_MS) {
+          this.shavings = [];
+          this.eraser = undefined;
           this.enter('run', now);
         }
         break;
       }
     }
 
-    if (waist) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(waist.x - sawR * 0.3, waist.y - h * 0.3, sawR * 0.6, h * 0.3 + 3);
-      ctx.clip();
-      this.drawSaw(l, sawRestX, sawRestY, sawR, this.sawAngle);
-      ctx.restore();
-    }
+    this.drawSaw(l, sawX, sawY, sawR, this.sawAngle);
   }
 
   // One run-strip frame, bottom-centre at (x, feetY).
@@ -304,43 +272,47 @@ class MenuGag {
     this.ctx.drawImage(this.runImage, frame * FRAME_W, 0, FRAME_W, FRAME_H, x - w / 2, feetY - h, w, h);
   }
 
-  // His body bent at the waist (x, y): the top half turned `topAngle` and
-  // the legs `legsAngle` clockwise from upright, `gap` apart at the cut.
-  private drawBody(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    topAngle: number,
-    legsAngle: number,
-    gap: number
-  ): void {
-    this.drawPiece('legs', x - gap / 2, y, w, h, legsAngle);
-    this.drawPiece('top', x + gap / 2, y, w, h, topAngle);
-  }
-
-  // Half of the pose at hit time, pivoting on its cut edge at the waist.
-  // Play is the floor: nothing of him hangs over its face.
-  private drawPiece(half: 'top' | 'legs', x: number, y: number, w: number, h: number, angle: number): void {
+  // The frozen pose with its feet at feetY, drawn only above cutY.
+  private drawEaten(x: number, feetY: number, w: number, h: number, cutY: number): void {
     const ctx = this.ctx;
-    const sy = half === 'top' ? 0 : FRAME_H / 2;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 0, ctx.canvas.width, this.floorY);
+    ctx.rect(x - w, feetY - h - 2, w * 2, cutY - (feetY - h) + 2);
     ctx.clip();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.drawImage(
-      this.runImage,
-      this.frame * FRAME_W,
-      sy,
-      FRAME_W,
-      FRAME_H / 2,
-      -w / 2,
-      half === 'top' ? -h / 2 : 0,
-      w,
-      h / 2
-    );
+    this.drawWhole(x, feetY, w, h, this.frame);
+    ctx.restore();
+  }
+
+  // Bounces along Play's top, then rolls/falls off wherever it goes.
+  private updateEraser(l: Layout, dt: number, h: number): void {
+    const e = this.eraser;
+    if (!e) return;
+    const k = h / 56;
+    const radius = h * ERASER_FRAC * 0.35;
+    e.vy += 1500 * k * dt;
+    e.x += e.vx * dt;
+    e.y += e.vy * dt;
+    e.angle += e.spin * dt;
+    const onPlay = e.x > l.playLeft && e.x < l.playLeft + l.playWidth;
+    if (onPlay && e.vy > 0 && e.y + radius >= l.playTop) {
+      e.y = l.playTop - radius;
+      e.vy = -e.vy * 0.55;
+      e.vx *= 0.8;
+      e.spin *= 0.7;
+    }
+  }
+
+  private drawEraser(w: number, h: number, alpha: number): void {
+    const e = this.eraser;
+    if (!e) return;
+    const ctx = this.ctx;
+    const sh = FRAME_H * ERASER_FRAC;
+    const dh = h * ERASER_FRAC;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    ctx.drawImage(this.runImage, this.frame * FRAME_W, 0, FRAME_W, sh, -w / 2, -dh / 2, w, dh);
     ctx.restore();
   }
 
@@ -364,56 +336,73 @@ class MenuGag {
     this.ctx.drawImage(this.poofImage, frame * src, 0, src, src, x - size / 2, feetY - size * 0.85, size, size);
   }
 
-  // Blood out of the cut: mostly up and sideways, fast, all over the card.
-  private spray(x: number, y: number, h: number, dt: number, perSecond: number): void {
+  // Shavings thrown off the blade, mostly up and out to both sides.
+  private emitShavings(x: number, y: number, h: number, dt: number, perSecond: number): void {
     const k = h / 56;
     let count = perSecond * dt;
-    while (count > 0 && this.drops.length < MAX_DROPS) {
+    while (count > 0 && this.shavings.length < MAX_SHAVINGS) {
       if (count < 1 && Math.random() > count) break;
       count -= 1;
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5;
-      const speed = (380 + Math.random() * 620) * k;
-      const big = Math.random() < 0.06;
-      this.drops.push({
-        x: x + (Math.random() - 0.5) * 4,
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
+      const speed = (220 + Math.random() * 420) * k;
+      const roll = Math.random();
+      this.shavings.push({
+        x: x + (Math.random() - 0.5) * 6,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        r: (big ? 3.5 + Math.random() * 3 : 1.2 + Math.random() * 2.3) * k,
-        color: BLOOD_COLORS[Math.floor(Math.random() * BLOOD_COLORS.length)] ?? '#e0303a',
+        size: (2.5 + Math.random() * 3) * k,
+        angle: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 18,
+        kind: roll < 0.15 ? 'graphite' : roll < 0.45 ? 'paint' : 'wood',
         stuck: false,
       });
     }
   }
 
-  private updateDrops(l: Layout, dt: number, h: number): void {
-    const gravity = 1500 * (h / 56);
+  // Light, fluttery fall; the ones that land on Play pile up there.
+  private updateShavings(l: Layout, dt: number, h: number): void {
+    const gravity = 900 * (h / 56);
     const playRight = l.playLeft + l.playWidth;
-    this.drops = this.drops.filter((d) => {
-      if (d.stuck) return true;
-      const prevY = d.y;
-      d.vy += gravity * dt;
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-      // Landing on Play's top edge leaves a splat there.
-      if (d.vy > 0 && prevY <= l.playTop && d.y >= l.playTop && d.x > l.playLeft && d.x < playRight) {
-        d.y = l.playTop + 1;
-        d.stuck = true;
+    this.shavings = this.shavings.filter((s) => {
+      if (s.stuck) return true;
+      const prevY = s.y;
+      s.vy += gravity * dt;
+      s.vx *= 1 - 1.2 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.angle += s.spin * dt;
+      if (s.vy > 0 && prevY <= l.playTop && s.y >= l.playTop && s.x > l.playLeft && s.x < playRight) {
+        s.y = l.playTop - s.size * 0.3;
+        s.stuck = true;
         return true;
       }
-      return d.y < l.height + 10 && d.x > -10 && d.x < l.width + 10;
+      return s.y < l.height + 10 && s.x > -10 && s.x < l.width + 10;
     });
   }
 
-  private drawDrops(alpha: number): void {
+  // Each shaving is a little curl: a thick arc of wood with a darker rim
+  // (a painted yellow edge on some), or a dot of graphite.
+  private drawShavings(alpha: number): void {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
-    for (const d of this.drops) {
-      ctx.fillStyle = d.color;
+    ctx.lineCap = 'round';
+    for (const s of this.shavings) {
+      if (s.kind === 'graphite') {
+        ctx.fillStyle = GRAPHITE;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       ctx.beginPath();
-      if (d.stuck) ctx.ellipse(d.x, d.y, d.r * 1.7, d.r * 0.7, 0, 0, Math.PI * 2);
-      else ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(s.x, s.y, s.size, s.angle, s.angle + Math.PI * 1.3);
+      ctx.strokeStyle = WOOD_EDGE;
+      ctx.lineWidth = s.size * 0.75;
+      ctx.stroke();
+      ctx.strokeStyle = s.kind === 'paint' ? PAINT : WOOD;
+      ctx.lineWidth = s.size * 0.45;
+      ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
