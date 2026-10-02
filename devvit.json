@@ -20,8 +20,8 @@
   "menu": {
     "items": [
       {
-        "label": "Create a SKETCHY post",
-        "description": "Post the SKETCHY hub (play, build, browse)",
+        "label": "Create a game post",
+        "description": "Post the game hub (play, build, browse)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"

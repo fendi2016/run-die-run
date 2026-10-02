@@ -41,7 +41,7 @@ Each player can publish up to 10 levels and place up to 30 curses a day.
 
 After installing, open the subreddit menu:
 
-- **Create a SKETCHY post:** posts the hub (play, build, browse). Pin it.
+- **Create a game post:** posts the hub (play, build, browse). Pin it.
 - **Post Level of the Day now:** features the top trending level
   immediately. This also runs automatically every day at 16:00 UTC.
 - **Reseed built-in levels (dev)** and **Reset built-in level
