@@ -2,10 +2,11 @@ import { requireElement } from './domUtils';
 
 // The menu's death gag, drawn on one canvas (#menu-gag) over the whole menu
 // (shared by the feed card and game.html's menu): the pencil runs along
-// Play's top edge, hops onto the saw, and gets sharpened — wood shavings
-// fly everywhere and pile up on Play while he grinds shorter and shorter,
-// until only his eraser pops out and bounces away. Then the shavings fade
-// and he respawns with a poof. One rAF loop and plain drawImage/arc calls,
+// Play's top edge into the saw and gets sharpened to nothing — the drawn
+// destruction sequence (ui/menu-gag-shaved.webp) plays while real shaving
+// sprites (ui/menu-gag-shavings.webp) fly off the blade and pile up on
+// Play, down to a heap with his eraser and shoes. Then it fades and he
+// respawns with a poof. One rAF loop and plain drawImage/arc calls,
 // no DOM churn, so it stays smooth on phones.
 
 // Run strip: 19 frames of 114x128, one stride (ui/menu-gag-run.webp).
@@ -27,20 +28,21 @@ const SAW_RADIUS = 0.4; // of the runner's height
 const SAW_SPIN = (-Math.PI * 2) / 1.0;
 const SAW_SPIN_GRINDING = (-Math.PI * 2) / 0.6;
 
-const HOP_MS = 280;
-const GRIND_MS = 1800;
-const ERASER_MS = 1500;
+// Destruction strip: 8 frames of 65x128, the pencil standing in each
+// with its eraser-to-shoe height at 365/375 of the cell.
+const SHAVED_FRAMES = 8;
+const SHAVED_W = 65;
+const SHAVED_H = 128;
+const SHAVED_ART = 365 / 375;
+const SHAVED_FRAME_MS = [220, 160, 170, 170, 170, 190, 210, 0];
+const PILE_MS = 1100;
 const FADE_MS = 400;
 const POOF_MS = 350;
 const POOF_FRAMES = 7;
-// The eraser and its metal band: the top of every run frame.
-const ERASER_FRAC = 0.3;
-
-const WOOD = '#e9c58f';
-const WOOD_EDGE = '#a8743c';
-const PAINT = '#f6c21c';
-const GRAPHITE = '#4a4a4a';
-const MAX_SHAVINGS = 260;
+// Shavings strip: 24 pieces of 48x48.
+const SHAVING_SPRITES = 24;
+const SHAVING_PX = 48;
+const MAX_SHAVINGS = 120;
 
 type Shaving = {
   x: number;
@@ -50,12 +52,9 @@ type Shaving = {
   size: number;
   angle: number;
   spin: number;
-  // Curl colour: bare wood, painted edge, or a fleck of graphite.
-  kind: 'wood' | 'paint' | 'graphite';
+  sprite: number;
   stuck: boolean;
 };
-
-type Eraser = { x: number; y: number; vx: number; vy: number; angle: number; spin: number };
 
 type Layout = {
   dpr: number;
@@ -67,7 +66,7 @@ type Layout = {
   runnerH: number;
 };
 
-type Phase = 'run' | 'hop' | 'grind' | 'eraser' | 'fade';
+type Phase = 'run' | 'shave' | 'pile' | 'fade';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -78,7 +77,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
 const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
 
 let started = false;
@@ -90,8 +88,12 @@ export function startMenuGag(): void {
     loadImage('/assets/ui/menu-gag-run.webp'),
     loadImage('/assets/hazards/saw-spin.webp'),
     loadImage('/assets/vfx/smoke-poof.webp'),
+    loadImage('/assets/ui/menu-gag-shaved.webp'),
+    loadImage('/assets/ui/menu-gag-shavings.webp'),
   ])
-    .then(([run, saw, poof]) => new MenuGag(run, saw, poof).start())
+    .then(([run, saw, poof, shaved, shavings]) =>
+      new MenuGag(run, saw, poof, shaved, shavings).start()
+    )
     .catch(() => undefined); // No gag; the menu works without it.
 }
 
@@ -107,17 +109,17 @@ class MenuGag {
   private phaseStart = 0;
   private lastTime = 0;
   private sawAngle = 0;
-  // His pose when he hit the saw, where he hopped from, and the eraser
-  // once it pops free.
   private frame = 0;
+  // Where he stopped against the saw.
   private hitX = 0;
-  private eraser: Eraser | undefined;
   private shavings: Shaving[] = [];
 
   constructor(
     private readonly runImage: HTMLImageElement,
     private readonly sawImage: HTMLImageElement,
-    private readonly poofImage: HTMLImageElement
+    private readonly poofImage: HTMLImageElement,
+    private readonly shavedImage: HTMLImageElement,
+    private readonly shavingsImage: HTMLImageElement
   ) {
     const canvas = requireElement('menu-gag');
     if (!(canvas instanceof HTMLCanvasElement)) throw new Error('#menu-gag must be a canvas');
@@ -189,10 +191,8 @@ class MenuGag {
     const feetY = l.playTop + 1;
     const spawnX = l.playLeft + w * 0.35;
     const sawX = l.playLeft + l.playWidth * SAW_AT;
-    // Mostly out of Play, so there's a blade to stand on.
+    // Mostly out of Play, so it's a big blade to run into.
     const sawY = feetY - sawR * 0.15;
-    // Where he stands on the blade: its top, a little into the teeth.
-    const bladeTop = sawY - sawR * 0.8;
 
     if (this.reducedMotion) {
       this.drawSaw(l, sawX, sawY, sawR, 0);
@@ -200,7 +200,7 @@ class MenuGag {
       return;
     }
 
-    this.sawAngle += dt * (this.phase === 'grind' ? SAW_SPIN_GRINDING : SAW_SPIN);
+    this.sawAngle += dt * (this.phase === 'shave' ? SAW_SPIN_GRINDING : SAW_SPIN);
     this.updateShavings(l, dt, h);
     this.drawShavings(this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1);
 
@@ -215,52 +215,36 @@ class MenuGag {
         this.drawWhole(x, feetY, w, h, this.frame);
         if (x >= hitX) {
           this.hitX = hitX;
-          this.enter('hop', now);
+          this.enter('shave', now);
         }
         break;
       }
-      case 'hop': {
-        // Boing — up and onto the top of the blade.
-        const p = clamp01(t / HOP_MS);
-        const x = this.hitX + (sawX - this.hitX) * easeOut(p);
-        const y = feetY + (bladeTop - feetY) * p - Math.sin(p * Math.PI) * h * 0.55;
-        this.drawWhole(x, y, w, h, this.frame);
-        if (t >= HOP_MS) this.enter('grind', now);
-        break;
-      }
-      case 'grind': {
-        // Sharpened from the feet up: he sinks into the blade (only what's
-        // above it is drawn) until just the eraser is left.
-        const p = clamp01(t / GRIND_MS);
-        const eaten = h * (1 - ERASER_FRAC) * p;
-        const jitter = Math.sin(now / 5) * 1.6;
-        this.drawEaten(sawX + jitter, bladeTop + eaten, w, h, bladeTop);
-        this.emitShavings(sawX, bladeTop, h, dt, 110);
-        if (t >= GRIND_MS) {
-          // Pop! The eraser shoots up and back across Play.
-          this.eraser = {
-            x: sawX,
-            y: bladeTop - h * ERASER_FRAC * 0.5,
-            vx: -h * 2.2,
-            vy: -h * 9,
-            angle: 0,
-            spin: -14,
-          };
-          this.enter('eraser', now);
+      case 'shave': {
+        // The drawn sequence: shocked, wincing, then swallowed by shavings
+        // down to a heap — with real shavings flying off the blade.
+        let frame = 0;
+        let elapsed = t;
+        while (frame < SHAVED_FRAMES - 1 && elapsed >= (SHAVED_FRAME_MS[frame] ?? 0)) {
+          elapsed -= SHAVED_FRAME_MS[frame] ?? 0;
+          frame += 1;
         }
+        const jitter = frame > 0 && frame < SHAVED_FRAMES - 1 ? Math.sin(now / 5) * 1.4 : 0;
+        this.drawShaved(this.hitX + jitter, feetY, h, frame);
+        if (frame >= 1 && frame <= 6) {
+          this.emitShavings(sawX - sawR * 0.7, feetY - h * 0.45, h, dt, 34);
+        }
+        if (frame === SHAVED_FRAMES - 1) this.enter('pile', now);
         break;
       }
-      case 'eraser': {
-        this.updateEraser(l, dt, h);
-        this.drawEraser(w, h, 1);
-        if (t >= ERASER_MS) this.enter('fade', now);
-        break;
-      }
+      case 'pile':
       case 'fade': {
-        this.drawEraser(w, h, 1 - clamp01(t / FADE_MS));
-        if (t >= FADE_MS) {
+        const alpha = this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1;
+        ctx.globalAlpha = alpha;
+        this.drawShaved(this.hitX, feetY, h, SHAVED_FRAMES - 1);
+        ctx.globalAlpha = 1;
+        if (this.phase === 'pile' && t >= PILE_MS) this.enter('fade', now);
+        if (this.phase === 'fade' && t >= FADE_MS) {
           this.shavings = [];
-          this.eraser = undefined;
           this.enter('run', now);
         }
         break;
@@ -275,48 +259,21 @@ class MenuGag {
     this.ctx.drawImage(this.runImage, frame * FRAME_W, 0, FRAME_W, FRAME_H, x - w / 2, feetY - h, w, h);
   }
 
-  // The frozen pose with its feet at feetY, drawn only above cutY.
-  private drawEaten(x: number, feetY: number, w: number, h: number, cutY: number): void {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x - w, feetY - h - 2, w * 2, cutY - (feetY - h) + 2);
-    ctx.clip();
-    this.drawWhole(x, feetY, w, h, this.frame);
-    ctx.restore();
-  }
-
-  // Bounces along Play's top, then rolls/falls off wherever it goes.
-  private updateEraser(l: Layout, dt: number, h: number): void {
-    const e = this.eraser;
-    if (!e) return;
-    const k = h / 56;
-    const radius = h * ERASER_FRAC * 0.35;
-    e.vy += 1500 * k * dt;
-    e.x += e.vx * dt;
-    e.y += e.vy * dt;
-    e.angle += e.spin * dt;
-    const onPlay = e.x > l.playLeft && e.x < l.playLeft + l.playWidth;
-    if (onPlay && e.vy > 0 && e.y + radius >= l.playTop) {
-      e.y = l.playTop - radius;
-      e.vy = -e.vy * 0.55;
-      e.vx *= 0.8;
-      e.spin *= 0.7;
-    }
-  }
-
-  private drawEraser(w: number, h: number, alpha: number): void {
-    const e = this.eraser;
-    if (!e) return;
-    const ctx = this.ctx;
-    const sh = FRAME_H * ERASER_FRAC;
-    const dh = h * ERASER_FRAC;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(e.x, e.y);
-    ctx.rotate(e.angle);
-    ctx.drawImage(this.runImage, this.frame * FRAME_W, 0, FRAME_W, sh, -w / 2, -dh / 2, w, dh);
-    ctx.restore();
+  // One destruction frame, the pencil's feet at feetY, as tall as the runner.
+  private drawShaved(x: number, feetY: number, h: number, frame: number): void {
+    const dh = h / SHAVED_ART;
+    const dw = dh * (SHAVED_W / SHAVED_H);
+    this.ctx.drawImage(
+      this.shavedImage,
+      frame * SHAVED_W,
+      0,
+      SHAVED_W,
+      SHAVED_H,
+      x - dw / 2,
+      feetY - dh,
+      dw,
+      dh
+    );
   }
 
   // Sunk into Play: never drawn below its top edge.
@@ -346,18 +303,18 @@ class MenuGag {
     while (count > 0 && this.shavings.length < MAX_SHAVINGS) {
       if (count < 1 && Math.random() > count) break;
       count -= 1;
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
-      const speed = (220 + Math.random() * 420) * k;
-      const roll = Math.random();
+      // Off the front of the blade: up and back over him, some forward.
+      const angle = -Math.PI / 2 + (Math.random() - 0.65) * Math.PI * 1.3;
+      const speed = (200 + Math.random() * 320) * k;
       this.shavings.push({
         x: x + (Math.random() - 0.5) * 6,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        size: (2.5 + Math.random() * 3) * k,
+        size: (12 + Math.random() * 10) * k,
         angle: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * 18,
-        kind: roll < 0.15 ? 'graphite' : roll < 0.45 ? 'paint' : 'wood',
+        spin: (Math.random() - 0.5) * 12,
+        sprite: Math.floor(Math.random() * SHAVING_SPRITES),
         stuck: false,
       });
     }
@@ -376,7 +333,7 @@ class MenuGag {
       s.y += s.vy * dt;
       s.angle += s.spin * dt;
       if (s.vy > 0 && prevY <= l.playTop && s.y >= l.playTop && s.x > l.playLeft && s.x < playRight) {
-        s.y = l.playTop - s.size * 0.3;
+        s.y = l.playTop - s.size * 0.35;
         s.stuck = true;
         return true;
       }
@@ -384,28 +341,25 @@ class MenuGag {
     });
   }
 
-  // Each shaving is a little curl: a thick arc of wood with a darker rim
-  // (a painted yellow edge on some), or a dot of graphite.
   private drawShavings(alpha: number): void {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
-    ctx.lineCap = 'round';
     for (const s of this.shavings) {
-      if (s.kind === 'graphite') {
-        ctx.fillStyle = GRAPHITE;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * 0.3, 0, Math.PI * 2);
-        ctx.fill();
-        continue;
-      }
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, s.angle, s.angle + Math.PI * 1.3);
-      ctx.strokeStyle = WOOD_EDGE;
-      ctx.lineWidth = s.size * 0.75;
-      ctx.stroke();
-      ctx.strokeStyle = s.kind === 'paint' ? PAINT : WOOD;
-      ctx.lineWidth = s.size * 0.45;
-      ctx.stroke();
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.angle);
+      ctx.drawImage(
+        this.shavingsImage,
+        s.sprite * SHAVING_PX,
+        0,
+        SHAVING_PX,
+        SHAVING_PX,
+        -s.size / 2,
+        -s.size / 2,
+        s.size,
+        s.size
+      );
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   }
