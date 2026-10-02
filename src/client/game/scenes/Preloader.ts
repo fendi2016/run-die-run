@@ -1,6 +1,5 @@
 import { SCRIBBLE_FX } from '../systems/DeathEffects';
 import { Scene } from 'phaser';
-import type * as Phaser from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
 import {
   createSpawnIconTexture,
@@ -8,8 +7,8 @@ import {
   TERRAIN_TEXTURE_FILES,
 } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
-import { prefetchLevel, prefetchSettled } from '../levelPrefetch';
-import { SFX_FILES, SFX_KEYS } from '../systems/Sfx';
+import { prefetchLevel } from '../levelPrefetch';
+import { streamSfx } from '../systems/Sfx';
 import { createPixelFxAnims, PIXEL_FX_SHEETS, streamLateSpritesheets } from '../systems/Juice';
 import { SCENERY_ART } from '../systems/PaperScenery';
 import { allowMusic } from '../../ui/SoundToggle';
@@ -47,16 +46,10 @@ export class Preloader extends Scene {
     const onProgress = (progress: number) => {
       bar.width = Math.max(4, barWidth * progress);
     };
-    // Sound is pure polish (see Sfx.ts) and must never be able to block the
-    // game from loading — a failed/unsupported audio file only skips that
-    // one sound (Phaser just won't have it in its cache; Sfx.playSfx
-    // already no-ops safely on a missing key), unlike every other asset
-    // type, where a load failure means something actually required is
-    // missing and the whole game can't safely start.
-    const onError = (file: Phaser.Loader.File) => {
-      if (file.type !== 'audio') {
-        this.failed = true;
-      }
+    // Every file here is required (sounds stream in later, see
+    // Sfx.streamSfx), so any load failure means the game can't safely start.
+    const onError = () => {
+      this.failed = true;
     };
     this.load.on('progress', onProgress);
     this.load.on('loaderror', onError);
@@ -141,12 +134,6 @@ export class Preloader extends Scene {
     // this loader.
     this.load.image('ui-hand', 'kenney/ui/ui-hand.webp');
     this.load.image('ui-select', 'kenney/ui/ui-select.webp');
-
-    // Sound effects (see Sfx.ts) — a failure here never fails the whole
-    // load (onError above exempts 'audio' files).
-    for (const key of SFX_KEYS) {
-      this.load.audio(key, SFX_FILES[key]);
-    }
   }
 
   create() {
@@ -171,16 +158,11 @@ export class Preloader extends Scene {
     createSpawnIconTexture(this);
     allowMusic();
     streamLateSpritesheets(this.game);
+    streamSfx(this.game);
 
-    //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
-    //  For example, you can define global animations here, so we can use them in other scenes.
-
-    //  Move to the MainMenu once the level prefetch has also landed (it
-    //  normally beats the assets; the cap keeps a slow API from holding the
-    //  bar at 100%).
-    void prefetchSettled(4000).then(() => {
-      sendAnalyticsEvent({ event: 'open', device: deviceKind(), loadMs: Math.round(performance.now()) });
-      this.scene.start('MainMenu');
-    });
+    sendAnalyticsEvent({ event: 'open', device: deviceKind(), loadMs: Math.round(performance.now()) });
+    // The menu needs none of the level, so it doesn't wait for the level
+    // prefetch: GameScene takes it whenever it lands (see levelPrefetch.ts).
+    this.scene.start('MainMenu');
   }
 }

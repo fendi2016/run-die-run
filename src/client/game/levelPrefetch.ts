@@ -2,8 +2,8 @@ import { isLevelVersion, type LevelVersion } from '../../shared/types';
 import { withTimeout } from '../net';
 
 // The post's level is fetched while the Preloader's asset bar is still
-// filling, so GameScene can start it the moment the bar finishes instead of
-// putting up a "Loading level…" screen of its own. One-shot: GameScene
+// filling (the menu doesn't wait for it), so GameScene can usually start it
+// at once instead of waiting on the dark canvas. One-shot: GameScene
 // takes it once; a prefetch older than MAX_AGE_MS (the player sat on the
 // menu) is dropped so a curse published meanwhile isn't missed.
 const MAX_AGE_MS = 60_000;
@@ -35,15 +35,4 @@ export async function takePrefetchedLevel(
   if (!taken || taken.levelId !== levelId) return undefined;
   if (Date.now() - taken.startedAt > MAX_AGE_MS) return undefined;
   return taken.level;
-}
-
-// For the Preloader: wait (bounded) for the prefetch to settle so the
-// asset bar covers it.
-export async function prefetchSettled(maxWaitMs: number): Promise<void> {
-  const level = pending?.level;
-  if (!level) return;
-  await Promise.race([
-    level,
-    new Promise((resolve) => setTimeout(resolve, maxWaitMs)),
-  ]);
 }

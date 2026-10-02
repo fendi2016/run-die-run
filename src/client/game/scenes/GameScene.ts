@@ -652,9 +652,10 @@ export class GameScene extends Scene {
     }
 
     this.levelRequest?.abort();
-    // No "Loading level…" screen: the first level was already fetched under
-    // the Preloader's bar, and a later one (Next Level, Browse) is a short
-    // wait on the dark canvas. Failures still get the error dialog below.
+    // No "Loading level…" screen: the first level was prefetched from the
+    // Preloader on (usually landed by now), and a later one (Next Level,
+    // Browse) is a short wait on the dark canvas. Failures still get the
+    // error dialog below.
     this.controls.hideWhileLoading();
     const levelId = this.explicitLevelId ?? getRequestedLevelId();
     const request = new AbortController();
