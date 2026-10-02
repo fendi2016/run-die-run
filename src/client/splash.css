@@ -33,16 +33,42 @@ button:focus-visible {
   display: none !important;
 }
 
-/* No sound toggle on the feed card, so no room to reserve for it. */
+/* No sound toggle on the feed card, so no room to reserve for it. Three
+   columns — Follow, the play count, an empty spacer as wide as Follow —
+   keep the count centred on the card. */
 #game-menu-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   padding-right: 14px;
+}
+
+#game-menu-follow-btn {
+  justify-self: start;
+}
+
+#splash-header-center {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* The card's headline number: how many runs this level has had. */
+#splash-plays {
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 /* A level post names its level in the header's free middle; the hub post
    keeps it empty. Truncates rather than pushing the chips off the card. */
 #splash-level {
-  flex: 1 1 auto;
-  min-width: 0;
+  max-width: 100%;
+  margin-top: 3px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -71,4 +97,35 @@ button:focus-visible {
   font-size: var(--text-min);
   font-weight: 600;
   color: var(--ink-soft);
+}
+
+/* "Made by" credit: the creator's Reddit avatar beside their name, bigger
+   than the in-game menu's quiet credit line. */
+#game-menu-attribution {
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+}
+
+#splash-creator-avatar {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+#splash-creator-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#splash-creator-text #game-menu-creator-name {
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 18px;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

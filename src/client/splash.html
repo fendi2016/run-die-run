@@ -17,16 +17,17 @@
         <button type="button" id="game-menu-follow-btn" class="game-menu-follow-btn">
           Follow
         </button>
-        <div id="splash-level" class="hidden">
-          <span id="splash-level-title"></span>
-          <span id="splash-level-meta"></span>
+        <!-- Middle column: the play count, and on a level
+             post the level's name under it. -->
+        <div id="splash-header-center">
+          <div id="splash-plays"><span id="splash-plays-value">···</span> plays</div>
+          <div id="splash-level" class="hidden">
+            <span id="splash-level-title"></span>
+            <span id="splash-level-meta"></span>
+          </div>
         </div>
-        <div id="game-menu-chips">
-          <button type="button" id="game-menu-stats-chip" aria-label="Your stats">
-            <span id="game-menu-stats-label">Your stats</span>
-            <span id="game-menu-stats-badge" class="hidden"></span>
-          </button>
-        </div>
+        <!-- Balances Follow so the play count sits dead centre. -->
+        <div id="splash-header-spacer" aria-hidden="true"></div>
       </div>
       <div id="game-menu-scene">
         <div id="game-menu-cta">
@@ -37,9 +38,11 @@
           </button>
         </div>
         <div id="game-menu-attribution">
-          <span id="game-menu-attribution-label">Made by</span>
-          <span id="game-menu-creator-name">SKETCHY</span>
-          <span id="game-menu-runs"><span id="game-menu-stat-value">···</span> runs on this level</span>
+          <img id="splash-creator-avatar" class="hidden" alt="" />
+          <div id="splash-creator-text">
+            <span id="game-menu-attribution-label">Made by</span>
+            <span id="game-menu-creator-name">SKETCHY</span>
+          </div>
         </div>
       </div>
     </div>

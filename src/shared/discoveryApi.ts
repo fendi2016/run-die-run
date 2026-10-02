@@ -34,6 +34,8 @@ export type LevelStats = {
   clears: number;
   difficulty: Difficulty;
   postId?: string;
+  // The creator's Reddit avatar, for the feed card's "Made by" credit.
+  creatorAvatarUrl?: string;
 };
 
 export function isLevelStats(value: unknown): value is LevelStats {
@@ -54,7 +56,8 @@ export function isLevelStats(value: unknown): value is LevelStats {
     isCount(value.clears) &&
     'difficulty' in value &&
     isDifficulty(value.difficulty) &&
-    (!('postId' in value) || typeof value.postId === 'string')
+    (!('postId' in value) || typeof value.postId === 'string') &&
+    (!('creatorAvatarUrl' in value) || typeof value.creatorAvatarUrl === 'string')
   );
 }
 

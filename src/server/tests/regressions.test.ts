@@ -175,6 +175,7 @@ const reddit = {
     redditCalls.push({ method: 'submitComment', options });
     return {};
   },
+  getSnoovatarUrl: async (username: string) => `https://i.redd.it/snoovatar/${username}.png`,
 };
 mock.module('@devvit/web/server', {
   namedExports: {
@@ -1674,7 +1675,11 @@ await test('menu stats reads only its level counters and metadata without scanni
     assert.deepEqual(await getLevelStats('stats-fixture'), expected);
     const response = await discovery.request('/stats/stats-fixture');
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), expected);
+    // The route adds the creator's avatar for the feed card's credit.
+    assert.deepEqual(await response.json(), {
+      ...expected,
+      creatorAvatarUrl: 'https://i.redd.it/snoovatar/builder.png',
+    });
     assert.equal((await discovery.request('/stats/not-a-level')).status, 404);
     assert.equal(scan.mock.callCount(), 0);
   } finally {

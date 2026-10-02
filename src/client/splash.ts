@@ -6,7 +6,6 @@ import {
   type SplashAutostart,
 } from '../shared/constants';
 import { isLevelStats } from '../shared/discoveryApi';
-import { isMyCursesResponse } from '../shared/myCursesApi';
 import { isSketchyPostData } from '../shared/postData';
 import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
@@ -40,7 +39,6 @@ function expandInto(event: MouseEvent, target: SplashAutostart): void {
 
 const targets: [string, SplashAutostart][] = [
   ['game-menu-play', 'game'],
-  ['game-menu-stats-chip', 'stats'],
 ];
 for (const [id, target] of targets) {
   requireButton(id).addEventListener('click', (e) => expandInto(e, target));
@@ -63,9 +61,15 @@ async function loadStats(): Promise<void> {
       return;
     }
 
-    requireElement('game-menu-stat-value').textContent = body.attempts.toLocaleString();
+    requireElement('splash-plays-value').textContent = body.attempts.toLocaleString();
     requireElement('game-menu-creator-name').textContent =
       body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
+    const avatar = document.getElementById('splash-creator-avatar');
+    if (body.creatorAvatarUrl && avatar instanceof HTMLImageElement) {
+      // Shown only once it loads, so a blocked or broken image leaves no gap.
+      avatar.addEventListener('load', () => avatar.classList.remove('hidden'), { once: true });
+      avatar.src = body.creatorAvatarUrl;
+    }
     // Only a level post names its level; the hub post keeps a clean header.
     if (postData) {
       const daily = postData.daily !== undefined ? `Day #${postData.daily}` : '';
@@ -85,21 +89,5 @@ async function loadStats(): Promise<void> {
   }
 }
 
-// "N new" on STATS, same as the in-game menu.
-async function loadCurseBadge(): Promise<void> {
-  try {
-    const response = await fetch('/api/me/curses', { signal: AbortSignal.timeout(8000) });
-    const body: unknown = await response.json();
-    if (!response.ok || !isMyCursesResponse(body)) return;
-    const fresh = body.curses.reduce((sum, c) => sum + c.newCaught + c.newPassed, 0);
-    const badge = requireElement('game-menu-stats-badge');
-    badge.textContent = `${fresh} new`;
-    badge.classList.toggle('hidden', fresh === 0);
-  } catch {
-    // No badge; the card works either way.
-  }
-}
-
 void loadStats();
-void loadCurseBadge();
 sendAnalyticsEvent({ event: 'card' });

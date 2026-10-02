@@ -1,9 +1,11 @@
+import { reddit } from '@devvit/web/server';
 import { Hono } from 'hono';
 import {
   isDiscoverySort,
   type DiscoveryResponse,
   type NextLevelResponse,
 } from '../../shared/discoveryApi';
+import { SEED_AUTHOR } from '../../shared/constants';
 import { resolveLevelId } from '../services/DailyService';
 import {
   discoverLevels,
@@ -39,10 +41,32 @@ function cachedPage(
   page.catch(() => cache.delete(key));
   return page;
 }
+// Creator avatars for the feed card's credit. Every card view asks, so
+// keep each lookup per warm instance for an hour; a failed or empty lookup
+// is cached too (as undefined) so a user without a snoovatar costs one call.
+const AVATAR_TTL_MS = 60 * 60_000;
+const avatarCache = new Map<string, { at: number; url: Promise<string | undefined> }>();
+
+function creatorAvatarUrl(username: string): Promise<string | undefined> {
+  if (username === SEED_AUTHOR) return Promise.resolve(undefined);
+  const hit = avatarCache.get(username);
+  if (hit && Date.now() - hit.at < AVATAR_TTL_MS) return hit.url;
+  const url = (async () => {
+    try {
+      return await reddit.getSnoovatarUrl(username);
+    } catch {
+      return undefined;
+    }
+  })();
+  avatarCache.set(username, { at: Date.now(), url });
+  return url;
+}
+
 discovery.get('/stats/:levelId', async (c) => {
   const stats = await getLevelStats(await resolveLevelId(c.req.param('levelId')));
   if (!stats) return c.json({ status: 'error', message: 'Unknown level' }, 404);
-  return c.json(stats);
+  const avatar = await creatorAvatarUrl(stats.creatorUsername);
+  return c.json(avatar ? { ...stats, creatorAvatarUrl: avatar } : stats);
 });
 discovery.get('/levels', async (c) => {
   const sort = c.req.query('sort') ?? 'trending';
