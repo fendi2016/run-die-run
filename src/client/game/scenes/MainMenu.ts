@@ -36,7 +36,9 @@ export class MainMenu extends Scene {
     }
     // News of the player's traps comes first — but only if it's already
     // in; Play from the feed card otherwise goes straight into the level.
-    const reveal = takeCurseReveal();
+    // The feed card's Build/Browse/Leaderboard/STATS asked for something
+    // else, so the news waits for the next time the menu opens.
+    const reveal = autostart === null || autostart === 'game' ? takeCurseReveal() : undefined;
     if (autostart) {
       if (autostart === 'game' && !reveal) {
         this.play();

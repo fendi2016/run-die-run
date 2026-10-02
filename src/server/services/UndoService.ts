@@ -7,6 +7,7 @@ import {
   levelRemovedTrapsKey,
   levelUndosKey,
   levelVersionKey,
+  trapExpiryCursorKey,
   userCursesKey,
   userCursesSeenKey,
 } from '../core/redisKeys';
@@ -159,20 +160,42 @@ async function allLevelIds(): Promise<string[]> {
 
 // Removes, one by one like removeTrap, every player trap `matches` picks on
 // every level. Returns how many it removed and how many it couldn't
-// (someone changed the level mid-way; the next run gets them).
+// (someone changed the level mid-way, or a level errored; the next run gets
+// them). With `resume`, the walk starts where the last run stopped and ends
+// early once the time budget is spent, saving where it got to — so a long
+// level list is covered over several runs instead of the same tail being
+// cut off every time.
 async function removeTrapsEverywhere(
-  matches: (levelId: string, traps: LevelObject[]) => Promise<LevelObject[]>
+  matches: (levelId: string, traps: LevelObject[]) => Promise<LevelObject[]>,
+  resume?: { cursorKey: string; budgetMs: number }
 ): Promise<{ removed: number; failed: number }> {
   let removed = 0;
   let failed = 0;
-  for (const levelId of await allLevelIds()) {
-    const traps = await listRemovableTraps(levelId);
-    if (traps.length === 0) continue;
-    for (const trap of await matches(levelId, traps)) {
-      if ((await removeTrap(levelId, trap.id)).status === 'ok') removed += 1;
-      else failed += 1;
+  const levelIds = await allLevelIds();
+  const start = resume ? Number(await redis.get(resume.cursorKey)) || 0 : 0;
+  const first = start < levelIds.length ? start : 0;
+  const deadline = resume ? Date.now() + resume.budgetMs : Infinity;
+  for (let step = 0; step < levelIds.length; step++) {
+    const index = (first + step) % levelIds.length;
+    if (Date.now() >= deadline) {
+      if (resume) await redis.set(resume.cursorKey, String(index));
+      return { removed, failed };
+    }
+    const levelId = levelIds[index];
+    if (levelId === undefined) continue;
+    try {
+      const traps = await listRemovableTraps(levelId);
+      if (traps.length === 0) continue;
+      for (const trap of await matches(levelId, traps)) {
+        if ((await removeTrap(levelId, trap.id)).status === 'ok') removed += 1;
+        else failed += 1;
+      }
+    } catch (error) {
+      console.error(`Trap cleanup failed on level ${levelId}: ${error}`);
+      failed += 1;
     }
   }
+  if (resume) await redis.set(resume.cursorKey, '0');
   return { removed, failed };
 }
 
@@ -186,7 +209,11 @@ export async function removeStartZoneTraps(): Promise<{ removed: number; failed:
 
 // Scheduled job: player traps older than PLAYER_TRAP_LIFETIME_MS leave the
 // level (their owner gets the slot back), so no level only ever piles up.
-// A trap's age is that of the version that placed it.
+// A trap's age is that of the version that placed it. Each run stops after
+// TRAP_EXPIRY_BUDGET_MS, well inside a request's time limit, and the next
+// one carries on from there.
+const TRAP_EXPIRY_BUDGET_MS = 20_000;
+
 export async function expireOldTraps(now = Date.now()): Promise<{ removed: number; failed: number }> {
   return removeTrapsEverywhere(async (levelId, traps) => {
     const expired: LevelObject[] = [];
@@ -199,5 +226,5 @@ export async function expireOldTraps(now = Date.now()): Promise<{ removed: numbe
       if (at !== undefined && now - at >= PLAYER_TRAP_LIFETIME_MS) expired.push(trap);
     }
     return expired;
-  });
+  }, { cursorKey: trapExpiryCursorKey(), budgetMs: TRAP_EXPIRY_BUDGET_MS });
 }

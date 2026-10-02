@@ -2026,6 +2026,17 @@ await test('player traps expire after their lifetime and their owners get the sl
   assert.equal((await getMyCurses('bob')).length, 0);
 });
 
+await test('trap expiry resumes from a saved cursor and still covers every level', async () => {
+  const { expireOldTraps } = await import('../services/UndoService');
+  const { PLAYER_TRAP_LIFETIME_MS } = await import('../../shared/editorApi');
+  const { trapExpiryCursorKey } = await import('../core/redisKeys');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  // A previous run stopped past meat-grinder (or past the end entirely).
+  await redis.set(trapExpiryCursorKey(), '999');
+  assert.deepEqual(await expireOldTraps(Date.now() + PLAYER_TRAP_LIFETIME_MS + 60_000), { removed: 1, failed: 0 });
+  assert.equal(await redis.get(trapExpiryCursorKey()), '0');
+});
+
 await test('undo skips the newest trap when a moderator already removed it', async () => {
   const { listRemovableTraps, removeTrap, undoLatestSabotage } = await import('../services/UndoService');
   const { getLevelStats } = await import('../services/DiscoveryService');

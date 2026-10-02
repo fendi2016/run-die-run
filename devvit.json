@@ -94,7 +94,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "dev": "vite build"
+    "dev": "vite build --watch"
   },
   "dev": {
     "subreddit": "sketchy_game_dev"

@@ -90,6 +90,9 @@ export const editorDraftKey = (username: string): string =>
 // per-level attempt/clear counters and a rolling daily activity window
 // used for the trending score.
 export const allLevelsByDateKey = (): string => 'discovery:levels:createdAt';
+// Where the hourly trap-expiry run stopped in that list (allLevelIds order),
+// so a run cut short by its time budget resumes there next hour.
+export const trapExpiryCursorKey = (): string => 'scheduler:expire-traps:cursor';
 export const levelAttemptsKey = (levelId: string): string =>
   `level:${levelId}:attempts`;
 export const levelClearsKey = (levelId: string): string =>

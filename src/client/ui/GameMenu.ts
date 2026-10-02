@@ -84,16 +84,16 @@ export class GameMenu {
     try {
       const response = await fetch('/api/me/curses', { signal: AbortSignal.timeout(8000) });
       const body: unknown = await response.json();
-      if (!response.ok || !isMyCursesResponse(body)) return;
-      if (this.badgeSuppressed) {
-        this.badgeSuppressed = false;
-        return;
-      }
+      if (!response.ok || !isMyCursesResponse(body) || this.badgeSuppressed) return;
       const fresh = body.curses.reduce((sum, c) => sum + c.newCaught + c.newPassed, 0);
       this.statsBadgeEl.textContent = `${fresh} new`;
       this.statsBadgeEl.classList.toggle('hidden', fresh === 0);
     } catch {
       // No badge; the menu works either way.
+    } finally {
+      // Only the request in flight when the reveal showed is suppressed,
+      // whether or not it succeeded.
+      this.badgeSuppressed = false;
     }
   }
 
