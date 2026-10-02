@@ -127,137 +127,16 @@
   }
 }
 
-/* The gag (ui/menuGag.ts), inside the Play button so it rides the
-   button's pulse and press: the pencil runs along Play's top edge into a
-   saw, KABOOM, respawns, again. Decoration only — never takes a tap. */
+/* The gag (ui/menuGag.ts), one canvas over the whole menu: the pencil runs
+   along Play's top edge into a saw that cuts him in half, blood everywhere.
+   Decoration only — never takes a tap. */
 #menu-gag {
   position: absolute;
-  left: 0;
-  right: 0;
-  /* Feet on the button's top border. */
-  bottom: calc(100% + 1px);
-  height: var(--runner-h);
-  pointer-events: none;
-}
-
-#menu-gag > .menu-gag-sprite {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  display: block;
-  background-repeat: no-repeat;
-  will-change: transform;
-}
-
-/* Half sunk into the button, like a buzzsaw coming up through it. */
-#menu-gag-saw {
-  --size: calc(var(--runner-h) * 0.62);
-  bottom: calc(var(--size) * -0.38);
-  width: var(--size);
-  height: var(--size);
-}
-
-#menu-gag-saw-spin {
-  display: block;
+  inset: 0;
+  z-index: 5;
   width: 100%;
   height: 100%;
-  background: url('/assets/hazards/saw-spin.webp') center / contain no-repeat;
-  animation: menu-gag-spin 0.6s linear infinite;
-}
-
-@keyframes menu-gag-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 19-frame run strip (one stride), each frame 114x128; menuGag.ts picks the
-   frame from distance covered so the feet never skate. Drawn 1.25x wider
-   than the art, like the game (PLAYER_DISPLAY_WIDTH_SCALE). */
-#menu-gag-runner {
-  --frame-w: calc(var(--runner-h) * 0.890625 * 1.25);
-  width: var(--frame-w);
-  height: var(--runner-h);
-  background-image: url('/assets/ui/menu-gag-run.webp');
-  background-size: calc(var(--frame-w) * 19) 100%;
-  visibility: hidden;
-}
-
-/* The saw death (the game's sawSlice): the current pose cut at the waist
-   into two copies of the runner, each clipped to its half. */
-.menu-gag-half {
-  --frame-w: calc(var(--runner-h) * 0.890625 * 1.25);
-  width: var(--frame-w);
-  height: var(--runner-h);
-  background-image: url('/assets/ui/menu-gag-run.webp');
-  background-size: calc(var(--frame-w) * 19) 100%;
-  visibility: hidden;
-}
-
-#menu-gag-top {
-  clip-path: inset(0 0 50% 0);
-  transform-origin: 50% 25%;
-}
-
-#menu-gag-legs {
-  clip-path: inset(50% 0 0 0);
-  transform-origin: 50% 100%;
-}
-
-/* Sparks and gore, spawned and removed by menuGag.ts. */
-.menu-gag-bit {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-}
-
-/* Pixel-art sheets, stepped by menuGag.ts via background-position. */
-#menu-gag-blood,
-#menu-gag-spray,
-#menu-gag-poof {
-  width: calc(var(--runner-h) * 1.1);
-  height: calc(var(--runner-h) * 1.1);
-  bottom: calc(var(--runner-h) * -0.1);
-  background-size: auto 100%;
-  image-rendering: pixelated;
-  opacity: 0;
-}
-
-/* Blood about twice the pencil, centred on the cut (half his height) —
-   the game's SAW_SPLATTER_SCALE. */
-#menu-gag-blood,
-#menu-gag-spray {
-  width: calc(var(--runner-h) * 1.7);
-  height: calc(var(--runner-h) * 1.7);
-  bottom: calc(var(--runner-h) * (0.5 - 0.85));
-}
-
-/* blood-spray starts in its frame's bottom-right corner (0.82, 0.82) and
-   sprays up-left; that corner sits on the cut. */
-#menu-gag-spray {
-  bottom: calc(var(--runner-h) * (0.5 - 1.7 * 0.18));
-}
-
-#menu-gag-blood {
-  background-image: url('/assets/vfx/blood-splatter.webp');
-}
-
-#menu-gag-spray {
-  background-image: url('/assets/vfx/blood-spray.webp');
-}
-
-#menu-gag-poof {
-  background-image: url('/assets/vfx/smoke-poof.webp');
-  image-rendering: auto;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #menu-gag-saw-spin {
-    animation: none;
-  }
+  pointer-events: none;
 }
 
 #game-menu-title {

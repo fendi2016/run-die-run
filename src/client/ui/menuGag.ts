@@ -1,206 +1,400 @@
 import { requireElement } from './domUtils';
 
-// The menu's death gag (#menu-gag inside the Play button, shared by the feed
-// card and game.html's menu): the pencil runs along Play's top edge into
-// the saw at its far end, is sliced in half exactly like the game's saw
-// death (DeathEffects.ts sawSlice), respawns with a poof, again.
+// The menu's death gag, drawn on one canvas (#menu-gag) over the whole menu
+// (shared by the feed card and game.html's menu): the pencil runs along
+// Play's top edge into a saw, which hops up over his head and slowly saws
+// him down the middle while blood sprays all over the card; the halves
+// flop open, everything fades, he respawns with a poof. One rAF loop and
+// plain drawImage/arc calls — no DOM churn — so it stays smooth on phones.
+
+// Run strip: 19 frames of 114x128, one stride (ui/menu-gag-run.webp).
 const RUN_FRAMES = 19;
-// One stride covers this many runner-heights, same ratio as in the game
-// (620px/s over a 228ms cycle for a ~69px-tall drawn pencil), so the run
-// frame comes from distance covered and the feet stay planted.
+const FRAME_W = 114;
+const FRAME_H = 128;
+// Drawn wider than the art, like the game (PLAYER_DISPLAY_WIDTH_SCALE).
+const WIDTH_SCALE = 1.25;
+// Same stride-to-height ratio as the game, so the pose follows distance
+// covered and the feet stay planted.
 const STRIDE_PER_HEIGHT = 2.05;
-// Slower than the game's ~9 heights/s so the joke is readable.
 const RUN_HEIGHTS_PER_S = 4.2;
 const SAW_AT = 0.86; // fraction of Play's width
-const RESPAWN_MS = 600;
-const BEAT_AFTER_DEATH_MS = 700;
-// sawSlice's distances are for the game's pencil, whose drawn art is about
-// this tall; scaled to the runner's height here.
-const GAME_ART_H = 69;
-const SLICE_MS = 520;
-const SPARK_COLOR = '#ffd23f';
-const GORE_COLOR = '#e0303a';
-const BLOOD_FRAMES = 10;
-const SPRAY_FRAMES = 7;
-const SPRAY_ORIGIN = 0.82;
-const POOF_FRAMES = 7;
-const SHEET_FPS = 20;
+const SAW_RADIUS = 0.31; // of the runner's height
+// Counter-clockwise (negative is anticlockwise on a y-down canvas).
+const SAW_SPIN = (-Math.PI * 2) / 0.6;
+const SAW_SPIN_CUTTING = (-Math.PI * 2) / 0.25;
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-const nextFrame = (): Promise<number> => new Promise((resolve) => requestAnimationFrame(resolve));
+const HOP_MS = 260;
+const CUT_MS = 1500;
+const FALL_MS = 420;
+const HOLD_MS = 700;
+const FADE_MS = 350;
+const POOF_MS = 350;
+const POOF_FRAMES = 7;
+// How far the halves have peeled open by the time the saw reaches his feet.
+const SPLAY_MAX = 0.5;
+
+const BLOOD_COLORS = ['#e0303a', '#b3121f', '#ff4d5a'];
+const MAX_DROPS = 700;
+
+type Drop = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  color: string;
+  stuck: boolean;
+};
+
+type Layout = {
+  dpr: number;
+  width: number;
+  height: number;
+  playLeft: number;
+  playTop: number;
+  playWidth: number;
+  runnerH: number;
+};
+
+type Phase = 'run' | 'hop' | 'cut' | 'fall' | 'hold' | 'fade';
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`menu gag: ${src} failed to load`));
+    image.src = src;
+  });
+}
+
+// How far to raise the halves at `angle` so their outer bottom corners stay
+// on the floor: none while still splaying, half their width once flat.
+function liftFor(angle: number, w: number): number {
+  const from = Math.sin(SPLAY_MAX);
+  return (w / 2) * clamp01((Math.sin(angle) - from) / (1 - from));
+}
+
+const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
+const easeIn = (t: number): number => t * t;
+const clamp01 = (t: number): number => Math.min(1, Math.max(0, t));
 
 let started = false;
 
 export function startMenuGag(): void {
   if (started) return;
   started = true;
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    placeStatic();
-    return;
+  void Promise.all([
+    loadImage('/assets/ui/menu-gag-run.webp'),
+    loadImage('/assets/hazards/saw-spin.webp'),
+    loadImage('/assets/vfx/smoke-poof.webp'),
+  ])
+    .then(([run, saw, poof]) => new MenuGag(run, saw, poof).start())
+    .catch(() => undefined); // No gag; the menu works without it.
+}
+
+class MenuGag {
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+  private readonly root: HTMLElement;
+  private readonly play: HTMLElement;
+  private readonly cta: HTMLElement;
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  private phase: Phase = 'run';
+  private phaseStart = 0;
+  private lastTime = 0;
+  private sawAngle = 0;
+  // Where he stopped, his pose, and the saw's path for this death.
+  private hitX = 0;
+  private frame = 0;
+  private drops: Drop[] = [];
+
+  constructor(
+    private readonly runImage: HTMLImageElement,
+    private readonly sawImage: HTMLImageElement,
+    private readonly poofImage: HTMLImageElement
+  ) {
+    const canvas = requireElement('menu-gag');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('#menu-gag must be a canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('menu gag: no 2d context');
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.root = requireElement('game-menu');
+    this.play = requireElement('game-menu-play');
+    this.cta = requireElement('game-menu-cta');
   }
-  void loop();
-}
 
-function el(id: string): HTMLElement {
-  return requireElement(id);
-}
-
-function placeAt(sprite: HTMLElement, centerX: number): void {
-  sprite.style.transform = `translateX(${centerX - sprite.offsetWidth / 2}px)`;
-}
-
-function showRunFrame(runner: HTMLElement, frame: number): void {
-  runner.style.backgroundPosition = `${-frame * runner.offsetWidth}px 0`;
-}
-
-// Reduced motion: the pencil just stands on Play, short of the saw.
-function placeStatic(): void {
-  const width = el('menu-gag').clientWidth;
-  const runner = el('menu-gag-runner');
-  placeAt(el('menu-gag-saw'), width * SAW_AT);
-  placeAt(runner, width * 0.3);
-  showRunFrame(runner, 0);
-  runner.style.visibility = 'visible';
-}
-
-// Plays a one-row pixel sheet once on `sprite`, its `anchor` fraction of
-// width at x (centred by default).
-async function playSheet(
-  sprite: HTMLElement,
-  x: number,
-  frames: number,
-  anchor = 0.5
-): Promise<void> {
-  sprite.style.transform = `translateX(${x - sprite.offsetWidth * anchor}px)`;
-  const size = sprite.offsetHeight;
-  sprite.style.opacity = '1';
-  await sprite.animate(
-    [{ backgroundPosition: '0 0' }, { backgroundPosition: `${-size * frames}px 0` }],
-    { duration: (frames / SHEET_FPS) * 1000, easing: `steps(${frames})` }
-  ).finished;
-  sprite.style.opacity = '0';
-}
-
-// Sparks or gore flying out from (x, y above the gag's bottom), like the
-// game's burstParticles (80-260px/s, 420ms, shrinking).
-function burst(gag: HTMLElement, x: number, y: number, color: string, count: number, k: number): void {
-  for (let i = 0; i < count; i++) {
-    const bit = document.createElement('span');
-    bit.className = 'menu-gag-bit';
-    bit.style.background = color;
-    gag.append(bit);
-    const angle = Math.random() * Math.PI * 2;
-    const reach = (80 + Math.random() * 180) * 0.42 * k;
-    const from = `translate(${x - 2}px, ${-y + 2}px)`;
-    const to = `translate(${x - 2 + Math.cos(angle) * reach}px, ${-y + 2 + Math.sin(angle) * reach}px)`;
-    bit
-      .animate([{ transform: `${from} scale(1)` }, { transform: `${to} scale(0)` }], {
-        duration: 420,
-        easing: 'ease-out',
-      })
-      .finished.finally(() => bit.remove())
-      .catch(() => undefined);
+  start(): void {
+    const tick = (now: number): void => {
+      // Paused while the menu is hidden (the expanded game hides it for
+      // whole runs) or the tab is in the background.
+      if (document.hidden || this.root.offsetParent === null) {
+        this.lastTime = 0;
+        window.setTimeout(() => requestAnimationFrame(tick), 500);
+        return;
+      }
+      this.draw(now);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
-}
 
-// sawSlice: the pose cut at the waist — the top half flung up and back,
-// spinning, the legs stagger a beat and topple — with sparks and blood
-// where the blade went through.
-async function slice(gag: HTMLElement, runner: HTMLElement, x: number): Promise<void> {
-  const height = runner.offsetHeight;
-  const k = height / GAME_ART_H;
-  const left = x - runner.offsetWidth / 2;
-  const pose = runner.style.backgroundPosition;
-  const top = el('menu-gag-top');
-  const legs = el('menu-gag-legs');
-  for (const half of [top, legs]) {
-    half.style.backgroundPosition = pose;
-    half.style.visibility = 'visible';
+  private layout(): Layout {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rootRect = this.root.getBoundingClientRect();
+    const playRect = this.play.getBoundingClientRect();
+    const runnerH = parseFloat(getComputedStyle(this.cta).getPropertyValue('--runner-h')) || 56;
+    return {
+      dpr,
+      width: rootRect.width,
+      height: rootRect.height,
+      playLeft: playRect.left - rootRect.left,
+      playTop: playRect.top - rootRect.top,
+      playWidth: playRect.width,
+      runnerH,
+    };
   }
-  runner.style.visibility = 'hidden';
-  const at = (dx: number, dy: number, deg: number): string =>
-    `translate(${left + dx * k}px, ${dy * k}px) rotate(${deg}deg)`;
-  const flung = top.animate(
-    [
-      { transform: at(0, 0, 0), opacity: 1, easing: 'cubic-bezier(0.5, 1, 0.89, 1)' },
-      { transform: at(-27, -70, -115), opacity: 1, offset: 200 / SLICE_MS, easing: 'cubic-bezier(0.11, 0, 0.5, 0)' },
-      { transform: at(-70, 90, -300), opacity: 0 },
-    ],
-    { duration: SLICE_MS }
-  );
-  const toppled = legs.animate(
-    [
-      { transform: at(0, 0, 0), opacity: 1 },
-      { transform: at(4, 0, 0), opacity: 1, offset: 0.1 },
-      { transform: at(0, 0, 0), opacity: 1, offset: 0.2 },
-      { transform: at(4, 0, 0), opacity: 1, offset: 0.3 },
-      { transform: at(0, 0, 0), opacity: 1, offset: 0.4, easing: 'ease-in' },
-      { transform: at(14, 8, 80), opacity: 1, offset: 0.75 },
-      { transform: at(14, 8, 80), opacity: 0 },
-    ],
-    { duration: 600 }
-  );
-  const cutY = height / 2;
-  burst(gag, x, cutY, SPARK_COLOR, 18, k);
-  burst(gag, x, cutY, GORE_COLOR, 22, k);
-  void playSheet(el('menu-gag-blood'), x, BLOOD_FRAMES);
-  void playSheet(el('menu-gag-spray'), x, SPRAY_FRAMES, SPRAY_ORIGIN);
-  gag.animate(
-    [
-      { transform: 'translate(0, 0)' },
-      { transform: 'translate(-2px, 1px)' },
-      { transform: 'translate(2px, -1px)' },
-      { transform: 'translate(0, 0)' },
-    ],
-    { duration: 140 }
-  );
-  await Promise.all([flung.finished, toppled.finished]);
-  top.style.visibility = 'hidden';
-  legs.style.visibility = 'hidden';
-}
 
-// Runs from spawnX to hitX (centre x), picking each frame's pose from the
-// distance covered so far.
-async function run(runner: HTMLElement, spawnX: number, hitX: number): Promise<void> {
-  const height = runner.offsetHeight;
-  const speed = height * RUN_HEIGHTS_PER_S;
-  const stride = height * STRIDE_PER_HEIGHT;
-  const start = await nextFrame();
-  for (let now = start; ; now = await nextFrame()) {
-    const travelled = Math.min(((now - start) / 1000) * speed, hitX - spawnX);
-    placeAt(runner, spawnX + travelled);
-    showRunFrame(runner, Math.floor((travelled / stride) * RUN_FRAMES) % RUN_FRAMES);
-    runner.style.visibility = 'visible';
-    if (spawnX + travelled >= hitX) return;
+  private enter(phase: Phase, now: number): void {
+    this.phase = phase;
+    this.phaseStart = now;
   }
-}
 
-// Only runs while the gag is on screen: the expanded game hides the menu
-// for whole runs, and a backgrounded tab shouldn't keep animating.
-function isVisible(gag: HTMLElement): boolean {
-  return !document.hidden && gag.offsetParent !== null && gag.clientWidth > 0;
-}
-
-async function loop(): Promise<void> {
-  const gag = el('menu-gag');
-  const runner = el('menu-gag-runner');
-  const saw = el('menu-gag-saw');
-  for (;;) {
-    if (!isVisible(gag)) {
-      await sleep(500);
-      continue;
+  private draw(now: number): void {
+    const l = this.layout();
+    const pxW = Math.round(l.width * l.dpr);
+    const pxH = Math.round(l.height * l.dpr);
+    if (this.canvas.width !== pxW || this.canvas.height !== pxH) {
+      this.canvas.width = pxW;
+      this.canvas.height = pxH;
     }
-    const width = gag.clientWidth;
-    const sawX = width * SAW_AT;
-    placeAt(saw, sawX);
-    // Spawns on Play's left end; dies when his front foot reaches the teeth.
-    const spawnX = runner.offsetWidth * 0.35;
-    const hitX = sawX - saw.offsetWidth * 0.5 - runner.offsetWidth * 0.3;
+    const ctx = this.ctx;
+    ctx.setTransform(l.dpr, 0, 0, l.dpr, 0, 0);
+    ctx.clearRect(0, 0, l.width, l.height);
 
-    void playSheet(el('menu-gag-poof'), spawnX, POOF_FRAMES);
-    await run(runner, spawnX, hitX);
+    const dt = this.lastTime === 0 ? 0 : Math.min((now - this.lastTime) / 1000, 0.05);
+    this.lastTime = now;
+    if (this.phaseStart === 0) this.phaseStart = now;
+    const t = now - this.phaseStart;
 
-    await slice(gag, runner, hitX);
-    await sleep(RESPAWN_MS + BEAT_AFTER_DEATH_MS - 600);
+    const h = l.runnerH;
+    const w = h * (FRAME_W / FRAME_H) * WIDTH_SCALE;
+    const sawR = h * SAW_RADIUS;
+    const feetY = l.playTop + 1;
+    const spawnX = l.playLeft + w * 0.35;
+    const sawRestX = l.playLeft + l.playWidth * SAW_AT;
+    const sawRestY = feetY + sawR * 0.25;
+
+    if (this.reducedMotion) {
+      this.drawSaw(l, sawRestX, sawRestY, sawR, 0);
+      this.drawWhole(l.playLeft + l.playWidth * 0.3, feetY, w, h, 0);
+      return;
+    }
+
+    this.sawAngle += dt * (this.phase === 'cut' ? SAW_SPIN_CUTTING : SAW_SPIN);
+    const hitX = sawRestX - sawR - w * 0.3;
+    const sawAboveY = feetY - h - sawR * 0.4;
+    let sawX = sawRestX;
+    let sawY = sawRestY;
+    let fade = 1;
+
+    switch (this.phase) {
+      case 'run': {
+        const speed = h * RUN_HEIGHTS_PER_S;
+        const x = Math.min(spawnX + (t / 1000) * speed, hitX);
+        const travelled = x - spawnX;
+        this.frame = Math.floor((travelled / (h * STRIDE_PER_HEIGHT)) * RUN_FRAMES) % RUN_FRAMES;
+        if (t < POOF_MS) this.drawPoof(spawnX, feetY, h, t);
+        this.drawWhole(x, feetY, w, h, this.frame);
+        if (x >= hitX) {
+          this.hitX = hitX;
+          this.enter('hop', now);
+        }
+        break;
+      }
+      case 'hop': {
+        // The saw jumps out of Play and up over his head.
+        const p = easeOut(clamp01(t / HOP_MS));
+        sawX = sawRestX + (this.hitX - sawRestX) * p;
+        sawY = sawRestY + (sawAboveY - sawRestY) * p - Math.sin(p * Math.PI) * h * 0.25;
+        this.drawWhole(this.hitX + Math.sin(now / 9) * 1.2, feetY, w, h, this.frame);
+        if (t >= HOP_MS) this.enter('cut', now);
+        break;
+      }
+      case 'cut': {
+        // Slowly down through his middle; the halves peel open above it.
+        const p = clamp01(t / CUT_MS);
+        sawX = this.hitX;
+        sawY = sawAboveY + (feetY - sawAboveY) * p;
+        const cutY = Math.min(sawY + sawR * 0.6, feetY);
+        const shake = Math.sin(now / 7) * 1.6;
+        this.drawSplit(this.hitX + shake, feetY, w, h, cutY, SPLAY_MAX * p);
+        if (cutY > feetY - h) this.spray(this.hitX, cutY, h, dt, 520);
+        if (t >= CUT_MS) this.enter('fall', now);
+        break;
+      }
+      case 'fall': {
+        // Both halves flop open flat onto Play.
+        const p = clamp01(t / FALL_MS);
+        const angle = SPLAY_MAX + (Math.PI / 2 - SPLAY_MAX) * easeIn(p);
+        sawY = feetY + sawR * 0.25;
+        sawX = this.hitX;
+        this.drawSplit(this.hitX, feetY, w, h, feetY, angle, liftFor(angle, w));
+        this.spray(this.hitX, feetY - h * 0.1, h, dt, 260 * (1 - p));
+        if (t >= FALL_MS) this.enter('hold', now);
+        break;
+      }
+      case 'hold': {
+        // The saw grinds back to its spot; the blood keeps trickling.
+        const p = easeOut(clamp01(t / 300));
+        sawX = this.hitX + (sawRestX - this.hitX) * p;
+        this.drawSplit(this.hitX, feetY, w, h, feetY, Math.PI / 2, w / 2);
+        this.spray(this.hitX, feetY - h * 0.05, h, dt, 60);
+        if (t >= HOLD_MS) this.enter('fade', now);
+        break;
+      }
+      case 'fade': {
+        fade = 1 - clamp01(t / FADE_MS);
+        ctx.globalAlpha = fade;
+        this.drawSplit(this.hitX, feetY, w, h, feetY, Math.PI / 2, w / 2);
+        ctx.globalAlpha = 1;
+        if (t >= FADE_MS) {
+          this.drops = [];
+          this.enter('run', now);
+        }
+        break;
+      }
+    }
+
+    this.updateDrops(l, dt, h);
+    this.drawDrops(fade);
+    this.drawSaw(l, sawX, sawY, sawR, this.sawAngle);
+  }
+
+  // One run-strip frame, bottom-centre at (x, feetY).
+  private drawWhole(x: number, feetY: number, w: number, h: number, frame: number): void {
+    this.ctx.drawImage(this.runImage, frame * FRAME_W, 0, FRAME_W, FRAME_H, x - w / 2, feetY - h, w, h);
+  }
+
+  // The pose cut down the middle above cutY: each half rotated `angle` away
+  // from the other about the bottom of the cut; below it, still whole.
+  // `lift` raises the halves so, once fully cut, their outer edges ride on
+  // Play's top instead of swinging down into it.
+  private drawSplit(
+    x: number,
+    feetY: number,
+    w: number,
+    h: number,
+    cutY: number,
+    angle: number,
+    lift = 0
+  ): void {
+    const ctx = this.ctx;
+    const sx = this.frame * FRAME_W;
+    const top = feetY - h;
+    if (cutY < feetY) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - w, cutY, w * 2, feetY - cutY + 2);
+      ctx.clip();
+      this.drawWhole(x, feetY, w, h, this.frame);
+      ctx.restore();
+    }
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(x, cutY - lift);
+      ctx.rotate(side * angle);
+      ctx.translate(-x, -cutY);
+      ctx.beginPath();
+      ctx.rect(side < 0 ? x - w : x, top - 2, w, cutY - top + 2);
+      ctx.clip();
+      ctx.drawImage(
+        this.runImage,
+        side < 0 ? sx : sx + FRAME_W / 2,
+        0,
+        FRAME_W / 2,
+        FRAME_H,
+        side < 0 ? x - w / 2 : x,
+        top,
+        w / 2,
+        h
+      );
+      ctx.restore();
+    }
+  }
+
+  // Sunk into Play: never drawn below its top edge.
+  private drawSaw(l: Layout, x: number, y: number, r: number, angle: number): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, l.width, l.playTop + 2);
+    ctx.clip();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.drawImage(this.sawImage, -r, -r, r * 2, r * 2);
+    ctx.restore();
+  }
+
+  private drawPoof(x: number, feetY: number, h: number, t: number): void {
+    const frame = Math.min(POOF_FRAMES - 1, Math.floor((t / POOF_MS) * POOF_FRAMES));
+    const size = h * 1.2;
+    const src = this.poofImage.height;
+    this.ctx.drawImage(this.poofImage, frame * src, 0, src, src, x - size / 2, feetY - size * 0.85, size, size);
+  }
+
+  // Blood out of the cut: mostly up and sideways, fast, all over the card.
+  private spray(x: number, y: number, h: number, dt: number, perSecond: number): void {
+    const k = h / 56;
+    let count = perSecond * dt;
+    while (count > 0 && this.drops.length < MAX_DROPS) {
+      if (count < 1 && Math.random() > count) break;
+      count -= 1;
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5;
+      const speed = (250 + Math.random() * 650) * k;
+      const big = Math.random() < 0.12;
+      this.drops.push({
+        x: x + (Math.random() - 0.5) * 4,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: (big ? 3.5 + Math.random() * 3 : 1.2 + Math.random() * 2.3) * k,
+        color: BLOOD_COLORS[Math.floor(Math.random() * BLOOD_COLORS.length)] ?? '#e0303a',
+        stuck: false,
+      });
+    }
+  }
+
+  private updateDrops(l: Layout, dt: number, h: number): void {
+    const gravity = 1500 * (h / 56);
+    const playRight = l.playLeft + l.playWidth;
+    this.drops = this.drops.filter((d) => {
+      if (d.stuck) return true;
+      const prevY = d.y;
+      d.vy += gravity * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      // Landing on Play's top edge leaves a splat there.
+      if (d.vy > 0 && prevY <= l.playTop && d.y >= l.playTop && d.x > l.playLeft && d.x < playRight) {
+        d.y = l.playTop + 1;
+        d.stuck = true;
+        return true;
+      }
+      return d.y < l.height + 10 && d.x > -10 && d.x < l.width + 10;
+    });
+  }
+
+  private drawDrops(alpha: number): void {
+    const ctx = this.ctx;
+    ctx.globalAlpha = alpha;
+    for (const d of this.drops) {
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      if (d.stuck) ctx.ellipse(d.x, d.y, d.r * 1.7, d.r * 0.7, 0, 0, Math.PI * 2);
+      else ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 }

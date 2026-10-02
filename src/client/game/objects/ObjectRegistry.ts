@@ -713,11 +713,11 @@ export function renderLevelObject(
     // sheet (Phase: Kenney level objects reskin) — purely cosmetic, no
     // effect on the body's size/shape. A random starting angle is this
     // rotation's equivalent of randomFrame above: every saw in a level
-    // would otherwise spin in lockstep.
+    // would otherwise spin in lockstep. Counter-clockwise, by request.
     sprite.setAngle(Math.random() * 360);
     scene.tweens.add({
       targets: sprite,
-      angle: `+=360`,
+      angle: `-=360`,
       duration: SAW_ROTATION_PERIOD_MS,
       repeat: -1,
       ease: 'Linear',
