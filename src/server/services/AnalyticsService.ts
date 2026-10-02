@@ -11,7 +11,7 @@ import {
   analyticsStepKey,
 } from '../core/redisKeys';
 
-// Game-wide usage numbers for the moderator-only "SKETCHY: stats" report.
+// Game-wide usage numbers for the moderator-only "Game stats" report.
 // Everything is per UTC day in plain Redis (no outside service), and only
 // usernames and counts are stored.
 export const FUNNEL_STEPS = [

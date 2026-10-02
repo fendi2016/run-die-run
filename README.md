@@ -42,9 +42,9 @@ Each player can publish up to 10 levels and place up to 30 curses a day.
 After installing, open the subreddit menu:
 
 - **Create a SKETCHY post:** posts the hub (play, build, browse). Pin it.
-- **SKETCHY: post Level of the Day now:** features the top trending level
+- **Post Level of the Day now:** features the top trending level
   immediately. This also runs automatically every day at 16:00 UTC.
-- **SKETCHY: reseed built-in levels (dev)** and **reset built-in level
+- **Reseed built-in levels (dev)** and **Reset built-in level
   stats (dev):** pre-launch tools. They sync the built-in levels with the
   app's source and zero their play counts after testing. Players' curses
   are kept.

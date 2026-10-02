@@ -27,35 +27,35 @@
         "endpoint": "/internal/menu/post-create"
       },
       {
-        "label": "SKETCHY: post Level of the Day now",
+        "label": "Post Level of the Day now",
         "description": "Feature the top trending level in a new post",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/daily-level"
       },
       {
-        "label": "SKETCHY: stats",
+        "label": "Game stats",
         "description": "Players, retention, funnel and load times for the last 7 days",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/analytics"
       },
       {
-        "label": "SKETCHY: reseed built-in levels (dev)",
+        "label": "Reseed built-in levels (dev)",
         "description": "Sync every built-in level with seedLevels.ts",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reseed-levels"
       },
       {
-        "label": "SKETCHY: reset built-in level stats (dev)",
+        "label": "Reset built-in level stats (dev)",
         "description": "Zero the built-in levels' attempt/clear counts (keeps sabotage)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/reset-builtin-stats"
       },
       {
-        "label": "SKETCHY: undo last sabotage",
+        "label": "Undo last sabotage",
         "description": "Remove the newest trap from this post's level (press again to undo the one before)",
         "location": "post",
         "postFilter": "currentApp",
@@ -63,7 +63,7 @@
         "endpoint": "/internal/menu/undo-sabotage"
       },
       {
-        "label": "SKETCHY: remove a trap",
+        "label": "Remove a player trap",
         "description": "Pick one player-added trap on this post's level and remove it",
         "location": "post",
         "postFilter": "currentApp",
