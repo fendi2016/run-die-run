@@ -226,12 +226,13 @@
 
 /* The one big thing to tap — everything else in the group is smaller. */
 .game-menu-play {
-  min-width: 180px;
-  padding: 12px 52px;
+  min-width: 210px;
+  margin-top: 14px;
+  padding: 14px 60px;
   background: var(--accent);
   color: var(--accent-ink);
   font-family: var(--font-hand);
-  font-size: 30px;
+  font-size: 36px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border: var(--line-strong) solid var(--ink);
@@ -246,7 +247,7 @@
 /* Slow breathing pulse so Play reads as the thing to tap. Paused while
    pressed so the press-down transform isn't overridden. */
 .game-menu-play {
-  animation: game-menu-play-breathe 2200ms ease-in-out infinite;
+  animation: game-menu-play-breathe 1760ms ease-in-out infinite;
 }
 
 @keyframes game-menu-play-breathe {
@@ -273,16 +274,18 @@
 
 @media (orientation: portrait) and (min-aspect-ratio: 1/2) {
   .game-menu-play {
-    min-width: 150px;
-    padding: 8px 32px;
-    font-size: 22px;
+    min-width: 175px;
+    margin-top: 10px;
+    padding: 10px 38px;
+    font-size: 27px;
   }
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
   .game-menu-play {
-    padding: 8px 30px;
-    font-size: 19px;
+    margin-top: 4px;
+    padding: 9px 34px;
+    font-size: 23px;
   }
 }
 
