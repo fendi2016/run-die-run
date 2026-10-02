@@ -155,7 +155,7 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-/* Narrow cards: "☠ 2,476" drops under the play count, smaller, rather than
+/* Narrow cards: "☠ 2,476 kills" drops under the play count, smaller, rather than
    pushing the row into Follow and Build. */
 @media (max-width: 520px) {
   #splash-plays #menu-kills:not(.hidden) {

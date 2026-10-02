@@ -193,7 +193,7 @@
   }
 }
 
-/* "☠ 476": every kill this level's traps have scored, beside the play
+/* "☠ 476 kills": every kill this level's traps have scored, beside the play
    count (feed card header) or the run count (game menu credit). */
 #menu-kills.hidden {
   display: none;
