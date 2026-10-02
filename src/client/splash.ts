@@ -40,9 +40,6 @@ function expandInto(event: MouseEvent, target: SplashAutostart): void {
 
 const targets: [string, SplashAutostart][] = [
   ['game-menu-play', 'game'],
-  ['game-menu-build', 'editor'],
-  ['game-menu-browse', 'browse'],
-  ['game-menu-leaderboard', 'leaderboard'],
   ['game-menu-stats-chip', 'stats'],
 ];
 for (const [id, target] of targets) {

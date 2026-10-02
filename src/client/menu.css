@@ -195,6 +195,35 @@
   }
 }
 
+#game-menu-tagline {
+  margin: -4px 0 0;
+  color: var(--ink);
+  font-family: var(--font-hand);
+  font-size: 20px;
+  line-height: 1.15;
+  text-align: center;
+  transform: rotate(-3deg);
+  /* Paper halo so the line stays readable over the sky art. */
+  text-shadow:
+    0 0 3px var(--paper),
+    0 0 6px var(--paper);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
+  #game-menu-tagline {
+    font-size: 15px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  #game-menu-tagline {
+    margin-top: -2px;
+    font-size: 14px;
+  }
+}
+
 /* The one big thing to tap — everything else in the group is smaller. */
 .game-menu-play {
   min-width: 180px;
