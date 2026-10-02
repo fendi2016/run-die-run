@@ -231,10 +231,11 @@ function attachPowerUpAmbience(
       // Speed lines off the back of the shoe.
       repeatEvery(scene, sprite, 90, 140, () => {
         if (!isShowing(scene, sprite)) return;
+        const center = sprite.getCenter();
         emitSpeedLine(
           scene,
-          sprite.x - sprite.displayWidth * 0.45,
-          sprite.y - sprite.displayHeight * (0.25 + Math.random() * 0.5)
+          center.x - sprite.displayWidth * 0.45,
+          center.y + sprite.displayHeight * (Math.random() * 0.5 - 0.25)
         );
       });
       break;

@@ -273,7 +273,8 @@ export function loadLevel(
         pickups.add(rendered);
         applyOutlineGlow(rendered, 0xffffff, 4);
         const center = rendered.getCenter();
-        rendered.setData(SHIMMER_DATA_KEY, attachPickupShimmer(scene, center.x, center.y));
+        // Halved along with the pickup art (POWERUP_ART_SCALE).
+        rendered.setData(SHIMMER_DATA_KEY, attachPickupShimmer(scene, center.x, center.y).setScale(0.5));
         attachAmbience(scene, rendered, object);
         break;
       }
