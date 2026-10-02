@@ -5,8 +5,11 @@ import { EDITOR_MAX_COLUMNS, SEED_AUTHOR } from '../../../shared/constants';
 import {
   CURSE_ERASABLE_TYPES,
   isProposeCurseResponse,
+  isTooCloseToPlayerTrap,
   isTrapInStartZone,
+  playerTrapToEvict,
   TRAP_IN_START_ZONE_MESSAGE,
+  TRAP_TOO_CLOSE_MESSAGE,
   type CurseCategory,
   type DraftObject,
   type ProposeCurseRequest,
@@ -367,6 +370,20 @@ export class CurseScene extends Scene {
 
     if (isTrapInStartZone(this.selectedType, world.x)) {
       this.toolbar.showMessage(TRAP_IN_START_ZONE_MESSAGE);
+      return;
+    }
+    // Same spacing rule the server enforces: the trap being erased, and the
+    // oldest one a full level will push out, don't count.
+    const remaining = this.baseLevel.objects.filter((o) => o.id !== this.pendingRemoveId);
+    const evicted = playerTrapToEvict(remaining);
+    if (
+      isTooCloseToPlayerTrap(
+        this.selectedType,
+        world.x,
+        remaining.filter((o) => o.id !== evicted?.id)
+      )
+    ) {
+      this.toolbar.showMessage(TRAP_TOO_CLOSE_MESSAGE);
       return;
     }
 

@@ -104,6 +104,10 @@
       "daily-level": {
         "endpoint": "/internal/scheduler/daily-level",
         "cron": "0 16 * * *"
+      },
+      "expire-traps": {
+        "endpoint": "/internal/scheduler/expire-traps",
+        "cron": "20 * * * *"
       }
     }
   },

@@ -18,6 +18,11 @@ export const levelVersionKey = (levelId: string, version: number): string =>
 export const levelUndosKey = (levelId: string): string =>
   `level:${levelId}:undos`;
 
+// How many traps a full level pushed out to make room (see curse publish):
+// each leaves inside the new trap's own version, not a version of its own.
+export const levelEvictionsKey = (levelId: string): string =>
+  `level:${levelId}:evictions`;
+
 // Trap object ids a moderator removed by hand (field -> '1'). An undo
 // restores an older snapshot of the level, so it filters these back out.
 export const levelRemovedTrapsKey = (levelId: string): string =>

@@ -1,7 +1,5 @@
 import { redis } from '@devvit/web/server';
-import { SEED_AUTHOR } from '../../shared/constants';
-import { isTrapInStartZone } from '../../shared/editorApi';
-import { HAZARD_TYPES } from '../../shared/hazards';
+import { isPlayerTrap, isTrapInStartZone, PLAYER_TRAP_LIFETIME_MS } from '../../shared/editorApi';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
   allLevelsByDateKey,
@@ -101,15 +99,9 @@ async function removedTrapIds(levelId: string): Promise<Set<string>> {
   return new Set(Object.keys(await redis.hGetAll(levelRemovedTrapsKey(levelId))));
 }
 
-// A trap a player added by sabotage, after the level was published. Never
-// the creator's own design (version 1) or a built-in level's traps.
-export function isRemovableTrap(object: LevelObject): boolean {
-  return HAZARD_TYPES.has(object.type) && object.addedInVersion > 1 && object.addedBy !== SEED_AUTHOR;
-}
-
 export async function listRemovableTraps(levelId: string): Promise<LevelObject[]> {
   const current = await getCurrentLevelVersion(levelId);
-  return (current?.objects ?? []).filter(isRemovableTrap).sort((a, b) => a.x - b.x);
+  return (current?.objects ?? []).filter(isPlayerTrap).sort((a, b) => a.x - b.x);
 }
 
 export type RemoveTrapResult =
@@ -123,7 +115,7 @@ export async function removeTrap(levelId: string, objectId: string): Promise<Rem
   const current = await getCurrentLevelVersion(levelId);
   if (!current) return { status: 'error', message: 'Could not find this level.' };
   const trap = current.objects.find((o) => o.id === objectId);
-  if (!trap || !isRemovableTrap(trap)) {
+  if (!trap || !isPlayerTrap(trap)) {
     return { status: 'error', message: 'That trap is no longer in this level.' };
   }
   const version = current.version + 1;
@@ -158,23 +150,54 @@ export async function removeTrap(levelId: string, objectId: string): Promise<Rem
   return { status: 'ok', removedBy: trap.addedBy, removedType: trap.type };
 }
 
-// Moderator cleanup for traps placed before the start-zone rule existed:
-// removes, one by one like removeTrap, every player trap in the first
-// TRAP_FREE_START_CELLS columns of every level. Returns how many it removed
-// and how many it couldn't (someone changed the level mid-way; run it again).
-export async function removeStartZoneTraps(): Promise<{ removed: number; failed: number }> {
+// Every level that can hold player traps: the built-ins plus every
+// published level.
+async function allLevelIds(): Promise<string[]> {
   const indexed = await redis.zRange(allLevelsByDateKey(), 0, -1, { by: 'rank' });
-  const levelIds = [...new Set([...Object.keys(SEED_LEVELS), ...indexed.map((e) => e.member)])];
+  return [...new Set([...Object.keys(SEED_LEVELS), ...indexed.map((e) => e.member)])];
+}
+
+// Removes, one by one like removeTrap, every player trap `matches` picks on
+// every level. Returns how many it removed and how many it couldn't
+// (someone changed the level mid-way; the next run gets them).
+async function removeTrapsEverywhere(
+  matches: (levelId: string, traps: LevelObject[]) => Promise<LevelObject[]>
+): Promise<{ removed: number; failed: number }> {
   let removed = 0;
   let failed = 0;
-  for (const levelId of levelIds) {
-    const traps = (await listRemovableTraps(levelId)).filter(
-      (trap) => isTrapInStartZone(trap.type, trap.x)
-    );
-    for (const trap of traps) {
+  for (const levelId of await allLevelIds()) {
+    const traps = await listRemovableTraps(levelId);
+    if (traps.length === 0) continue;
+    for (const trap of await matches(levelId, traps)) {
       if ((await removeTrap(levelId, trap.id)).status === 'ok') removed += 1;
       else failed += 1;
     }
   }
   return { removed, failed };
+}
+
+// Moderator cleanup for traps placed before the start-zone rule existed:
+// every player trap in the first TRAP_FREE_START_CELLS columns.
+export async function removeStartZoneTraps(): Promise<{ removed: number; failed: number }> {
+  return removeTrapsEverywhere(async (_levelId, traps) =>
+    traps.filter((trap) => isTrapInStartZone(trap.type, trap.x))
+  );
+}
+
+// Scheduled job: player traps older than PLAYER_TRAP_LIFETIME_MS leave the
+// level (their owner gets the slot back), so no level only ever piles up.
+// A trap's age is that of the version that placed it.
+export async function expireOldTraps(now = Date.now()): Promise<{ removed: number; failed: number }> {
+  return removeTrapsEverywhere(async (levelId, traps) => {
+    const expired: LevelObject[] = [];
+    const placedAt = new Map<number, number | undefined>();
+    for (const trap of traps) {
+      if (!placedAt.has(trap.addedInVersion)) {
+        placedAt.set(trap.addedInVersion, (await getLevelVersionAt(levelId, trap.addedInVersion))?.createdAt);
+      }
+      const at = placedAt.get(trap.addedInVersion);
+      if (at !== undefined && now - at >= PLAYER_TRAP_LIFETIME_MS) expired.push(trap);
+    }
+    return expired;
+  });
 }

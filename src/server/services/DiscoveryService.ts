@@ -17,6 +17,7 @@ import {
   levelDailyClearsKey,
   levelMetaKey,
   levelPostKey,
+  levelEvictionsKey,
   levelUndosKey,
   versionLeaderboardKey,
 } from '../core/redisKeys';
@@ -42,9 +43,10 @@ export function difficultyFor(attempts: number, clears: number): Difficulty {
 }
 
 // Every version after the first is a sabotage or a moderator undo, and an
-// undo also takes one sabotage back out.
-export function sabotagesInEffect(version: number, undos: number): number {
-  return Math.max(0, version - 1 - 2 * undos);
+// undo also takes one sabotage back out. A trap a full level pushed out
+// (an eviction) takes one out without a version of its own.
+export function sabotagesInEffect(version: number, undos: number, evictions = 0): number {
+  return Math.max(0, version - 1 - 2 * undos - evictions);
 }
 
 export async function queueDiscoveryActivity(
@@ -101,7 +103,7 @@ function metadata(
 export async function getLevelStats(
   levelId: string
 ): Promise<LevelStats | undefined> {
-  const [rawMeta, rawAttempts, rawClears, rawVersion, postId, rawUndos] =
+  const [rawMeta, rawAttempts, rawClears, rawVersion, postId, rawUndos, rawEvictions] =
     await Promise.all([
       redis.get(levelMetaKey(levelId)),
       redis.get(levelAttemptsKey(levelId)),
@@ -109,6 +111,7 @@ export async function getLevelStats(
       redis.get(levelCurrentVersionKey(levelId)),
       redis.get(levelPostKey(levelId)),
       redis.get(levelUndosKey(levelId)),
+      redis.get(levelEvictionsKey(levelId)),
     ]);
   const meta = metadata(rawMeta);
   const seed = SEED_LEVELS[levelId];
@@ -121,7 +124,7 @@ export async function getLevelStats(
     title: levelDisplayTitle(levelId, meta?.title),
     creatorUsername: meta?.creatorUsername ?? seed?.contributorUsername ?? '',
     version,
-    sabotages: sabotagesInEffect(version, Number(rawUndos ?? 0)),
+    sabotages: sabotagesInEffect(version, Number(rawUndos ?? 0), Number(rawEvictions ?? 0)),
     attempts,
     clears,
     difficulty: difficultyFor(attempts, clears),
@@ -146,7 +149,7 @@ async function summarizeLevel(
 ): Promise<LevelSummary | undefined> {
   const level = await getCurrentLevelVersion(levelId);
   if (!level) return undefined;
-  const [rawMeta, rawAttempts, rawClears, players, dailyClears, records, rawUndos] =
+  const [rawMeta, rawAttempts, rawClears, players, dailyClears, records, rawUndos, rawEvictions] =
     await Promise.all([
       redis.get(levelMetaKey(levelId)),
       redis.get(levelAttemptsKey(levelId)),
@@ -159,13 +162,18 @@ async function summarizeLevel(
         by: 'rank',
       }),
       redis.get(levelUndosKey(levelId)),
+      redis.get(levelEvictionsKey(levelId)),
     ]);
   const meta = metadata(rawMeta);
   const seed = SEED_LEVELS[levelId];
   if (!meta && !seed) return undefined;
   const attempts = Number(rawAttempts ?? 0);
   const clears = Number(rawClears ?? 0);
-  const sabotages = sabotagesInEffect(level.version, Number(rawUndos ?? 0));
+  const sabotages = sabotagesInEffect(
+    level.version,
+    Number(rawUndos ?? 0),
+    Number(rawEvictions ?? 0)
+  );
   return {
     levelId,
     title: levelDisplayTitle(levelId, meta?.title),
@@ -245,6 +253,7 @@ function scoreSourceKeys(levelId: string, day: number, version: number): string[
     levelDailyClearsKey(levelId, day),
     versionLeaderboardKey(levelId, version),
     levelUndosKey(levelId),
+    levelEvictionsKey(levelId),
   ];
 }
 

@@ -57,7 +57,9 @@ export type CreateCandidate = CandidateCommon & {
 // propose has validated it. `removedObjectId`: the id of a platform/
 // movingPlatform to drop from `baseObjects` at publish time — validated
 // once at propose (curse.ts checks it exists and is a removable type) and
-// trusted from then on, same as everything else here.
+// trusted from then on, same as everything else here. `evictedObjectId`:
+// the oldest player trap this one pushes out of a full level
+// (playerTrapToEvict), picked at propose so Prove It runs without it.
 export type CurseCandidate = CandidateCommon & {
   kind: 'curse';
   levelId: string;
@@ -66,6 +68,7 @@ export type CurseCandidate = CandidateCommon & {
   newObject: DraftObject;
   extension: LevelExtension | undefined;
   removedObjectId: string | undefined;
+  evictedObjectId?: string;
 };
 
 export type EditorCandidate = CreateCandidate | CurseCandidate;
@@ -155,7 +158,11 @@ function isEditorCandidate(value: unknown): value is EditorCandidate {
       !('removedObjectId' in value) ||
       value.removedObjectId === undefined ||
       typeof value.removedObjectId === 'string';
-    return extensionValid && removedObjectIdValid;
+    const evictedObjectIdValid =
+      !('evictedObjectId' in value) ||
+      value.evictedObjectId === undefined ||
+      typeof value.evictedObjectId === 'string';
+    return extensionValid && removedObjectIdValid && evictedObjectIdValid;
   }
   return false;
 }
@@ -351,7 +358,8 @@ export async function createCurseCandidate(
   baseObjects: LevelObject[],
   newObject: DraftObject,
   extension: LevelExtension | undefined,
-  removedObjectId: string | undefined
+  removedObjectId: string | undefined,
+  evictedObjectId: string | undefined
 ): Promise<string> {
   const candidate: EditorCandidate = {
     kind: 'curse',
@@ -362,6 +370,7 @@ export async function createCurseCandidate(
     newObject,
     extension,
     removedObjectId,
+    ...(evictedObjectId === undefined ? {} : { evictedObjectId }),
     verified: false,
     verifiedTimeMs: undefined,
     createdAt: Date.now(),

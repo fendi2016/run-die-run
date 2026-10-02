@@ -1,9 +1,10 @@
-import { GRID_CELL_SIZE } from './constants';
+import { GRID_CELL_SIZE, SEED_AUTHOR } from './constants';
 import { HAZARD_TYPES } from './hazards';
 import {
   GROUND_LIKE_TYPES,
   PLATFORM_LIKE_TYPES,
   isLevelVersion,
+  type LevelObject,
   type LevelVersion,
   type ObjectType,
 } from './types';
@@ -73,6 +74,47 @@ export function isTrapInStartZone(type: ObjectType, x: number): boolean {
 }
 
 export const TRAP_IN_START_ZONE_MESSAGE = `Traps can’t go in the first ${TRAP_FREE_START_CELLS} columns of a level. Place it further along.`;
+
+// A trap a player added by sabotage, after the level was published. Never
+// the creator's own design (version 1) or a built-in level's traps. Only
+// these count toward the cap below, set the spacing rule, and expire.
+export function isPlayerTrap(object: LevelObject): boolean {
+  return HAZARD_TYPES.has(object.type) && object.addedInVersion > 1 && object.addedBy !== SEED_AUTHOR;
+}
+
+// A level holds at most this many player traps: a new one pushes out the
+// oldest, so levels keep changing without piling up into impossible.
+export const PLAYER_TRAPS_PER_LEVEL = 12;
+
+// Player traps also expire on their own after this long (see the server's
+// expire-traps job); the owner gets the slot back.
+export const PLAYER_TRAP_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+
+// No new trap within this many columns of a player trap (any height), so
+// sabotage can't stack an unjumpable wall. Creator and built-in traps are
+// part of the level's design and don't count.
+export const TRAP_SPACING_CELLS = 2;
+
+export function isTooCloseToPlayerTrap(
+  type: ObjectType,
+  x: number,
+  objects: LevelObject[]
+): boolean {
+  return (
+    HAZARD_TYPES.has(type) &&
+    objects.some((o) => isPlayerTrap(o) && Math.abs(o.x - x) <= TRAP_SPACING_CELLS * GRID_CELL_SIZE)
+  );
+}
+
+export const TRAP_TOO_CLOSE_MESSAGE = `Too close to another player's trap. Leave ${TRAP_SPACING_CELLS} empty columns between traps.`;
+
+// The trap a new one pushes out once a level is full: the oldest player
+// trap (placed in the earliest version), or none while there's room.
+export function playerTrapToEvict(objects: LevelObject[]): LevelObject | undefined {
+  const traps = objects.filter(isPlayerTrap);
+  if (traps.length < PLAYER_TRAPS_PER_LEVEL) return undefined;
+  return traps.reduce((oldest, t) => (t.addedInVersion < oldest.addedInVersion ? t : oldest));
+}
 
 export type DraftObject = {
   id: string;

@@ -6,11 +6,15 @@ import {
   CURSE_CATEGORY_TYPES,
   CURSE_ERASABLE_TYPES,
   isDraftObject,
+  isTooCloseToPlayerTrap,
+  playerTrapToEvict,
+  TRAP_TOO_CLOSE_MESSAGE,
   type CurseEligibilityResponse,
   type DraftObject,
   type ProposeCurseResponse,
   type PublishCurseResponse,
 } from '../../shared/editorApi';
+import { HAZARD_TYPES } from '../../shared/hazards';
 import { computeLevelExtension, type LevelExtension } from '../../shared/levelExtend';
 import { levelRealtimeChannel, type VersionPublishedEvent } from '../../shared/realtimeApi';
 import type { LevelObject, LevelVersion } from '../../shared/types';
@@ -18,10 +22,13 @@ import {
   editorCandidateKey,
   levelCurrentVersionKey,
   levelPostKey,
+  levelEvictionsKey,
+  levelRemovedTrapsKey,
   levelVersionKey,
   userCommentPromptedKey,
   userCurseCommentsKey,
   userCursesKey,
+  userCursesSeenKey,
 } from '../core/redisKeys';
 import { countCursesOnLevel, cursePlacedFields } from '../services/TrapStatsService';
 import { CURSE_LOCKED_LEVEL_IDS, CURSES_PER_DAY, CURSES_PER_LEVEL } from '../../shared/constants';
@@ -273,7 +280,21 @@ curse.post('/propose', async (c) => {
       : baseObjects
   ).filter((o) => o.id !== removedObjectId);
 
+  // A full level makes room by pushing out its oldest player trap; the
+  // spacing rule ignores that one and any trap being erased, since neither
+  // will be in the level.
+  const remaining = current.objects.filter((o) => o.id !== removedObjectId);
+  const evicted = HAZARD_TYPES.has(newObject.type) ? playerTrapToEvict(remaining) : undefined;
   const errors = validateCurseObject(effectiveBaseObjects, newObject);
+  if (
+    isTooCloseToPlayerTrap(
+      newObject.type,
+      newObject.x,
+      remaining.filter((o) => o.id !== evicted?.id)
+    )
+  ) {
+    errors.push(TRAP_TOO_CLOSE_MESSAGE);
+  }
   if (errors.length > 0) {
     return c.json<ProposeCurseResponse>({ status: 'error', errors });
   }
@@ -285,7 +306,8 @@ curse.post('/propose', async (c) => {
     current.objects,
     newObject,
     extension,
-    removedObjectId
+    removedObjectId,
+    evicted?.id
   );
   const extensionObjects = extension
     ? extensionAsLevelObjects(extension, username, current.version + 1)
@@ -301,7 +323,10 @@ curse.post('/propose', async (c) => {
       parentVersion: current.version,
       objects: [
         ...current.objects.filter(
-          (o) => !(extension && o.type === 'finish') && o.id !== removedObjectId
+          (o) =>
+            !(extension && o.type === 'finish') &&
+            o.id !== removedObjectId &&
+            o.id !== evicted?.id
         ),
         ...extensionObjects,
         { ...newObject, properties: {}, addedBy: username, addedInVersion: current.version + 1 },
@@ -357,8 +382,10 @@ curse.post('/publish', async (c) => {
     newObject,
     extension,
     removedObjectId,
+    evictedObjectId,
     verifiedTimeMs,
   } = candidate;
+  const evicted = baseObjects.find((o) => o.id === evictedObjectId);
   const newVersionNumber = parentVersion + 1;
   if (CURSE_LOCKED_LEVEL_IDS.has(levelId)) {
     return c.json<PublishCurseResponse>(
@@ -412,7 +439,10 @@ curse.post('/publish', async (c) => {
         : [];
       const objects: LevelObject[] = [
         ...baseObjects.filter(
-          (o) => !(extension && o.type === 'finish') && o.id !== removedObjectId
+          (o) =>
+            !(extension && o.type === 'finish') &&
+            o.id !== removedObjectId &&
+            o.id !== evicted?.id
         ),
         ...extensionObjects,
         {
@@ -443,6 +473,16 @@ curse.post('/publish', async (c) => {
       await tx.set(levelCurrentVersionKey(levelId), String(newVersionNumber));
       // So the curser can later see who it caught (GET /api/me/curses).
       await tx.hSet(userCursesKey(username), cursePlacedFields(newObject.id, levelId, newObject.type));
+      // The pushed-out trap leaves like a moderator removal (UndoService.
+      // removeTrap): one sabotage fewer in effect (counted as an eviction,
+      // since it has no version of its own), its owner gets the slot back,
+      // and undo never restores it.
+      if (evicted) {
+        await tx.incrBy(levelEvictionsKey(levelId), 1);
+        await tx.hSet(levelRemovedTrapsKey(levelId), { [evicted.id]: '1' });
+        await tx.hDel(userCursesKey(evicted.addedBy), [evicted.id]);
+        await tx.hDel(userCursesSeenKey(evicted.addedBy), [evicted.id]);
+      }
       await tx.del(editorCandidateKey(username));
       return {
         commit: true,

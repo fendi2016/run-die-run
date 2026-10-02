@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, mock, test } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isCurseEligibilityResponse, parseDraftObjectsJson, TRAP_IN_START_ZONE_MESSAGE, type DraftObject } from '../../shared/editorApi';
+import { isCurseEligibilityResponse, parseDraftObjectsJson, TRAP_IN_START_ZONE_MESSAGE, TRAP_TOO_CLOSE_MESSAGE, type DraftObject } from '../../shared/editorApi';
 import type { ObjectType } from '../../shared/types';
 
 // A versioned in-memory store that aborts WATCH transactions when a competing
@@ -549,7 +549,7 @@ await test('simultaneous curses against the same parent version: only one publis
   const { body: bBody } = await proposeCurse('bob', 'meat-grinder', {
     id: 'b',
     type: 'saw',
-    x: 760,
+    x: 1000,
     y: 480,
   });
   assert.equal(aBody.status, 'ok');
@@ -589,7 +589,7 @@ await test('simultaneous curses against the same parent version: only one publis
   // preserved") — re-proposing against the now-current version and
   // re-verifying must still succeed.
   const loserUsername = winner === aResult.body ? 'bob' : 'alice';
-  const sawObject: DraftObject = { id: 'b2', type: 'saw', x: 760, y: 480 };
+  const sawObject: DraftObject = { id: 'b2', type: 'saw', x: 1000, y: 480 };
   const candleObject: DraftObject = { id: 'a2', type: 'candle', x: 700, y: 480 };
   const loserObject = loserUsername === 'bob' ? sawObject : candleObject;
   const { body: retryPropose } = await proposeCurse(
@@ -1215,15 +1215,15 @@ await test('a player waits for someone else to curse between curses, up to the p
 
   // Once someone else curses it, alice gets another — up to the cap.
   for (let i = 1; i < CURSES_PER_LEVEL; i++) {
-    assert.equal((await curseAndPublish(`other-${i}`, 1000 + i * 60)).status, 'ok');
+    assert.equal((await curseAndPublish(`other-${i}`, 1000 + i * 400)).status, 'ok');
     assert.equal((await eligibility('alice')).canCurse, true);
-    assert.equal((await curseAndPublish('alice', 820 + i * 60)).status, 'ok');
+    assert.equal((await curseAndPublish('alice', 1200 + i * 400)).status, 'ok');
   }
-  assert.equal((await curseAndPublish('someone-else', 1300)).status, 'ok');
+  assert.equal((await curseAndPublish('someone-else', 2400)).status, 'ok');
   const capped = await eligibility('alice');
   assert.equal(capped.canCurse, false);
   assert.match(capped.reason ?? '', /the max \d+ times/);
-  assert.equal((await curseAndPublish('alice', 1400)).status, 'error');
+  assert.equal((await curseAndPublish('alice', 2800)).status, 'error');
 });
 
 await test("a level's creator can leave the first curse on it (publishing isn't a curse)", async () => {
@@ -1266,7 +1266,7 @@ await test('curse preview contains the latest parent and exactly the objects tha
   assert.equal((await publishCurse('alice', first.body.candidateToken)).body.status, 'ok');
 
   const second = await proposeCurse('bob', initial.levelId, {
-    id: 'second', type: 'saw', x: 760, y: 480,
+    id: 'second', type: 'saw', x: 1000, y: 480,
   });
   assert.ok(second.body.status === 'ok');
   const preview = second.body.previewLevel;
@@ -1854,7 +1854,7 @@ await test('a moderator undo restores the level before its latest sabotage, one 
   const seed = await getCurrentLevelVersion('meat-grinder');
   assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
   const afterBob = await getCurrentLevelVersion('meat-grinder');
-  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
 
   const first = await undoLatestSabotage('meat-grinder');
   assert.equal(first.status, 'ok');
@@ -1876,7 +1876,7 @@ await test('a moderator undo restores the level before its latest sabotage, one 
 
   // A sabotage after an undo builds on the restored level, and undoing it
   // goes back to that restored level, not to the sabotages undone before.
-  assert.equal((await curseAndPublish('dave', 820)).status, 'ok');
+  assert.equal((await curseAndPublish('dave', 1300)).status, 'ok');
   assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
   const undone = await undoLatestSabotage('meat-grinder');
   assert.equal(undone.status === 'ok' && undone.undoneBy, 'dave');
@@ -1899,11 +1899,11 @@ await test('an undone sabotage gives its owner the slot back and leaves their li
   const { undoLatestSabotage } = await import('../services/UndoService');
   const { getMyCurses } = await import('../services/TrapStatsService');
   // bob uses all three of his sabotages on the level (no two in a row).
-  for (const [username, x] of [['bob', 700], ['carol', 760], ['bob', 820], ['carol', 880], ['bob', 940]] as const) {
+  for (const [username, x] of [['bob', 700], ['carol', 1000], ['bob', 1300], ['carol', 1600], ['bob', 1900]] as const) {
     assert.equal((await curseAndPublish(username, x)).status, 'ok');
   }
   assert.equal((await eligibility('carol')).canCurse, true);
-  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 2200)).status, 'ok');
   assert.equal((await eligibility('bob')).canCurse, false);
   assert.equal((await getMyCurses('bob')).length, 3);
 
@@ -1923,7 +1923,7 @@ await test('a moderator can remove one chosen player trap, and undo never brings
   const { getMyCurses } = await import('../services/TrapStatsService');
   const seed = await getCurrentLevelVersion('meat-grinder');
   assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
-  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
 
   // Only player-added traps are listed; the built-in ones never are.
   const traps = await listRemovableTraps('meat-grinder');
@@ -1958,7 +1958,7 @@ await test('removing traps near spawn clears pre-rule player traps in the start 
   const { levelCurrentVersionKey, levelVersionKey } = await import('../core/redisKeys');
   const seed = await getCurrentLevelVersion('meat-grinder');
   assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
-  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
   // Move bob's trap into column 2, as if placed before the rule existed.
   const version = Number(await redis.get(levelCurrentVersionKey('meat-grinder')));
   const current = await getCurrentLevelVersion('meat-grinder');
@@ -1977,12 +1977,61 @@ await test('removing traps near spawn clears pre-rule player traps in the start 
   assert.deepEqual(await removeStartZoneTraps(), { removed: 0, failed: 0 });
 });
 
+await test('a new trap must be more than two columns from any player trap', async () => {
+  await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 1200)).status, 'ok');
+  for (const x of [1080, 1140, 1200, 1260, 1320]) {
+    const near = await curseAndPublish('carol', x);
+    assert.equal(near.status, 'error');
+    assert.ok('errors' in near && near.errors.includes(TRAP_TOO_CLOSE_MESSAGE));
+  }
+  assert.equal((await curseAndPublish('carol', 1380)).status, 'ok');
+});
+
+await test('a full level makes room: the newest trap pushes out the oldest, whose owner gets the slot back', async () => {
+  const { getLevelStats } = await import('../services/DiscoveryService');
+  const { getMyCurses } = await import('../services/TrapStatsService');
+  const { PLAYER_TRAPS_PER_LEVEL } = await import('../../shared/editorApi');
+  await getCurrentLevelVersion('meat-grinder');
+  for (let i = 0; i < PLAYER_TRAPS_PER_LEVEL; i++) {
+    assert.equal((await curseAndPublish(`p${i}`, 700 + i * 200)).status, 'ok');
+  }
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, PLAYER_TRAPS_PER_LEVEL);
+  assert.equal((await getMyCurses('p0')).length, 1);
+
+  const proposed = await proposeCurse('late', 'meat-grinder', { id: 'x', type: 'saw', x: 700 + PLAYER_TRAPS_PER_LEVEL * 200, y: 480 });
+  assert.ok(proposed.body.status === 'ok');
+  // Prove It already runs without the trap that's leaving.
+  assert.equal(proposed.body.previewLevel.objects.some((o) => o.addedBy === 'p0'), false);
+  await markCandidateVerified('late', proposed.body.candidateToken, 2000);
+  assert.equal((await publishCurse('late', proposed.body.candidateToken)).body.status, 'ok');
+
+  const after = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(after?.objects.some((o) => o.addedBy === 'p0'), false);
+  assert.equal(after?.objects.some((o) => o.addedBy === 'late'), true);
+  assert.equal((await getLevelStats('meat-grinder'))?.sabotages, PLAYER_TRAPS_PER_LEVEL);
+  assert.equal((await getMyCurses('p0')).length, 0);
+});
+
+await test('player traps expire after their lifetime and their owners get the slot back', async () => {
+  const { expireOldTraps } = await import('../services/UndoService');
+  const { getMyCurses } = await import('../services/TrapStatsService');
+  const { PLAYER_TRAP_LIFETIME_MS } = await import('../../shared/editorApi');
+  const seed = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  const placed = Date.now();
+  assert.deepEqual(await expireOldTraps(placed + PLAYER_TRAP_LIFETIME_MS - 60_000), { removed: 0, failed: 0 });
+  assert.deepEqual(await expireOldTraps(placed + PLAYER_TRAP_LIFETIME_MS + 60_000), { removed: 1, failed: 0 });
+  assert.deepEqual((await getCurrentLevelVersion('meat-grinder'))?.objects, seed?.objects);
+  assert.equal((await getMyCurses('bob')).length, 0);
+});
+
 await test('undo skips the newest trap when a moderator already removed it', async () => {
   const { listRemovableTraps, removeTrap, undoLatestSabotage } = await import('../services/UndoService');
   const { getLevelStats } = await import('../services/DiscoveryService');
   const seed = await getCurrentLevelVersion('meat-grinder');
   assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
-  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 1000)).status, 'ok');
   const carols = (await listRemovableTraps('meat-grinder')).find((t) => t.addedBy === 'carol');
   assert.equal((await removeTrap('meat-grinder', carols?.id ?? '')).status, 'ok');
   assert.equal((await getLevelStats('meat-grinder'))?.sabotages, 1);
