@@ -8,6 +8,7 @@ import {
 } from '../objects/ObjectRegistry';
 import { getRequestedLevelId } from '../levelSelection';
 import { prefetchLevel } from '../levelPrefetch';
+import { prefetchCurseReveal } from '../../ui/CurseReveal';
 import { streamSfx } from '../systems/Sfx';
 import { createPixelFxAnims, PIXEL_FX_SHEETS, streamLateSpritesheets } from '../systems/Juice';
 import { SCENERY_ART } from '../systems/PaperScenery';
@@ -62,6 +63,7 @@ export class Preloader extends Scene {
   preload() {
     // In parallel with the assets below — see levelPrefetch.ts.
     prefetchLevel(getRequestedLevelId());
+    prefetchCurseReveal();
 
     //  Load the assets for the game - Replace with your own assets
     this.load.setPath('../assets');

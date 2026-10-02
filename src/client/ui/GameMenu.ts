@@ -34,6 +34,7 @@ export class GameMenu {
   private readonly statValueEl = requireElement('game-menu-stat-value');
   private readonly creatorNameEl = requireElement('game-menu-creator-name');
   private readonly statsBadgeEl = requireElement('game-menu-stats-badge');
+  private badgeSuppressed = false;
 
   private constructor() {
     requireButton('game-menu-play').addEventListener('click', () =>
@@ -61,6 +62,13 @@ export class GameMenu {
     StatsOverlay.instance().show(() => this.statsBadgeEl.classList.add('hidden'));
   }
 
+  // The reveal just told the player (and marked it seen): a badge request
+  // already in flight mustn't put the same news back on the chip.
+  hideStatsBadge(): void {
+    this.badgeSuppressed = true;
+    this.statsBadgeEl.classList.add('hidden');
+  }
+
   setHandlers(handlers: GameMenuHandlers): void {
     this.handlers = handlers;
   }
@@ -78,6 +86,10 @@ export class GameMenu {
       const response = await fetch('/api/me/curses', { signal: AbortSignal.timeout(8000) });
       const body: unknown = await response.json();
       if (!response.ok || !isMyCursesResponse(body)) return;
+      if (this.badgeSuppressed) {
+        this.badgeSuppressed = false;
+        return;
+      }
       const fresh = body.curses.reduce((sum, c) => sum + c.newCaught + c.newPassed, 0);
       this.statsBadgeEl.textContent = `${fresh} new`;
       this.statsBadgeEl.classList.toggle('hidden', fresh === 0);

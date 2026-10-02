@@ -12,7 +12,7 @@ import {
 } from '../../shared/constants';
 import { levelDeathsKey, levelVersionKey } from '../core/redisKeys';
 import { getCurrentLevelVersion } from '../services/LevelService';
-import { recordPasses } from '../services/TrapStatsService';
+import { notoriousTrapKills, recordPasses } from '../services/TrapStatsService';
 
 type ErrorResponse = {
   status: 'error';
@@ -147,5 +147,7 @@ deaths.get('/:levelId/:version', async (c) => {
     });
   }
 
-  return c.json<DeathMarkersResponse>({ levelId, version, markers });
+  // Decoration only: a failed lookup still returns the skulls.
+  const trapKills = await notoriousTrapKills(levelId, version).catch(() => ({}));
+  return c.json<DeathMarkersResponse>({ levelId, version, markers, trapKills });
 });

@@ -46,6 +46,10 @@ export type DeathMarkersResponse = {
   levelId: string;
   version: number;
   markers: DeathMarker[];
+  // Kill counts of this version's traps that have earned a notoriety badge
+  // (see trapNotoriety.ts), by object id. Traps below the first tier are
+  // left out.
+  trapKills: Record<string, number>;
 };
 
 function isDeathMarker(value: unknown): value is DeathMarker {
@@ -73,6 +77,10 @@ export function isDeathMarkersResponse(
     typeof value.version === 'number' &&
     'markers' in value &&
     Array.isArray(value.markers) &&
-    value.markers.every(isDeathMarker)
+    value.markers.every(isDeathMarker) &&
+    'trapKills' in value &&
+    typeof value.trapKills === 'object' &&
+    value.trapKills !== null &&
+    Object.values(value.trapKills).every((kills) => typeof kills === 'number')
   );
 }

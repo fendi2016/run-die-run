@@ -14,3 +14,7 @@ export function currentPostData(): unknown {
 export function currentSubredditName(): string | undefined {
   return maybeContext?.subredditName;
 }
+
+export function currentUsername(): string | undefined {
+  return maybeContext?.username;
+}

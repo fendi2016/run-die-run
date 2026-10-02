@@ -66,7 +66,9 @@ mock.module('@devvit/web/server', {
 
 const { deaths } = await import('../routes/deaths');
 const { getCurrentLevelVersion } = await import('../services/LevelService');
-const { levelDeathsKey } = await import('../core/redisKeys');
+const { levelDeathsKey, trapKillsKey } = await import('../core/redisKeys');
+const { HAZARD_TYPES } = await import('../../shared/hazards');
+const { NOTORIETY_MIN_KILLS } = await import('../../shared/trapNotoriety');
 const { isDeathMarkersResponse } = await import('../../shared/deathsApi');
 
 const post = (body: unknown) => ({
@@ -223,12 +225,26 @@ await test('GET returns top buckets sorted highest-count-first, converted to buc
   ]);
 });
 
+await test('GET lists the kill counts of traps that reached a notoriety tier', async () => {
+  const level = await getCurrentLevelVersion('meat-grinder');
+  assert.ok(level);
+  const [deadly, mild] = level.objects.filter((o) => HAZARD_TYPES.has(o.type));
+  assert.ok(deadly && mild);
+  values.set(trapKillsKey(deadly.id), String(NOTORIETY_MIN_KILLS));
+  values.set(trapKillsKey(mild.id), String(NOTORIETY_MIN_KILLS - 1));
+
+  const body: unknown = await (await deaths.request(`/meat-grinder/${level.version}`)).json();
+  assert.ok(isDeathMarkersResponse(body));
+  assert.deepEqual(body.trapKills, { [deadly.id]: NOTORIETY_MIN_KILLS });
+});
+
 await test('GET returns an empty marker list for a version with no reported deaths', async () => {
   const response = await deaths.request('/meat-grinder/1');
   assert.equal(response.status, 200);
   const body: unknown = await response.json();
   assert.ok(isDeathMarkersResponse(body));
   assert.deepEqual(body.markers, []);
+  assert.deepEqual(body.trapKills, {});
 });
 
 await test('GET rejects an invalid version param', async () => {

@@ -24,8 +24,10 @@ export class RunResultOverlay {
   private readonly saveRetry = requireButton('run-result-save-retry');
   private readonly nextStatus = requireElement('run-result-next-status');
   private readonly nextButton = requireButton('run-result-next');
+  private readonly remixButton = requireButton('run-result-remix');
   private readonly titleEl = requireElement('run-result-title');
   private readonly curseHintEl = requireElement('run-result-curse-hint');
+  private readonly defaultCurseHint = this.curseHintEl.textContent ?? '';
 
   showSaveStatus(message: string, retry?: () => void): void {
     this.saveStatus.classList.remove('run-result-info');
@@ -55,6 +57,8 @@ export class RunResultOverlay {
     this.leaderboardBtn.onclick = null;
     this.shareBtn.classList.add('hidden');
     this.shareBtn.onclick = null;
+    this.remixButton.classList.add('hidden');
+    this.remixButton.onclick = null;
     this.root.classList.remove('hidden');
   }
 
@@ -65,8 +69,10 @@ export class RunResultOverlay {
 
   // While the curse is on offer the card is just the curse button and its
   // hint — everything below them hides so the card stays small enough to
-  // watch the finish dive behind it.
-  setCurseHandler(handler: () => void): void {
+  // watch the finish dive behind it. `hint` replaces the usual line (the
+  // revenge nudge after someone's traps kept killing you).
+  setCurseHandler(handler: () => void, hint?: string): void {
+    this.curseHintEl.textContent = hint ?? this.defaultCurseHint;
     this.curseBtn.classList.remove('hidden');
     this.curseHintEl.classList.remove('hidden');
     this.root.classList.add('run-result-curse-only');
@@ -122,6 +128,12 @@ export class RunResultOverlay {
     this.shareBtn.onclick = handler;
   }
 
+  // Under Next Level: open the builder on a copy of the level just beaten.
+  setRemixHandler(handler: () => void): void {
+    this.remixButton.classList.remove('hidden');
+    this.remixButton.onclick = handler;
+  }
+
   setLeaderboardHandler(handler: () => void): void {
     this.leaderboardBtn.classList.remove('hidden');
     this.leaderboardBtn.onclick = handler;
@@ -138,6 +150,7 @@ export class RunResultOverlay {
     this.shareBtn.onclick = null;
     this.saveRetry.onclick = null;
     this.nextButton.onclick = null;
+    this.remixButton.onclick = null;
     this.root.classList.add('hidden');
   }
 }

@@ -1663,4 +1663,29 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
    Back must reveal it again. */
 #discovery-overlay { z-index: 7; }
 #stats-overlay { z-index: 5; }
+/* "While you were away…" (CurseReveal): over the menu, under Browse. */
+#curse-reveal { z-index: 5; }
+#curse-reveal .editor-dialog-panel { text-align: center; max-width: 320px; }
+#curse-reveal-title {
+  font-family: var(--font-hand);
+  font-size-adjust: 0.55;
+  font-size: 24px;
+  color: var(--ink);
+}
+#curse-reveal-line {
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+#curse-reveal-level {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+#curse-reveal-others {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+#curse-reveal-others.hidden { display: none; }
 button:focus-visible { outline: var(--line) dashed var(--rule-blue); outline-offset: 3px; }

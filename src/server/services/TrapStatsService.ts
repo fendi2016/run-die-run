@@ -3,6 +3,7 @@ import { SEED_AUTHOR } from '../../shared/constants';
 import { DEADLIEST_TRAP_MIN_KILLS, type DeadliestTrap } from '../../shared/discoveryApi';
 import { HAZARD_TYPES } from '../../shared/hazards';
 import type { MyCurse } from '../../shared/myCursesApi';
+import { NOTORIETY_MIN_KILLS } from '../../shared/trapNotoriety';
 import { passedHazardIds } from '../../shared/trapStats';
 import { isLevelVersion, isObjectType, type ObjectType } from '../../shared/types';
 import {
@@ -36,6 +37,22 @@ export async function deadliestTrap(levelId: string): Promise<DeadliestTrap | un
     }
   });
   return best;
+}
+
+// Kill counts of one version's traps that have earned a notoriety badge,
+// by object id (see trapNotoriety.ts). Empty for an unknown version.
+export async function notoriousTrapKills(levelId: string, version: number): Promise<Record<string, number>> {
+  const raw = await redis.get(levelVersionKey(levelId, version));
+  const level = parseJson(raw);
+  if (!isLevelVersion(level)) return {};
+  const traps = level.objects.filter((o) => HAZARD_TYPES.has(o.type));
+  const kills = await Promise.all(traps.map((o) => redis.get(trapKillsKey(o.id))));
+  const notorious: Record<string, number> = {};
+  traps.forEach((trap, i) => {
+    const count = Number(kills[i] ?? 0);
+    if (count >= NOTORIETY_MIN_KILLS) notorious[trap.id] = count;
+  });
+  return notorious;
 }
 
 export async function recordCatch(objectId: string, addedBy: string, username: string): Promise<void> {

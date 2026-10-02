@@ -45,3 +45,18 @@ export function isMyCursesResponse(value: unknown): value is MyCursesResponse {
     value.curses.every(isMyCurse)
   );
 }
+
+// The menu's "while you were away" reveal: the curse that caught the most
+// players since they last looked, and how many more catches the rest got.
+// Undefined when nothing new was caught (passes alone aren't worth it).
+export type CurseReveal = { curse: MyCurse; otherNewCaught: number };
+
+export function pickCurseReveal(curses: readonly MyCurse[]): CurseReveal | undefined {
+  let top: MyCurse | undefined;
+  let total = 0;
+  for (const curse of curses) {
+    total += curse.newCaught;
+    if (curse.newCaught > (top?.newCaught ?? 0)) top = curse;
+  }
+  return top ? { curse: top, otherNewCaught: total - top.newCaught } : undefined;
+}

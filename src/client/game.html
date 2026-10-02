@@ -80,6 +80,7 @@
               </button>
               <div id="run-result-curse-hint" class="hidden">Your turn to make it worse.</div>
               <button type="button" id="run-result-next" class="editor-btn editor-btn-primary hidden">Next Level</button>
+              <button type="button" id="run-result-remix" class="editor-btn hidden">Remix this level</button>
             </div>
             <button type="button" id="run-result-share" class="editor-btn hidden">Share Your Clear</button>
           </div>
@@ -149,6 +150,18 @@
             <button type="button" id="stats-close" class="editor-btn">
               Close
             </button>
+          </div>
+        </div>
+      </div>
+      <div id="curse-reveal" class="editor-dialog hidden">
+        <div class="editor-dialog-panel">
+          <div id="curse-reveal-title">WHILE YOU WERE AWAY…</div>
+          <div id="curse-reveal-line"></div>
+          <div id="curse-reveal-level"></div>
+          <div id="curse-reveal-others" class="hidden"></div>
+          <div class="editor-dialog-actions">
+            <button type="button" id="curse-reveal-see" class="editor-btn editor-btn-curse">Go see it</button>
+            <button type="button" id="curse-reveal-dismiss" class="editor-btn">Later</button>
           </div>
         </div>
       </div>

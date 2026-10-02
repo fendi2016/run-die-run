@@ -24,10 +24,12 @@ import {
   isLevelStats,
   type LevelStats,
 } from '../../../shared/discoveryApi';
-import { currentSubredditName } from '../../devvitContext';
+import { currentSubredditName, currentUsername } from '../../devvitContext';
 import { withTimeout } from '../../net';
 import { GameplayControls } from '../../ui/GameplayControls';
 import type { CurseCategory, DraftObject } from '../../../shared/editorApi';
+import { snapSeedObjectsToGrid } from '../../../shared/seedEditorApi';
+import { loadDraft, saveDraft } from '../editor/draftStore';
 import {
   isCurseEligibilityResponse,
   isPublishCurseResponse,
@@ -110,6 +112,7 @@ import {
 } from '../systems/Juice';
 import { clearDeathStandIns } from '../systems/DeathEffects';
 import { drawDeathMarkers, fetchDeathMarkers, reportDeathPosition } from '../systems/DeathMarkers';
+import { drawTrapBadges } from '../systems/TrapNotoriety';
 import { playSfx } from '../systems/Sfx';
 import {
   loadLevel,
@@ -126,6 +129,16 @@ const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // running at once, so it gets a quicker flourish around the visible player.
 // Per-frame ease toward the clear-screen framing (see frameFinish()).
 const FINISH_CAMERA_LERP = 0.12;
+// "Go see it" from the menu's reveal: the camera starts on the player's
+// trap, holds there, then eases back to the pencil (or as soon as they tap).
+const FOCUS_CAMERA_LERP = 0.07;
+const FOCUS_HOLD_MS = 2400;
+// Timed rather than a per-frame lerp: chasing a running pencil, a lerp
+// never closes the gap and the camera would lag him all run.
+const FOCUS_RETURN_MS = 450;
+// Deaths to one other player's traps on this level before the clear
+// screen's sabotage hint turns into a revenge line.
+const REVENGE_MIN_DEATHS = 3;
 const SPAWN_SCRIBBLE_RETRY_MS = 150;
 // Colour of the burst left where each power-up was picked up.
 const POWER_UP_POP_COLOR: Partial<Record<ObjectType, number>> = {
@@ -189,6 +202,9 @@ type GameSceneData = {
   // Set when landing back in a level right after publishing a curse on it:
   // the player gets to see their trap live, with a way on to the next level.
   justCursed?: boolean;
+  // From the menu's "while you were away" reveal: open on this trap so the
+  // player can see it before their run starts.
+  focusTrap?: { objectId: string; caught: number };
 };
 
 // Levels the starter has already been offered on this session.
@@ -276,6 +292,16 @@ export class GameScene extends Scene {
   private tutorial = false;
   private returnTo: { levelId: string; title: string } | undefined;
   private justCursed = false;
+  private focusTrap: { objectId: string; caught: number } | undefined;
+  // While set, the camera eases here instead of following the player
+  // (see focusOnTrap()); `focusReturn` then eases it home.
+  private focusCameraX: number | undefined;
+  private focusReturn: { fromX: number; startedAt: number } | undefined;
+  private focusTimer: Phaser.Time.TimerEvent | undefined;
+  private trapSprites = new Map<string, Phaser.GameObjects.Sprite>();
+  // Deaths this level to each other player's traps, for the clear screen's
+  // revenge line.
+  private killsByAuthor = new Map<string, { deaths: number; type: ObjectType }>();
   private tutorialHint!: TutorialHint;
   private tutorialPointer!: TutorialPointer;
 
@@ -290,6 +316,8 @@ export class GameScene extends Scene {
   // Deaths since the last clear on this level, for the struggling-player
   // shield (SHIELD_HELP_DEATHS).
   private deathStreak = 0;
+  // A remix is loading/saving the draft (one tap at a time).
+  private remixing = false;
   private levelStats: LevelStats | undefined;
   // Asked for as the level loads so the result card knows at the finish
   // whether to offer a curse (see fetchCanCurse).
@@ -303,6 +331,12 @@ export class GameScene extends Scene {
     this.tutorial = data.tutorial === true;
     this.returnTo = data.returnTo;
     this.justCursed = data.justCursed === true;
+    this.focusTrap = data.focusTrap;
+    this.focusCameraX = undefined;
+    this.focusReturn = undefined;
+    this.focusTimer = undefined;
+    this.trapSprites = new Map();
+    this.killsByAuthor = new Map();
     this.nextLevel = undefined;
     this.canCurse = undefined;
     // The tutorial runs as a preview so nothing about it is reported or
@@ -394,6 +428,7 @@ export class GameScene extends Scene {
     // already owns deciding what counts as "the start tap".
     if (!this.runStarted && !this.player.isWaitingToStart) {
       this.runStarted = true;
+      this.releaseTrapFocus();
       // Tapped before he'd climbed out: skip to him standing at spawn.
       this.caseEmerge?.finish();
       this.tapToStartPrompt.hide();
@@ -460,10 +495,21 @@ export class GameScene extends Scene {
     // After a clear, ease over to the framing picked by frameFinish().
     const followX =
       this.cameraScrollXFor(this.player.sprite.x) + this.visibleWorldWidth() / 2;
-    this.cameraCenterX =
-      this.finishCameraX === undefined
-        ? followX
-        : Phaser.Math.Linear(this.cameraCenterX, this.finishCameraX, FINISH_CAMERA_LERP);
+    if (this.finishCameraX !== undefined) {
+      this.cameraCenterX = Phaser.Math.Linear(this.cameraCenterX, this.finishCameraX, FINISH_CAMERA_LERP);
+    } else if (this.focusCameraX !== undefined) {
+      this.cameraCenterX = Phaser.Math.Linear(this.cameraCenterX, this.focusCameraX, FOCUS_CAMERA_LERP);
+    } else if (this.focusReturn) {
+      const t = Math.min(1, (this.time.now - this.focusReturn.startedAt) / FOCUS_RETURN_MS);
+      this.cameraCenterX = Phaser.Math.Linear(
+        this.focusReturn.fromX,
+        followX,
+        Phaser.Math.Easing.Sine.InOut(t)
+      );
+      if (t >= 1) this.focusReturn = undefined;
+    } else {
+      this.cameraCenterX = followX;
+    }
     this.cameras.main.centerOnX(this.cameraCenterX);
     this.followPlayerY(false);
   }
@@ -714,6 +760,7 @@ export class GameScene extends Scene {
     void this.loadLevelStats(levelVersion.levelId);
     this.canCurse = this.fetchCanCurse(levelVersion.levelId);
     this.startRun(levelVersion);
+    if (this.focusTrap) this.focusOnTrap(this.focusTrap);
     if (this.justCursed) {
       showToast('You made it worse. Nice.');
       void this.showNextLevelShortcut();
@@ -843,6 +890,7 @@ export class GameScene extends Scene {
     this.powerUpImages = loaded.powerUpImages;
     this.bats = loaded.bats;
     this.finishSprite = loaded.finishSprite;
+    this.trapSprites = loaded.trapSprites;
     this.bestProgress = this.previewLevel
       ? null
       : loadBestProgress(levelVersion.levelId, levelVersion.version);
@@ -961,6 +1009,7 @@ export class GameScene extends Scene {
       const levelVersion = this.levelVersion;
       void this.offerCurseAndNext(levelVersion.levelId);
       this.resultOverlay.setShareHandler(() => this.share(this.clearShareText()));
+      this.resultOverlay.setRemixHandler(() => void this.remixLevel(levelVersion));
       this.resultOverlay.setLeaderboardHandler(() =>
         LeaderboardOverlay.instance().show({ levelId: levelVersion.levelId })
       );
@@ -994,9 +1043,88 @@ export class GameScene extends Scene {
     const canCurse = await (this.canCurse ??= this.fetchCanCurse(levelId));
     if (attempt.signal.aborted) return;
     if (canCurse) {
-      this.resultOverlay.setCurseHandler(() => this.scene.start('CurseScene', { levelId }));
+      this.resultOverlay.setCurseHandler(
+        () => this.scene.start('CurseScene', { levelId }),
+        this.revengeLine()
+      );
     }
     void this.findNextLevel();
+  }
+
+  // Remix: the level as just played (every trap included) becomes the
+  // player's builder draft, after asking before it replaces one they
+  // already have. Publishing gives every object a fresh id, so the copy's
+  // traps never share kill counts with the original's.
+  private async remixLevel(level: LevelVersion): Promise<void> {
+    if (this.remixing) return;
+    this.remixing = true;
+    try {
+      let draft: DraftObject[] | null;
+      try {
+        draft = await loadDraft();
+      } catch {
+        showToast("Couldn't reach your saved level. Try again.");
+        return;
+      }
+      if (!this.scene.isActive()) return;
+      if (draft && draft.length > 0) {
+        const result = await showForm({
+          title: 'Replace your saved level?',
+          description: 'Remixing this level replaces the level you saved in the builder.',
+          acceptLabel: 'Replace',
+          cancelLabel: 'Keep mine',
+          fields: [],
+        });
+        if (result.action !== 'SUBMITTED' || !this.scene.isActive()) return;
+      }
+      const objects = snapSeedObjectsToGrid(
+        level.objects.map(({ id, type, x, y }) => ({ id, type, x, y }))
+      );
+      if (!(await saveDraft(objects))) {
+        showToast("Couldn't start the remix. Try again.");
+        return;
+      }
+      if (this.scene.isActive()) this.scene.start('EditorScene', { objects });
+    } finally {
+      this.remixing = false;
+    }
+  }
+
+  // "u/foo's Stapler got you 6×. Get even." — the player whose traps killed
+  // you most on this level, once it's happened enough to sting.
+  private revengeLine(): string | undefined {
+    let top: { author: string; deaths: number; type: ObjectType } | undefined;
+    for (const [author, tally] of this.killsByAuthor) {
+      if (tally.deaths > (top?.deaths ?? 0)) top = { author, ...tally };
+    }
+    if (!top || top.deaths < REVENGE_MIN_DEATHS) return undefined;
+    return `u/${top.author}'s ${labelFor(top.type)} got you ${top.deaths}×. Get even.`;
+  }
+
+  // From the menu's reveal: the camera opens on the player's own trap and
+  // holds there while the run waits for its first tap.
+  private focusOnTrap(focus: { objectId: string; caught: number }): void {
+    const sprite = this.trapSprites.get(focus.objectId);
+    const type = this.levelVersion?.objects.find((o) => o.id === focus.objectId)?.type;
+    // Erased since (or a removed trap type): just play the level.
+    if (!sprite || !type) return;
+    const halfView = this.visibleWorldWidth() / 2;
+    this.focusCameraX = Phaser.Math.Clamp(
+      sprite.x,
+      halfView,
+      Math.max(halfView, this.levelWidth - halfView)
+    );
+    const players = focus.caught === 1 ? 'player' : 'players';
+    showToast(`There's your ${labelFor(type)}: ${focus.caught} ${players} caught 😈`);
+    this.focusTimer = this.time.delayedCall(FOCUS_HOLD_MS, () => this.releaseTrapFocus());
+  }
+
+  private releaseTrapFocus(): void {
+    this.focusTimer?.remove();
+    this.focusTimer = undefined;
+    if (this.focusCameraX === undefined) return;
+    this.focusCameraX = undefined;
+    this.focusReturn = { fromX: this.cameraCenterX, startedAt: this.time.now };
   }
 
   // Best-effort: if the check fails, offer the curse and let propose (which
@@ -1288,6 +1416,13 @@ export class GameScene extends Scene {
       ? this.levelVersion?.objects.find((o) => o.id === objectId)
       : undefined;
     const attributedKiller = killer?.addedBy === SEED_AUTHOR ? undefined : killer;
+    if (attributedKiller && attributedKiller.addedBy !== currentUsername()) {
+      const tally = this.killsByAuthor.get(attributedKiller.addedBy);
+      this.killsByAuthor.set(attributedKiller.addedBy, {
+        deaths: (tally?.deaths ?? 0) + 1,
+        type: attributedKiller.type,
+      });
+    }
     this.controls.setShareHandler(
       this.previewLevel
         ? undefined
@@ -1307,8 +1442,10 @@ export class GameScene extends Scene {
     const request = new AbortController();
     this.markersRequest = request;
     fetchDeathMarkers(level.levelId, level.version, request.signal)
-      .then((markers) => {
-        if (!request.signal.aborted) drawDeathMarkers(this, markers);
+      .then(({ markers, trapKills }) => {
+        if (request.signal.aborted) return;
+        drawDeathMarkers(this, markers);
+        drawTrapBadges(this, this.trapSprites, trapKills);
       })
       .catch(() => {
         // Best-effort decoration — the level plays the same without it.

@@ -53,6 +53,9 @@ export type LoadedLevel = {
   // per level), exposed so GameScene can play its celebration on it from onFinishReached — undefined for level data that
   // (invalidly) has none, rather than throwing.
   finishSprite: Phaser.GameObjects.Sprite | undefined;
+  // Every hazard's visible sprite by object id, for decorations that need
+  // to find a particular trap (kill badges, the camera's "go see it").
+  trapSprites: Map<string, Phaser.GameObjects.Sprite>;
 };
 
 export type LevelLoaderCallbacks = {
@@ -105,6 +108,7 @@ export function loadLevel(
   const powerUpImages: Phaser.GameObjects.Sprite[] = [];
   const bats: LoadedBat[] = [];
   let finishSprite: Phaser.GameObjects.Sprite | undefined;
+  const trapSprites = new Map<string, Phaser.GameObjects.Sprite>();
   const movementResets: (() => void)[] = [];
   // Static groups query Arcade's spatial index instead of testing every
   // tile/hazard with a separate collider on every physics step.
@@ -212,6 +216,7 @@ export function loadLevel(
         }
         break;
       case 'hazard': {
+        trapSprites.set(object.id, rendered);
         if (object.type === 'bat') {
           // Kept out of the `hazards` static group (see
           // DYNAMIC_BODY_TYPES's comment in ObjectRegistry) — its overlap
@@ -293,5 +298,6 @@ export function loadLevel(
     powerUpImages,
     bats,
     finishSprite,
+    trapSprites,
   };
 }

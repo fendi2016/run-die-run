@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { SPLASH_AUTOSTART_KEY } from '../../../shared/constants';
+import { CurseRevealPanel, takeCurseReveal } from '../../ui/CurseReveal';
 import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { GameMenu } from '../../ui/GameMenu';
 import { isTutorialDone, prefetchTutorialStatus } from '../levels/tutorial';
@@ -33,8 +34,11 @@ export class MainMenu extends Scene {
     } catch {
       // The menu remains usable when embedded storage is unavailable.
     }
+    // News of the player's traps comes first — but only if it's already
+    // in; Play from the feed card otherwise goes straight into the level.
+    const reveal = takeCurseReveal();
     if (autostart) {
-      if (autostart === 'game') {
+      if (autostart === 'game' && !reveal) {
         this.play();
         return;
       }
@@ -69,6 +73,23 @@ export class MainMenu extends Scene {
     // overlay already open, the same as tapping it here.
     if (autostart === 'leaderboard') menu.openLeaderboard();
     if (autostart === 'stats') menu.openStats();
+    if (reveal) {
+      const panel = CurseRevealPanel.instance();
+      this.events.once('shutdown', () => panel.hide());
+      menu.hideStatsBadge();
+      panel.show(reveal, {
+        onSeeIt: () =>
+          this.scene.start('GameScene', {
+            levelId: reveal.curse.levelId,
+            focusTrap: { objectId: reveal.curse.objectId, caught: reveal.curse.caught },
+          }),
+        // From the feed card's Play: carry on into the level they tapped.
+        onDismiss: () => {
+          if (autostart === 'game') this.play();
+        },
+        dismissLabel: autostart === 'game' ? 'Play' : 'Later',
+      });
+    }
   }
 
   // A first Play on this device runs the tutorial, which then continues to

@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import {
   isDeathMarkersResponse,
   type DeathMarker,
+  type DeathMarkersResponse,
   type ReportDeathRequest,
 } from '../../../shared/deathsApi';
 
@@ -18,18 +19,20 @@ const MAX_ALPHA = 0.8;
 // Behind the player and hazards, in front of the background.
 const MARKER_DEPTH = -0.5;
 
+// The skulls, plus the kill counts of this version's notorious traps
+// (drawn by TrapNotoriety), which ride along on the same request.
 export async function fetchDeathMarkers(
   levelId: string,
   version: number,
   signal: AbortSignal
-): Promise<DeathMarker[]> {
+): Promise<Pick<DeathMarkersResponse, 'markers' | 'trapKills'>> {
   const response = await fetch(
     `/api/deaths/${encodeURIComponent(levelId)}/${version}`,
     { signal }
   );
-  if (!response.ok) return [];
+  if (!response.ok) return { markers: [], trapKills: {} };
   const json: unknown = await response.json();
-  return isDeathMarkersResponse(json) ? json.markers : [];
+  return isDeathMarkersResponse(json) ? json : { markers: [], trapKills: {} };
 }
 
 export function drawDeathMarkers(
