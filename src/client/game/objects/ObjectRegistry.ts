@@ -35,6 +35,7 @@ import {
   SPAWN_ICON_SIZE,
   SPIKES_DISPLAY_HEIGHT_PX,
   SPIKES_HITBOX_WIDTH_PX,
+  SAW_HITBOX_PX,
 } from '../constants';
 
 export type ObjectCategory =
@@ -664,7 +665,13 @@ export function renderLevelObject(
   } else if (object.type === 'electricMine') {
     sprite.setScale(ZAPPER_DISPLAY_HEIGHT_PX / sprite.height);
   } else if (categoryOf(object.type) === 'powerup') {
-    sprite.setScale((POWERUP_DISPLAY_HEIGHT_PX * POWERUP_ART_SCALE) / sprite.height);
+    // Centered in its pickup box (which the static body centers on the
+    // sprite): bottom-anchored, the shrunken art pulled the box half into
+    // the ground.
+    sprite
+      .setScale((POWERUP_DISPLAY_HEIGHT_PX * POWERUP_ART_SCALE) / sprite.height)
+      .setOrigin(0.5, 0.5)
+      .setY(object.y - POWERUP_DISPLAY_HEIGHT_PX / 2);
   }
   scene.physics.add.existing(sprite, !DYNAMIC_BODY_TYPES.has(object.type));
   if (terrain) setTerrainFootprint(sprite, terrainFootprintHeight(object.type));
@@ -675,6 +682,7 @@ export function renderLevelObject(
   if (object.type === 'ceilingSpikes') shrinkStaticBody(sprite, CEILING_SPIKES_HITBOX_WIDTH_PX);
   if (object.type === 'spikeMine') shrinkStaticBody(sprite, SPIKE_MINE_HITBOX_PX, SPIKE_MINE_HITBOX_PX);
   if (object.type === 'electricMine') shrinkStaticBody(sprite, ZAPPER_HITBOX_PX, ZAPPER_HITBOX_PX);
+  if (SAW_TYPES.has(object.type)) shrinkStaticBody(sprite, SAW_HITBOX_PX, SAW_HITBOX_PX);
   // The pickup box stays the size it was before the art shrank.
   if (categoryOf(object.type) === 'powerup') {
     shrinkStaticBody(sprite, sprite.displayWidth / POWERUP_ART_SCALE, POWERUP_DISPLAY_HEIGHT_PX);

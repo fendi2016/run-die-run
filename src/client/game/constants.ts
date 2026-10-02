@@ -14,8 +14,8 @@ export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released e
 // quickest tap is a real jump — without it a phone tap (~60-100ms) hopped
 // too low to clear a candle, the smallest hazard. Holding still goes higher.
 export const MIN_JUMP_HOLD_MS = 180;
-export const COYOTE_TIME_MS = 100;
-export const JUMP_BUFFER_MS = 130;
+export const COYOTE_TIME_MS = 130;
+export const JUMP_BUFFER_MS = 160;
 
 export const PLAYER_SIZE = 80;
 // Draws the pencil wider than its art without touching the physics sprite
@@ -109,8 +109,8 @@ export const PLATFORM_DISPLAY_HEIGHT_PX = 52;
 export const BAT_DISPLAY_HEIGHT_PX = 40;
 export const CANDLE_DISPLAY_HEIGHT_PX = 40;
 // The stapler art (candle type) is wider than the spikes it replaced; its
-// hitbox stays the old spikes' 28px width so the hazard plays the same.
-export const CANDLE_HITBOX_WIDTH_PX = 28;
+// hitbox is narrower than the art so a graze reads fairly.
+export const CANDLE_HITBOX_WIDTH_PX = 24;
 export const GHOST_DISPLAY_HEIGHT_PX = 50;
 
 // Spikes (hazards/spikes.webp): low and wide, unlike every other hazard here.
@@ -119,22 +119,24 @@ export const GHOST_DISPLAY_HEIGHT_PX = 50;
 // than the display width so a jump that clips the very edge of the art
 // still reads as a clean clear.
 export const SPIKES_DISPLAY_HEIGHT_PX = 34;
-export const SPIKES_HITBOX_WIDTH_PX = 46;
+export const SPIKES_HITBOX_WIDTH_PX = 42;
 
 // Traps from the scribble "traps and powerups" sheet. Display sizes keep
 // each art's own aspect ratio; hitboxes are a bit smaller than the drawing
 // (spikes/motion scribbles at the edges) so a graze reads fairly.
-// The saw/movingSaw keep the old 40x40 footprint; only the art changed.
+// The saw/movingSaw draw at the old 40x40 footprint; the hitbox is a
+// little inside the blade's teeth.
 export const SAW_DISPLAY_SIZE_PX = 40;
+export const SAW_HITBOX_PX = 34;
 // Hangs from a ceiling or platform above: one cell wide, spikes pointing down.
 export const CEILING_SPIKES_DISPLAY_WIDTH_PX = GRID_CELL_SIZE;
-export const CEILING_SPIKES_HITBOX_WIDTH_PX = 46;
+export const CEILING_SPIKES_HITBOX_WIDTH_PX = 42;
 export const SPIKE_MINE_DISPLAY_HEIGHT_PX = 48;
-export const SPIKE_MINE_HITBOX_PX = 34;
+export const SPIKE_MINE_HITBOX_PX = 30;
 // A Zapper is lethal for the first ZAPPER_ON_FRACTION of every cycle and
 // harmless (dimmed) for the rest.
 export const ZAPPER_DISPLAY_HEIGHT_PX = 54;
-export const ZAPPER_HITBOX_PX = 32;
+export const ZAPPER_HITBOX_PX = 28;
 export const ZAPPER_PERIOD_MS = 3000;
 export const ZAPPER_ON_FRACTION = 0.5;
 // Swinging Mace: the beam's bolt sits near the top of its placed cell and
@@ -143,11 +145,13 @@ export const MACE_ART_SCALE = 0.38;
 export const MACE_PIVOT_INSET_PX = 10;
 export const MACE_SWING_DEG = 60;
 export const MACE_PERIOD_MS = 2200;
-export const MACE_HITBOX_PX = 28;
+export const MACE_HITBOX_PX = 24;
 // Power-up pickups all share one pickup box this tall; the art is drawn
-// at POWERUP_ART_SCALE of it, so it sits a little inside its hitbox.
+// at POWERUP_ART_SCALE of it, centered in the box. Halved from 0.9 because
+// the art read far too big on mobile; the box kept its size so pickups
+// are just as easy to grab.
 export const POWERUP_DISPLAY_HEIGHT_PX = 56;
-export const POWERUP_ART_SCALE = 0.9;
+export const POWERUP_ART_SCALE = 0.45;
 
 // The finish pencil sharpener is scaled to this height (2 grid tiles, so
 // its mouth sits at the pencil's tip height); width follows the art's own
