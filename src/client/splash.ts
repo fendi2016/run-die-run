@@ -11,7 +11,8 @@ import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { startSplashMusic } from './ui/musicHandoff';
-import { clearRateText, versionText } from '../shared/levelStatsText';
+import { clearRateText, deadliestTrapText, versionText } from '../shared/levelStatsText';
+import { showKillLine } from './ui/killLine';
 import { sendAnalyticsEvent } from './analytics';
 
 // The feed card is the game's main menu (same markup ids and menu.css as
@@ -63,6 +64,7 @@ async function loadStats(): Promise<void> {
     }
 
     requireElement('splash-plays-value').textContent = body.attempts.toLocaleString();
+    showKillLine(deadliestTrapText(body));
     requireElement('game-menu-creator-name').textContent =
       body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
     const avatar = document.getElementById('splash-creator-avatar');

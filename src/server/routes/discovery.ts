@@ -3,10 +3,12 @@ import { Hono } from 'hono';
 import {
   isDiscoverySort,
   type DiscoveryResponse,
+  type LevelStats,
   type NextLevelResponse,
 } from '../../shared/discoveryApi';
 import { SEED_AUTHOR } from '../../shared/constants';
 import { resolveLevelId } from '../services/DailyService';
+import { deadliestTrap } from '../services/TrapStatsService';
 import {
   discoverLevels,
   getLevelStats,
@@ -63,10 +65,17 @@ function creatorAvatarUrl(username: string): Promise<string | undefined> {
 }
 
 discovery.get('/stats/:levelId', async (c) => {
-  const stats = await getLevelStats(await resolveLevelId(c.req.param('levelId')));
+  const levelId = await resolveLevelId(c.req.param('levelId'));
+  const stats = await getLevelStats(levelId);
   if (!stats) return c.json({ status: 'error', message: 'Unknown level' }, 404);
-  const avatar = await creatorAvatarUrl(stats.creatorUsername);
-  return c.json(avatar ? { ...stats, creatorAvatarUrl: avatar } : stats);
+  const [avatar, trap] = await Promise.all([
+    creatorAvatarUrl(stats.creatorUsername),
+    deadliestTrap(levelId).catch(() => undefined),
+  ]);
+  const body: LevelStats = { ...stats };
+  if (avatar) body.creatorAvatarUrl = avatar;
+  if (trap) body.deadliestTrap = trap;
+  return c.json(body);
 });
 discovery.get('/levels', async (c) => {
   const sort = c.req.query('sort') ?? 'trending';

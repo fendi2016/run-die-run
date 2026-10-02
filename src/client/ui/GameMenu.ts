@@ -2,6 +2,8 @@ import { isMyCursesResponse } from '../../shared/myCursesApi';
 import { SEED_AUTHOR } from '../../shared/constants';
 import { getRequestedLevelId } from '../game/levelSelection';
 import { isLevelStats } from '../../shared/discoveryApi';
+import { deadliestTrapText } from '../../shared/levelStatsText';
+import { showKillLine } from './killLine';
 import { requireButton, requireElement } from './domUtils';
 import { initFollowButton } from './followButton';
 import { LeaderboardOverlay } from './LeaderboardOverlay';
@@ -98,6 +100,7 @@ export class GameMenu {
       }
 
       this.statValueEl.textContent = body.attempts.toLocaleString();
+      showKillLine(deadliestTrapText(body));
       this.creatorNameEl.textContent =
         body.creatorUsername === SEED_AUTHOR ? 'SKETCHY' : `u/${body.creatorUsername}`;
     } catch {

@@ -224,6 +224,51 @@
   }
 }
 
+/* The deadliest-trap hook: a highlighter sticker slapped on at the
+   opposite tilt to the tagline. */
+#game-menu-kills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 4px 12px;
+  background: var(--highlighter);
+  color: var(--ink);
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard);
+  font-family: var(--font-hand);
+  font-size: 18px;
+  line-height: 1.15;
+  text-align: center;
+  transform: rotate(2deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+#game-menu-kills.hidden {
+  display: none;
+}
+
+.game-menu-kills-skull {
+  color: var(--accent);
+  font-size: 1.3em;
+  line-height: 1;
+}
+
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) {
+  #game-menu-kills {
+    font-size: 15px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  #game-menu-kills {
+    padding: 2px 8px;
+    font-size: 13px;
+  }
+}
+
 /* The one big thing to tap — everything else in the group is smaller. */
 .game-menu-play {
   min-width: 210px;

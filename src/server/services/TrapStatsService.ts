@@ -1,21 +1,42 @@
 import { redis } from '@devvit/web/server';
 import { SEED_AUTHOR } from '../../shared/constants';
+import { DEADLIEST_TRAP_MIN_KILLS, type DeadliestTrap } from '../../shared/discoveryApi';
+import { HAZARD_TYPES } from '../../shared/hazards';
 import type { MyCurse } from '../../shared/myCursesApi';
 import { passedHazardIds } from '../../shared/trapStats';
 import { isLevelVersion, isObjectType, type ObjectType } from '../../shared/types';
 import {
   levelVersionKey,
   trapCaughtByKey,
+  trapKillsKey,
   trapPassedByKey,
   userCursesKey,
   userCursesSeenKey,
 } from '../core/redisKeys';
 import { getLevelStats } from './DiscoveryService';
+import { getCurrentLevelVersion } from './LevelService';
 
 // Feedback for curse owners: which unique players each of their traps
 // caught and which got past it. Counted per player, not per attempt, and
 // never the owner's own runs. Every writer is best-effort — callers catch.
 const MAX_LISTED = 20;
+
+// The trap in a level's current version with the most kills (every death,
+// not unique players — the bigger, scarier number for the feed card).
+export async function deadliestTrap(levelId: string): Promise<DeadliestTrap | undefined> {
+  const level = await getCurrentLevelVersion(levelId);
+  if (!level) return undefined;
+  const traps = level.objects.filter((o) => HAZARD_TYPES.has(o.type));
+  const kills = await Promise.all(traps.map((o) => redis.get(trapKillsKey(o.id))));
+  let best: DeadliestTrap | undefined;
+  traps.forEach((trap, i) => {
+    const count = Number(kills[i] ?? 0);
+    if (count >= DEADLIEST_TRAP_MIN_KILLS && count > (best?.kills ?? 0)) {
+      best = { kills: count, addedBy: trap.addedBy };
+    }
+  });
+  return best;
+}
 
 export async function recordCatch(objectId: string, addedBy: string, username: string): Promise<void> {
   if (addedBy === username || addedBy === SEED_AUTHOR) return;

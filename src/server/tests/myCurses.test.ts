@@ -131,3 +131,14 @@ await test('signed out gets 401 on both routes', async () => {
   assert.equal((await myCurses.request('/')).status, 401);
   assert.equal((await myCurses.request('/seen', { method: 'POST' })).status, 401);
 });
+
+await test('deadliestTrap picks the hazard with the most kills, above the floor', async () => {
+  const { deadliestTrap } = await import('../services/TrapStatsService');
+  const { levelCurrentVersionKey, trapKillsKey } = await import('../core/redisKeys');
+  await redis.set(levelCurrentVersionKey('lvl'), '2');
+  assert.equal(await deadliestTrap('lvl'), undefined);
+  await redis.set(trapKillsKey('trap'), '4');
+  assert.equal(await deadliestTrap('lvl'), undefined, 'below the minimum it stays hidden');
+  await redis.set(trapKillsKey('other'), '340');
+  assert.deepEqual(await deadliestTrap('lvl'), { kills: 340, addedBy: 'bob' });
+});
