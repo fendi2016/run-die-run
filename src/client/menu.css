@@ -183,16 +183,40 @@
   visibility: hidden;
 }
 
-#menu-gag-kaboom {
-  width: calc(var(--runner-h) * 1.5);
-  height: calc(var(--runner-h) * 0.92);
-  bottom: calc(var(--runner-h) * 0.15);
-  background: url('/assets/vfx/death-kaboom.webp') center / contain no-repeat;
-  opacity: 0;
+/* The saw death (the game's sawSlice): the current pose cut at the waist
+   into two copies of the runner, each clipped to its half. */
+.menu-gag-half {
+  --frame-w: calc(var(--runner-h) * 0.890625 * 1.25);
+  width: var(--frame-w);
+  height: var(--runner-h);
+  background-image: url('/assets/ui/menu-gag-run.webp');
+  background-size: calc(var(--frame-w) * 19) 100%;
+  visibility: hidden;
+}
+
+#menu-gag-top {
+  clip-path: inset(0 0 50% 0);
+  transform-origin: 50% 25%;
+}
+
+#menu-gag-legs {
+  clip-path: inset(50% 0 0 0);
+  transform-origin: 50% 100%;
+}
+
+/* Sparks and gore, spawned and removed by menuGag.ts. */
+.menu-gag-bit {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
 }
 
 /* Pixel-art sheets, stepped by menuGag.ts via background-position. */
 #menu-gag-blood,
+#menu-gag-spray,
 #menu-gag-poof {
   width: calc(var(--runner-h) * 1.1);
   height: calc(var(--runner-h) * 1.1);
@@ -202,8 +226,27 @@
   opacity: 0;
 }
 
+/* Blood about twice the pencil, centred on the cut (half his height) —
+   the game's SAW_SPLATTER_SCALE. */
+#menu-gag-blood,
+#menu-gag-spray {
+  width: calc(var(--runner-h) * 1.7);
+  height: calc(var(--runner-h) * 1.7);
+  bottom: calc(var(--runner-h) * (0.5 - 0.85));
+}
+
+/* blood-spray starts in its frame's bottom-right corner (0.82, 0.82) and
+   sprays up-left; that corner sits on the cut. */
+#menu-gag-spray {
+  bottom: calc(var(--runner-h) * (0.5 - 1.7 * 0.18));
+}
+
 #menu-gag-blood {
   background-image: url('/assets/vfx/blood-splatter.webp');
+}
+
+#menu-gag-spray {
+  background-image: url('/assets/vfx/blood-spray.webp');
 }
 
 #menu-gag-poof {

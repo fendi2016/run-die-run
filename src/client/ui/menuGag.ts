@@ -1,10 +1,9 @@
 import { requireElement } from './domUtils';
 
 // The menu's death gag (#menu-gag inside the Play button, shared by the feed
-// card and game.html's menu): the pencil runs along Play's top edge, hits
-// the saw at its far end, KABOOM + blood, respawns with a poof, again.
-// Timings mirror the game's own death (Juice.ts kaboom pop/hold/fade, 20fps
-// pixel sheets, 600ms respawn).
+// card and game.html's menu): the pencil runs along Play's top edge into
+// the saw at its far end, is sliced in half exactly like the game's saw
+// death (DeathEffects.ts sawSlice), respawns with a poof, again.
 const RUN_FRAMES = 19;
 // One stride covers this many runner-heights, same ratio as in the game
 // (620px/s over a 228ms cycle for a ~69px-tall drawn pencil), so the run
@@ -15,11 +14,15 @@ const RUN_HEIGHTS_PER_S = 4.2;
 const SAW_AT = 0.86; // fraction of Play's width
 const RESPAWN_MS = 600;
 const BEAT_AFTER_DEATH_MS = 700;
-const KABOOM_POP_MS = 90;
-const KABOOM_HOLD_MS = 220;
-const KABOOM_FADE_MS = 160;
-const KABOOM_MS = KABOOM_POP_MS + KABOOM_HOLD_MS + KABOOM_FADE_MS;
+// sawSlice's distances are for the game's pencil, whose drawn art is about
+// this tall; scaled to the runner's height here.
+const GAME_ART_H = 69;
+const SLICE_MS = 520;
+const SPARK_COLOR = '#ffd23f';
+const GORE_COLOR = '#e0303a';
 const BLOOD_FRAMES = 10;
+const SPRAY_FRAMES = 7;
+const SPRAY_ORIGIN = 0.82;
 const POOF_FRAMES = 7;
 const SHEET_FPS = 20;
 
@@ -60,9 +63,15 @@ function placeStatic(): void {
   runner.style.visibility = 'visible';
 }
 
-// Plays a one-row pixel sheet once on `sprite`, centred at x.
-async function playSheet(sprite: HTMLElement, x: number, frames: number): Promise<void> {
-  placeAt(sprite, x);
+// Plays a one-row pixel sheet once on `sprite`, its `anchor` fraction of
+// width at x (centred by default).
+async function playSheet(
+  sprite: HTMLElement,
+  x: number,
+  frames: number,
+  anchor = 0.5
+): Promise<void> {
+  sprite.style.transform = `translateX(${x - sprite.offsetWidth * anchor}px)`;
   const size = sprite.offsetHeight;
   sprite.style.opacity = '1';
   await sprite.animate(
@@ -72,23 +81,82 @@ async function playSheet(sprite: HTMLElement, x: number, frames: number): Promis
   sprite.style.opacity = '0';
 }
 
-async function kaboom(x: number): Promise<void> {
-  const sprite = el('menu-gag-kaboom');
-  const left = x - sprite.offsetWidth / 2;
-  const tilt = Math.round(Math.random() * 16 - 8);
-  const at = (scale: number, opacity: number): Keyframe => ({
-    transform: `translateX(${left}px) rotate(${tilt}deg) scale(${scale})`,
-    opacity,
-  });
-  await sprite.animate(
+// Sparks or gore flying out from (x, y above the gag's bottom), like the
+// game's burstParticles (80-260px/s, 420ms, shrinking).
+function burst(gag: HTMLElement, x: number, y: number, color: string, count: number, k: number): void {
+  for (let i = 0; i < count; i++) {
+    const bit = document.createElement('span');
+    bit.className = 'menu-gag-bit';
+    bit.style.background = color;
+    gag.append(bit);
+    const angle = Math.random() * Math.PI * 2;
+    const reach = (80 + Math.random() * 180) * 0.42 * k;
+    const from = `translate(${x - 2}px, ${-y + 2}px)`;
+    const to = `translate(${x - 2 + Math.cos(angle) * reach}px, ${-y + 2 + Math.sin(angle) * reach}px)`;
+    bit
+      .animate([{ transform: `${from} scale(1)` }, { transform: `${to} scale(0)` }], {
+        duration: 420,
+        easing: 'ease-out',
+      })
+      .finished.finally(() => bit.remove())
+      .catch(() => undefined);
+  }
+}
+
+// sawSlice: the pose cut at the waist — the top half flung up and back,
+// spinning, the legs stagger a beat and topple — with sparks and blood
+// where the blade went through.
+async function slice(gag: HTMLElement, runner: HTMLElement, x: number): Promise<void> {
+  const height = runner.offsetHeight;
+  const k = height / GAME_ART_H;
+  const left = x - runner.offsetWidth / 2;
+  const pose = runner.style.backgroundPosition;
+  const top = el('menu-gag-top');
+  const legs = el('menu-gag-legs');
+  for (const half of [top, legs]) {
+    half.style.backgroundPosition = pose;
+    half.style.visibility = 'visible';
+  }
+  runner.style.visibility = 'hidden';
+  const at = (dx: number, dy: number, deg: number): string =>
+    `translate(${left + dx * k}px, ${dy * k}px) rotate(${deg}deg)`;
+  const flung = top.animate(
     [
-      { ...at(0.6, 0), offset: 0, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-      { ...at(1, 1), offset: KABOOM_POP_MS / KABOOM_MS },
-      { ...at(1, 1), offset: (KABOOM_POP_MS + KABOOM_HOLD_MS) / KABOOM_MS, easing: 'ease-in' },
-      { ...at(1.1, 0), offset: 1 },
+      { transform: at(0, 0, 0), opacity: 1, easing: 'cubic-bezier(0.5, 1, 0.89, 1)' },
+      { transform: at(-27, -70, -115), opacity: 1, offset: 200 / SLICE_MS, easing: 'cubic-bezier(0.11, 0, 0.5, 0)' },
+      { transform: at(-70, 90, -300), opacity: 0 },
     ],
-    { duration: KABOOM_MS }
-  ).finished;
+    { duration: SLICE_MS }
+  );
+  const toppled = legs.animate(
+    [
+      { transform: at(0, 0, 0), opacity: 1 },
+      { transform: at(4, 0, 0), opacity: 1, offset: 0.1 },
+      { transform: at(0, 0, 0), opacity: 1, offset: 0.2 },
+      { transform: at(4, 0, 0), opacity: 1, offset: 0.3 },
+      { transform: at(0, 0, 0), opacity: 1, offset: 0.4, easing: 'ease-in' },
+      { transform: at(14, 8, 80), opacity: 1, offset: 0.75 },
+      { transform: at(14, 8, 80), opacity: 0 },
+    ],
+    { duration: 600 }
+  );
+  const cutY = height / 2;
+  burst(gag, x, cutY, SPARK_COLOR, 18, k);
+  burst(gag, x, cutY, GORE_COLOR, 22, k);
+  void playSheet(el('menu-gag-blood'), x, BLOOD_FRAMES);
+  void playSheet(el('menu-gag-spray'), x, SPRAY_FRAMES, SPRAY_ORIGIN);
+  gag.animate(
+    [
+      { transform: 'translate(0, 0)' },
+      { transform: 'translate(-2px, 1px)' },
+      { transform: 'translate(2px, -1px)' },
+      { transform: 'translate(0, 0)' },
+    ],
+    { duration: 140 }
+  );
+  await Promise.all([flung.finished, toppled.finished]);
+  top.style.visibility = 'hidden';
+  legs.style.visibility = 'hidden';
 }
 
 // Runs from spawnX to hitX (centre x), picking each frame's pose from the
@@ -132,9 +200,7 @@ async function loop(): Promise<void> {
     void playSheet(el('menu-gag-poof'), spawnX, POOF_FRAMES);
     await run(runner, spawnX, hitX);
 
-    runner.style.visibility = 'hidden';
-    void playSheet(el('menu-gag-blood'), hitX + runner.offsetWidth * 0.2, BLOOD_FRAMES);
-    await kaboom(sawX);
-    await sleep(RESPAWN_MS + BEAT_AFTER_DEATH_MS - KABOOM_MS);
+    await slice(gag, runner, hitX);
+    await sleep(RESPAWN_MS + BEAT_AFTER_DEATH_MS - 600);
   }
 }
