@@ -1952,6 +1952,31 @@ await test('a moderator can remove one chosen player trap, and undo never brings
   assert.equal((await undoLatestSabotage('meat-grinder')).status, 'error');
 });
 
+await test('removing traps near spawn clears pre-rule player traps in the start columns only', async () => {
+  const { removeStartZoneTraps } = await import('../services/UndoService');
+  const { getMyCurses } = await import('../services/TrapStatsService');
+  const { levelCurrentVersionKey, levelVersionKey } = await import('../core/redisKeys');
+  const seed = await getCurrentLevelVersion('meat-grinder');
+  assert.equal((await curseAndPublish('bob', 700)).status, 'ok');
+  assert.equal((await curseAndPublish('carol', 760)).status, 'ok');
+  // Move bob's trap into column 2, as if placed before the rule existed.
+  const version = Number(await redis.get(levelCurrentVersionKey('meat-grinder')));
+  const current = await getCurrentLevelVersion('meat-grinder');
+  assert.ok(current);
+  if (!current) return;
+  const moved = current.objects.map((o) => (o.addedBy === 'bob' ? { ...o, x: 64 } : o));
+  await redis.set(levelVersionKey('meat-grinder', version), JSON.stringify({ ...current, objects: moved }));
+
+  assert.deepEqual(await removeStartZoneTraps(), { removed: 1, failed: 0 });
+  const after = await getCurrentLevelVersion('meat-grinder');
+  assert.equal(after?.objects.some((o) => o.addedBy === 'bob'), false);
+  assert.equal(after?.objects.some((o) => o.addedBy === 'carol'), true);
+  // Built-in traps stay, even ones near the start.
+  for (const o of seed?.objects ?? []) assert.ok(after?.objects.some((a) => a.id === o.id));
+  assert.equal((await getMyCurses('bob')).length, 0);
+  assert.deepEqual(await removeStartZoneTraps(), { removed: 0, failed: 0 });
+});
+
 await test('undo skips the newest trap when a moderator already removed it', async () => {
   const { listRemovableTraps, removeTrap, undoLatestSabotage } = await import('../services/UndoService');
   const { getLevelStats } = await import('../services/DiscoveryService');

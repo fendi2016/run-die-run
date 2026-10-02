@@ -1,8 +1,10 @@
 import { redis } from '@devvit/web/server';
 import { SEED_AUTHOR } from '../../shared/constants';
+import { isTrapInStartZone } from '../../shared/editorApi';
 import { HAZARD_TYPES } from '../../shared/hazards';
 import type { LevelObject, LevelVersion } from '../../shared/types';
 import {
+  allLevelsByDateKey,
   levelCurrentVersionKey,
   levelRemovedTrapsKey,
   levelUndosKey,
@@ -10,6 +12,7 @@ import {
   userCursesKey,
   userCursesSeenKey,
 } from '../core/redisKeys';
+import { SEED_LEVELS } from '../core/seedLevels';
 import { withTransaction } from '../core/transactions';
 import { refreshDiscoveryIndexSafely } from './DiscoveryService';
 import { getCurrentLevelVersion, getLevelVersionAt } from './LevelService';
@@ -153,4 +156,25 @@ export async function removeTrap(levelId: string, objectId: string): Promise<Rem
   }
   await refreshDiscoveryIndexSafely(levelId);
   return { status: 'ok', removedBy: trap.addedBy, removedType: trap.type };
+}
+
+// Moderator cleanup for traps placed before the start-zone rule existed:
+// removes, one by one like removeTrap, every player trap in the first
+// TRAP_FREE_START_CELLS columns of every level. Returns how many it removed
+// and how many it couldn't (someone changed the level mid-way; run it again).
+export async function removeStartZoneTraps(): Promise<{ removed: number; failed: number }> {
+  const indexed = await redis.zRange(allLevelsByDateKey(), 0, -1, { by: 'rank' });
+  const levelIds = [...new Set([...Object.keys(SEED_LEVELS), ...indexed.map((e) => e.member)])];
+  let removed = 0;
+  let failed = 0;
+  for (const levelId of levelIds) {
+    const traps = (await listRemovableTraps(levelId)).filter(
+      (trap) => isTrapInStartZone(trap.type, trap.x)
+    );
+    for (const trap of traps) {
+      if ((await removeTrap(levelId, trap.id)).status === 'ok') removed += 1;
+      else failed += 1;
+    }
+  }
+  return { removed, failed };
 }

@@ -55,6 +55,13 @@
         "endpoint": "/internal/menu/reset-builtin-stats"
       },
       {
+        "label": "Remove traps near spawn",
+        "description": "Remove every player trap in the first 10 columns of every level (placed before that rule); players get the slot back",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/remove-start-traps"
+      },
+      {
         "label": "Undo last sabotage",
         "description": "Remove the newest trap from this post's level (press again to undo the one before)",
         "location": "post",

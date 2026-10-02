@@ -7,7 +7,12 @@ import { isModerator } from '../core/moderators';
 import { createHubPost } from '../core/post';
 import { postLevelOfTheDay, resolveLevelId } from '../services/DailyService';
 import { getLevelStats } from '../services/DiscoveryService';
-import { listRemovableTraps, removeTrap, undoLatestSabotage } from '../services/UndoService';
+import {
+  listRemovableTraps,
+  removeStartZoneTraps,
+  removeTrap,
+  undoLatestSabotage,
+} from '../services/UndoService';
 import { labelFor } from '../../shared/objectLabels';
 import { isObjectType } from '../../shared/types';
 import {
@@ -127,6 +132,23 @@ menu.post('/reset-builtin-stats', async (c) => {
   } catch (error) {
     console.error(`Error resetting built-in level stats: ${error}`);
     return c.json<UiResponse>({ showToast: 'Failed to reset stats' }, 400);
+  }
+});
+
+// Subreddit menu: removes every player trap in the no-trap start columns,
+// on every level (see UndoService.removeStartZoneTraps). For traps placed
+// before that rule existed; each owner gets the slot back.
+menu.post('/remove-start-traps', async (c) => {
+  try {
+    const { removed, failed } = await removeStartZoneTraps();
+    const retry = failed > 0 ? ` ${failed} couldn’t be removed, run it again.` : '';
+    return c.json<UiResponse>(
+      { showToast: `Removed ${removed} trap${removed === 1 ? '' : 's'} near spawn.${retry}` },
+      200
+    );
+  } catch (error) {
+    console.error(`Error removing start-zone traps: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Failed to remove traps' }, 400);
   }
 });
 

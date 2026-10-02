@@ -44,6 +44,9 @@ After installing, open the subreddit menu:
 - **Create a game post:** posts the hub (play, build, browse). Pin it.
 - **Post Level of the Day now:** features the top trending level
   immediately. This also runs automatically every day at 16:00 UTC.
+- **Remove traps near spawn:** removes every player trap in the first 10
+  columns of every level (traps can't go there any more, but older ones
+  can). Each player gets that trap's slot back.
 - **Reseed built-in levels (dev)** and **Reset built-in level
   stats (dev):** pre-launch tools. They sync the built-in levels with the
   app's source and zero their play counts after testing. Players' curses
