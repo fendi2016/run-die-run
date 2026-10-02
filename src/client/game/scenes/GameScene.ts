@@ -754,7 +754,7 @@ export class GameScene extends Scene {
       if (!isCommentPromptResponse(promptBody) || !promptBody.offer) return;
       const result = await showForm({
         title: 'Rub it in?',
-        description: 'Post a comment on this level so everyone knows who to blame.',
+        description: 'Post a comment on this level from your Reddit account, so everyone knows who to blame.',
         acceptLabel: 'Comment',
         cancelLabel: 'Not now',
         fields: [
