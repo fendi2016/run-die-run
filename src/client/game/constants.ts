@@ -16,6 +16,10 @@ export const JUMP_RELEASE_MULTIPLIER = 0.5; // cuts the jump short if released e
 export const MIN_JUMP_HOLD_MS = 180;
 export const COYOTE_TIME_MS = 130;
 export const JUMP_BUFFER_MS = 160;
+// Help for a struggling player: from this many deaths in a row on one level
+// (no clear in between), every run starts with a Shield, which absorbs one
+// hit. Never in Prove It, which must beat the level unaided.
+export const SHIELD_HELP_DEATHS = 10;
 
 export const PLAYER_SIZE = 80;
 // Draws the pencil wider than its art without touching the physics sprite

@@ -77,6 +77,7 @@ import {
   SPAWN_CASE_HEIGHT_PX,
   SPAWN_CASE_SINK_PX,
   PLAYER_SIZE,
+  SHIELD_HELP_DEATHS,
   SLOW_TIME_DURATION_MS,
   SLOW_TIME_SCALE,
 } from '../constants';
@@ -286,6 +287,9 @@ export class GameScene extends Scene {
   private pendingVersionPublished: VersionPublishedEvent | undefined;
   // For the share sheet's copy ("... after 23 deaths") and target post.
   private deathsThisLevel = 0;
+  // Deaths since the last clear on this level, for the struggling-player
+  // shield (SHIELD_HELP_DEATHS).
+  private deathStreak = 0;
   private levelStats: LevelStats | undefined;
   // Asked for as the level loads so the result card knows at the finish
   // whether to offer a curse (see fetchCanCurse).
@@ -330,6 +334,7 @@ export class GameScene extends Scene {
     this.finishCameraX = undefined;
     this.pendingVersionPublished = undefined;
     this.deathsThisLevel = 0;
+    this.deathStreak = 0;
     this.levelStats = undefined;
   }
 
@@ -913,6 +918,7 @@ export class GameScene extends Scene {
       return;
     }
     this.runEnded = true;
+    this.deathStreak = 0;
     const pose = this.player.poseSnapshot();
     this.player.freeze();
     this.recordBestProgress(1);
@@ -1271,6 +1277,7 @@ export class GameScene extends Scene {
     }
     this.runEnded = true;
     this.deathsThisLevel++;
+    this.deathStreak++;
     if (objectId) {
       this.reportHazardDeath(objectId);
     } else {
@@ -1567,6 +1574,9 @@ export class GameScene extends Scene {
     // brought back by hand rather than by reloading the level.
     for (const image of this.powerUpImages) {
       setPowerUpAvailable(image, true);
+    }
+    if (!this.previewLevel && this.deathStreak >= SHIELD_HELP_DEATHS) {
+      this.player.grantShield();
     }
     this.resetMovingObjects?.();
     this.slowTimeTimer?.remove();
