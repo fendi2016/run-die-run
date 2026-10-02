@@ -40,6 +40,7 @@ export async function postLevelOfTheDay(force: boolean): Promise<DailyPostResult
     levelId: pick.levelId,
     title: pick.title,
     creatorUsername: pick.creatorUsername,
+    difficulty: pick.difficulty,
     daily: number,
   });
   await Promise.all([

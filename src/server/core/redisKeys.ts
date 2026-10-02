@@ -162,6 +162,12 @@ export const dailyQuotaKey = (
 export const levelPostKey = (levelId: string): string =>
   `level:${levelId}:postId`;
 
+// Every Reddit post a level has (its canonical post plus each daily
+// feature), and the difficulty their post flair last showed — so flair
+// only gets rewritten when the level's rating actually changes.
+export const levelPostsKey = (levelId: string): string => `level:${levelId}:posts`;
+export const levelFlairKey = (levelId: string): string => `level:${levelId}:flair`;
+
 // Level of the Day (services/DailyService.ts): how many have been posted
 // (the #N in the title), the UTC day of the last one (so a scheduler retry
 // can't double-post), levelId -> day it was last featured, and the levelId

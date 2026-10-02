@@ -2,9 +2,11 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { context, redis } from '@devvit/web/server';
 import {
+  getLevelStats,
   queueDiscoveryActivity,
   refreshDiscoveryIndexSafely,
 } from '../services/DiscoveryService';
+import { syncLevelFlairSafely } from '../core/postFlair';
 import { SEED_AUTHOR } from '../../shared/constants';
 import { withTransaction } from '../core/transactions';
 import {
@@ -97,6 +99,14 @@ function isTrapKillBody(body: unknown): body is TrapKillRequest {
 }
 
 export const runs = new Hono();
+
+// Every run moves the level's attempts/clears: re-score it in Browse, and
+// re-flair its posts if that changed its difficulty.
+async function refreshAfterRun(levelId: string): Promise<void> {
+  await refreshDiscoveryIndexSafely(levelId);
+  const stats = await getLevelStats(levelId).catch(() => undefined);
+  if (stats) await syncLevelFlairSafely(levelId, stats.difficulty);
+}
 
 runs.post('/', async (c) => {
   const { username } = context;
@@ -214,7 +224,7 @@ runs.post('/', async (c) => {
     }
   );
 
-  await refreshDiscoveryIndexSafely(levelId);
+  await refreshAfterRun(levelId);
   // A clear got past every other player's trap in this version.
   await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
   await trackSafely('clear', username);
@@ -267,7 +277,7 @@ runs.post('/fall', async (c) => {
     await queueDiscoveryActivity(tx, body.levelId, username, false);
     return { commit: true, value: undefined };
   });
-  await refreshDiscoveryIndexSafely(body.levelId);
+  await refreshAfterRun(body.levelId);
   await trackSafely('death', username);
   return c.json({ status: 'ok' });
 });
@@ -349,7 +359,7 @@ runs.post('/trap-kill', async (c) => {
     }
   );
 
-  await refreshDiscoveryIndexSafely(body.levelId);
+  await refreshAfterRun(body.levelId);
   await recordCatch(object.id, object.addedBy, username).catch(() => undefined);
   await trackSafely('death', username);
 

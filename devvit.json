@@ -80,7 +80,8 @@
     "reddit": {
       "asUser": [
         "SUBSCRIBE_TO_SUBREDDIT",
-        "SUBMIT_COMMENT"
+        "SUBMIT_COMMENT",
+        "SUBMIT_POST"
       ]
     }
   },

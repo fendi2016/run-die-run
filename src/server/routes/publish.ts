@@ -364,6 +364,8 @@ publish.post('/publish', async (c) => {
           levelId: result.levelId,
           title,
           creatorUsername: username,
+          difficulty: 'UNRATED',
+          asCreator: true,
         });
         return c.json<PublishLevelResponse>({ ...result, postUrl: levelPost.url });
       } catch (error) {

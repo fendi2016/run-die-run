@@ -1060,6 +1060,13 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   font-size: 16px;
 }
 
+/* Says up front that Publish makes a Reddit post as the player. */
+#editor-publish-note {
+  margin: 0;
+  font-size: var(--text-min);
+  color: var(--ink-soft);
+}
+
 #editor-title-input:focus {
   outline: none;
   border-color: #3d6ea5;

@@ -176,6 +176,9 @@ const reddit = {
     return {};
   },
   getSnoovatarUrl: async (username: string) => `https://i.redd.it/snoovatar/${username}.png`,
+  setPostFlair: async (options: unknown) => {
+    redditCalls.push({ method: 'setPostFlair', options });
+  },
 };
 mock.module('@devvit/web/server', {
   namedExports: {
@@ -185,6 +188,7 @@ mock.module('@devvit/web/server', {
       get username() {
         return users.getStore() ?? 'alice';
       },
+      subredditName: 'sketchy_test',
     },
     reddit,
   },
@@ -1718,6 +1722,59 @@ await test('publishing a level creates its post with the level in postData', asy
     { levelId: 'post-me' }
   );
   assert.ok(body.status === 'ok' && body.postUrl?.includes('t3_test'));
+});
+
+function optionsOf(call: { options: unknown } | undefined): Record<string, unknown> {
+  const options = call?.options;
+  return typeof options === 'object' && options !== null ? { ...options } : {};
+}
+
+await test('a published level is posted from the creator account, flaired NEW', async () => {
+  const token = await ready('erin');
+  const { body } = await publishAs('erin', token, 'Mine Now');
+  assert.equal(body.status, 'ok');
+  const created = optionsOf(redditCalls.find((call) => call.method === 'submitCustomPost'));
+  assert.equal(created.runAs, 'USER');
+  assert.equal(created.title, '"Mine Now" — can you beat it?');
+  assert.deepEqual(created.userGeneratedContent, { text: 'Mine Now' });
+  const flair = optionsOf(redditCalls.find((call) => call.method === 'setPostFlair'));
+  assert.equal(flair.text, 'NEW');
+  assert.equal(flair.subredditName, 'sketchy_test');
+});
+
+await test('a refused user post falls back to an app post that credits the creator', async () => {
+  const token = await ready('fred');
+  const submit = mock.method(reddit, 'submitCustomPost', async (options: unknown) => {
+    redditCalls.push({ method: 'submitCustomPost', options });
+    if (optionsOf({ options }).runAs === 'USER') throw new Error('not allowed');
+    return { id: 't3_fallback' };
+  });
+  try {
+    const { body } = await publishAs('fred', token, 'Plan B');
+    assert.equal(body.status, 'ok');
+    assert.ok(body.status === 'ok' && body.postUrl?.includes('t3_fallback'));
+    const posts = redditCalls.filter((call) => call.method === 'submitCustomPost').map(optionsOf);
+    assert.equal(posts.length, 2);
+    assert.equal(posts[1]?.runAs, undefined);
+    assert.equal(posts[1]?.title, '"Plan B" by u/fred — can you beat it?');
+  } finally {
+    submit.mock.restore();
+  }
+});
+
+await test('post flair follows the level difficulty, only rewriting on a change', async () => {
+  const { syncLevelFlairSafely } = await import('../core/postFlair');
+  const { levelPostKey, levelPostsKey, levelFlairKey } = await import('../core/redisKeys');
+  values.set(levelPostKey('flair-level'), 't3_canon');
+  zAdd(levelPostsKey('flair-level'), { member: 't3_daily', score: 1 });
+  values.set(levelFlairKey('flair-level'), 'UNRATED');
+  await syncLevelFlairSafely('flair-level', 'UNRATED');
+  assert.equal(redditCalls.filter((call) => call.method === 'setPostFlair').length, 0);
+  await syncLevelFlairSafely('flair-level', 'HARD');
+  const flaired = redditCalls.filter((call) => call.method === 'setPostFlair').map(optionsOf);
+  assert.deepEqual(flaired.map((o) => o.postId).sort(), ['t3_canon', 't3_daily']);
+  assert.ok(flaired.every((o) => o.text === 'HARD'));
+  assert.equal(values.get(levelFlairKey('flair-level')), 'HARD');
 });
 
 await test('a fall counts as an attempt on a real level and rejects unknown ones', async () => {
