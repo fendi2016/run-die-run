@@ -15,9 +15,9 @@ const postUrl = (id: T3): string =>
 // level and leads with Play / Build / Browse.
 export async function createHubPost(): Promise<CreatedPost> {
   const post = await reddit.submitCustomPost({
-    title: 'SKETCHY — beat the level, then sabotage it for the next player',
+    title: 'SKETCHY — Beat it. Make it worse. Pass it on.',
     textFallback: {
-      text: 'SKETCHY is a Reddit platformer where every player who beats a level can add one trap to it. Open this post on new Reddit or the app to play.',
+      text: 'SKETCHY is a Reddit platformer where every player who beats a level can add traps to it. Open this post on new Reddit or the app to play.',
     },
   });
   return { id: post.id, url: postUrl(post.id) };
