@@ -2,11 +2,11 @@ import { requireElement } from './domUtils';
 
 // The menu's death gag, drawn on one canvas (#menu-gag) over the whole menu
 // (shared by the feed card and game.html's menu): the pencil runs along
-// Play's top edge into the saw and gets sharpened to nothing — the drawn
-// destruction sequence (ui/menu-gag-shaved.webp) plays while real shaving
-// sprites (ui/menu-gag-shavings.webp) fly off the blade and pile up on
-// Play, down to a heap with his eraser and shoes. Then it fades and he
-// respawns with a poof. One rAF loop and plain drawImage/arc calls,
+// Play's top edge into the saw and is split in half vertically: he winces
+// and shakes against the blade, a crack opens down his middle, then the two
+// halves (ui/menu-gag-split.webp, cut from the user's destruction sheet)
+// topple apart onto Play with wood chips flying (ui/menu-gag-shavings.webp).
+// Then it fades and he respawns with a poof. One rAF loop and plain drawImage/arc calls,
 // no DOM churn, so it stays smooth on phones.
 
 // Run strip: 19 frames of 114x128, one stride (ui/menu-gag-run.webp).
@@ -28,14 +28,20 @@ const SAW_RADIUS = 0.4; // of the runner's height
 const SAW_SPIN = (-Math.PI * 2) / 1.0;
 const SAW_SPIN_GRINDING = (-Math.PI * 2) / 0.6;
 
-// Destruction strip: 8 frames of 65x128, the pencil standing in each
-// with its eraser-to-shoe height at 365/375 of the cell.
-const SHAVED_FRAMES = 8;
-const SHAVED_W = 65;
-const SHAVED_H = 128;
-const SHAVED_ART = 365 / 375;
-const SHAVED_FRAME_MS = [220, 160, 170, 170, 170, 190, 210, 0];
-const PILE_MS = 1100;
+// The split pieces in ui/menu-gag-split.webp, drawn for a 128px-tall
+// pencil: source rect, and where each sits relative to his feet-centre
+// (dx: its left edge; dy: its bottom). The halves keep their places from
+// the user's sheet, so together they stand where the whole pencil stood.
+type Piece = { sx: number; sy: number; w: number; h: number; dx: number; dy: number };
+const PIECE_H = 128;
+const WINCE: Piece = { sx: 0, sy: 1, w: 75, h: 128, dx: -37.5, dy: 0 };
+const CRACK: Piece = { sx: 79, sy: 0, w: 72, h: 129, dx: -36, dy: 0 };
+const LEFT_HALF: Piece = { sx: 155, sy: 4, w: 45, h: 125, dx: -42.7, dy: 0 };
+const RIGHT_HALF: Piece = { sx: 204, sy: 13, w: 40, h: 116, dx: 2.7, dy: -8.3 };
+
+const IMPACT_MS = 420;
+const CRACK_MS = 520;
+const REST_MS = 900;
 const FADE_MS = 400;
 const POOF_MS = 350;
 const POOF_FRAMES = 7;
@@ -66,7 +72,13 @@ type Layout = {
   runnerH: number;
 };
 
-type Phase = 'run' | 'shave' | 'pile' | 'fade';
+type Phase = 'run' | 'impact' | 'crack' | 'split' | 'rest' | 'fade';
+
+// A half toppling over its outer foot: angle away from upright (radians),
+// and its angular speed.
+type Topple = { angle: number; spin: number };
+// The right half once the blade catches it: a tumbling projectile (centre).
+type Fling = { x: number; y: number; vx: number; vy: number; angle: number; spin: number };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -88,11 +100,11 @@ export function startMenuGag(): void {
     loadImage('/assets/ui/menu-gag-run.webp'),
     loadImage('/assets/hazards/saw-spin.webp'),
     loadImage('/assets/vfx/smoke-poof.webp'),
-    loadImage('/assets/ui/menu-gag-shaved.webp'),
+    loadImage('/assets/ui/menu-gag-split.webp'),
     loadImage('/assets/ui/menu-gag-shavings.webp'),
   ])
-    .then(([run, saw, poof, shaved, shavings]) =>
-      new MenuGag(run, saw, poof, shaved, shavings).start()
+    .then(([run, saw, poof, split, shavings]) =>
+      new MenuGag(run, saw, poof, split, shavings).start()
     )
     .catch(() => undefined); // No gag; the menu works without it.
 }
@@ -110,15 +122,17 @@ class MenuGag {
   private lastTime = 0;
   private sawAngle = 0;
   private frame = 0;
-  // Where he stopped against the saw.
+  // Where he stopped against the saw, and the two halves once split.
   private hitX = 0;
+  private topple = { left: { angle: 0, spin: 0 }, right: { angle: 0, spin: 0 } };
+  private fling: Fling | undefined;
   private shavings: Shaving[] = [];
 
   constructor(
     private readonly runImage: HTMLImageElement,
     private readonly sawImage: HTMLImageElement,
     private readonly poofImage: HTMLImageElement,
-    private readonly shavedImage: HTMLImageElement,
+    private readonly splitImage: HTMLImageElement,
     private readonly shavingsImage: HTMLImageElement
   ) {
     const canvas = requireElement('menu-gag');
@@ -200,7 +214,8 @@ class MenuGag {
       return;
     }
 
-    this.sawAngle += dt * (this.phase === 'shave' ? SAW_SPIN_GRINDING : SAW_SPIN);
+    this.sawAngle +=
+      dt * (this.phase === 'impact' || this.phase === 'crack' ? SAW_SPIN_GRINDING : SAW_SPIN);
     this.updateShavings(l, dt, h);
     this.drawShavings(this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1);
 
@@ -214,35 +229,66 @@ class MenuGag {
         if (t < POOF_MS) this.drawPoof(spawnX, feetY, h, t);
         this.drawWhole(x, feetY, w, h, this.frame);
         if (x >= hitX) {
-          this.hitX = hitX;
-          this.enter('shave', now);
+          // Whole poses stand on their own feet-centre; put his front edge
+          // where the runner's was.
+          this.hitX = hitX + w * 0.5 - (WINCE.w + WINCE.dx) * (h / PIECE_H) - h * 0.12;
+          this.emitShavings(sawX - sawR * 0.9, feetY - h * 0.5, h, 1, 14);
+          this.enter('impact', now);
         }
         break;
       }
-      case 'shave': {
-        // The drawn sequence: shocked, wincing, then swallowed by shavings
-        // down to a heap — with real shavings flying off the blade.
-        let frame = 0;
-        let elapsed = t;
-        while (frame < SHAVED_FRAMES - 1 && elapsed >= (SHAVED_FRAME_MS[frame] ?? 0)) {
-          elapsed -= SHAVED_FRAME_MS[frame] ?? 0;
-          frame += 1;
-        }
-        const jitter = frame > 0 && frame < SHAVED_FRAMES - 1 ? Math.sin(now / 5) * 1.4 : 0;
-        this.drawShaved(this.hitX + jitter, feetY, h, frame);
-        if (frame >= 1 && frame <= 6) {
-          this.emitShavings(sawX - sawR * 0.7, feetY - h * 0.45, h, dt, 34);
-        }
-        if (frame === SHAVED_FRAMES - 1) this.enter('pile', now);
+      case 'impact': {
+        // Thunk: knocked back a hair, then shoved into the blade, shaking.
+        const recoil = t < 90 ? -(t / 90) * h * 0.06 : -h * 0.06 * (1 - clamp01((t - 90) / 200));
+        const shake = t > 90 ? Math.sin(now / 4) * 1.5 : 0;
+        this.drawPieceAt(WINCE, this.hitX + recoil + shake, feetY, h);
+        if (t > 90) this.emitShavings(sawX - sawR * 0.9, feetY - h * 0.5, h, dt, 30);
+        if (t >= IMPACT_MS) this.enter('crack', now);
         break;
       }
-      case 'pile':
+      case 'crack': {
+        // The crack runs down his middle; he shakes harder.
+        const shake = Math.sin(now / 3.5) * (1.5 + 1.5 * clamp01(t / CRACK_MS));
+        this.drawPieceAt(CRACK, this.hitX + shake, feetY, h);
+        this.emitShavings(sawX - sawR * 0.9, feetY - h * (0.2 + 0.6 * Math.random()), h, dt, 45);
+        if (t >= CRACK_MS) {
+          // Split: each half kicked over its outer foot.
+          this.topple = { left: { angle: 0, spin: 2.2 }, right: { angle: 0, spin: 2.6 } };
+          this.fling = undefined;
+          this.emitShavings(this.hitX, feetY - h * 0.5, h, 1, 22);
+          this.enter('split', now);
+        }
+        break;
+      }
+      case 'split':
+      case 'rest':
       case 'fade': {
+        if (this.phase === 'split') {
+          const leftDown = this.stepTopple(this.topple.left, dt);
+          // The right half tips into the spinning blade, which flings it
+          // away over the edge of the card.
+          if (!this.fling) {
+            this.stepTopple(this.topple.right, dt);
+            if (this.topple.right.angle > 0.7) {
+              this.fling = this.flingFrom(RIGHT_HALF, this.topple.right.angle, this.hitX, feetY, h);
+              this.emitShavings(sawX - sawR * 0.6, feetY - sawR, h, 1, 16);
+            }
+          } else {
+            this.stepFling(this.fling, dt, h);
+          }
+          const rightGone = this.fling !== undefined && this.fling.y > l.height + h;
+          const settled = leftDown && rightGone;
+          if (t < 250) this.emitShavings(this.hitX, feetY - h * 0.4, h, dt, 60);
+          if (settled || t > 1500) this.enter('rest', now);
+        } else if (this.phase === 'rest' && t >= REST_MS) {
+          this.enter('fade', now);
+        }
         const alpha = this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1;
         ctx.globalAlpha = alpha;
-        this.drawShaved(this.hitX, feetY, h, SHAVED_FRAMES - 1);
+        this.drawHalf(LEFT_HALF, -1, this.topple.left.angle, this.hitX, feetY, h);
+        if (this.fling) this.drawFlung(RIGHT_HALF, this.fling, h);
+        else this.drawHalf(RIGHT_HALF, 1, this.topple.right.angle, this.hitX, feetY, h);
         ctx.globalAlpha = 1;
-        if (this.phase === 'pile' && t >= PILE_MS) this.enter('fade', now);
         if (this.phase === 'fade' && t >= FADE_MS) {
           this.shavings = [];
           this.enter('run', now);
@@ -259,21 +305,89 @@ class MenuGag {
     this.ctx.drawImage(this.runImage, frame * FRAME_W, 0, FRAME_W, FRAME_H, x - w / 2, feetY - h, w, h);
   }
 
-  // One destruction frame, the pencil's feet at feetY, as tall as the runner.
-  private drawShaved(x: number, feetY: number, h: number, frame: number): void {
-    const dh = h / SHAVED_ART;
-    const dw = dh * (SHAVED_W / SHAVED_H);
+  // A whole pose standing at (x, feetY), scaled to the runner's height.
+  private drawPieceAt(piece: Piece, x: number, feetY: number, h: number): void {
+    const k = h / PIECE_H;
     this.ctx.drawImage(
-      this.shavedImage,
-      frame * SHAVED_W,
-      0,
-      SHAVED_W,
-      SHAVED_H,
-      x - dw / 2,
-      feetY - dh,
-      dw,
-      dh
+      this.splitImage,
+      piece.sx,
+      piece.sy,
+      piece.w,
+      piece.h,
+      x + piece.dx * k,
+      feetY + piece.dy * k - piece.h * k,
+      piece.w * k,
+      piece.h * k
     );
+  }
+
+  // One half, toppled `angle` outward (side -1 left, 1 right) about its
+  // outer bottom corner, which stays planted on Play.
+  private drawHalf(piece: Piece, side: number, angle: number, x: number, feetY: number, h: number): void {
+    const ctx = this.ctx;
+    const k = h / PIECE_H;
+    const left = x + piece.dx * k;
+    const bottom = feetY + piece.dy * k;
+    const pivotX = side < 0 ? left : left + piece.w * k;
+    ctx.save();
+    ctx.translate(pivotX, bottom);
+    ctx.rotate(side * angle);
+    ctx.translate(-pivotX, -bottom);
+    ctx.drawImage(this.splitImage, piece.sx, piece.sy, piece.w, piece.h, left, bottom - piece.h * k, piece.w * k, piece.h * k);
+    ctx.restore();
+  }
+
+  // Where the toppling half's centre is now, launched up and to the right.
+  private flingFrom(piece: Piece, angle: number, x: number, feetY: number, h: number): Fling {
+    const k = h / PIECE_H;
+    const left = x + piece.dx * k;
+    const bottom = feetY + piece.dy * k;
+    const pivotX = left + piece.w * k;
+    // Centre relative to the bottom-right pivot, rotated by the lean.
+    const cx = -piece.w * k * 0.5;
+    const cy = -piece.h * k * 0.5;
+    return {
+      x: pivotX + cx * Math.cos(angle) - cy * Math.sin(angle),
+      y: bottom + cx * Math.sin(angle) + cy * Math.cos(angle),
+      vx: h * 3.2,
+      vy: -h * 7,
+      angle,
+      spin: 9,
+    };
+  }
+
+  private stepFling(f: Fling, dt: number, h: number): void {
+    f.vy += 1500 * (h / 56) * dt;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.angle += f.spin * dt;
+  }
+
+  private drawFlung(piece: Piece, f: Fling, h: number): void {
+    const ctx = this.ctx;
+    const k = h / PIECE_H;
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.angle);
+    ctx.drawImage(this.splitImage, piece.sx, piece.sy, piece.w, piece.h, (-piece.w * k) / 2, (-piece.h * k) / 2, piece.w * k, piece.h * k);
+    ctx.restore();
+  }
+
+  // Falls over like a plank (faster the further it leans), thuds flat,
+  // bounces a little. Returns true once it's lying still.
+  private stepTopple(half: Topple, dt: number): boolean {
+    const flat = Math.PI / 2;
+    half.spin += (9 * Math.sin(half.angle) + 1.5) * dt;
+    half.angle += half.spin * dt;
+    if (half.angle >= flat) {
+      half.angle = flat;
+      half.spin = -half.spin * 0.28;
+      if (Math.abs(half.spin) < 0.6) {
+        half.spin = 0;
+        return true;
+      }
+    }
+    return false;
   }
 
   // Sunk into Play: never drawn below its top edge.
@@ -311,7 +425,7 @@ class MenuGag {
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        size: (12 + Math.random() * 10) * k,
+        size: (7 + Math.random() * 8) * k,
         angle: Math.random() * Math.PI * 2,
         spin: (Math.random() - 0.5) * 12,
         sprite: Math.floor(Math.random() * SHAVING_SPRITES),
