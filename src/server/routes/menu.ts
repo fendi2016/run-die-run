@@ -26,31 +26,35 @@ export const menu = new Hono();
 export const forms = new Hono();
 
 // Moderator-only usage report (see AnalyticsService): the last 7 days,
-// shown read-only in a form.
+// shown as one text box so it can be copied in one go (click in, select
+// all, copy). It's left editable because a disabled box can't be focused;
+// nothing is saved on submit.
 menu.post('/analytics', async (c) => {
   try {
     const report = await buildReport();
-    const section = (name: string, label: string, text: string, lines: number): FormField => ({
+    const text = [
+      ['PLAYERS', report.players],
+      ['COMING BACK (by first day)', report.retention],
+      ['FUNNEL', report.funnel],
+      ['ACTIVITY', report.activity],
+      ['LOADING', report.load],
+    ]
+      .map(([label, body]) => `${label}\n${body}`)
+      .join('\n\n');
+    const field: FormField = {
       type: 'paragraph',
-      name,
-      label,
+      name: 'report',
+      label: 'Click in, select all, copy',
       defaultValue: text,
-      lineHeight: lines,
-      disabled: true,
-    });
+      lineHeight: 30,
+    };
     return c.json<UiResponse>({
       showForm: {
         name: 'analyticsReport',
         form: {
           title: 'SKETCHY stats (last 7 days, UTC)',
           acceptLabel: 'Done',
-          fields: [
-            section('players', 'Players', report.players, 9),
-            section('retention', 'Coming back (by first day)', report.retention, 6),
-            section('funnel', 'Funnel', report.funnel, 9),
-            section('activity', 'Activity', report.activity, 4),
-            section('load', 'Loading', report.load, 7),
-          ],
+          fields: [field],
         },
       },
     });
