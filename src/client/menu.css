@@ -243,9 +243,32 @@
     box-shadow 0.08s ease;
 }
 
+/* Slow breathing pulse so Play reads as the thing to tap. Paused while
+   pressed so the press-down transform isn't overridden. */
+.game-menu-play {
+  animation: game-menu-play-breathe 2200ms ease-in-out infinite;
+}
+
+@keyframes game-menu-play-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
 .game-menu-play:active {
+  animation: none;
   transform: translateY(5px);
   box-shadow: 0 0 0 var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-menu-play {
+    animation: none;
+  }
 }
 
 @media (orientation: portrait) and (min-aspect-ratio: 1/2) {
