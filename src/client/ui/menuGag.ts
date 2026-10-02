@@ -130,6 +130,9 @@ class MenuGag {
   private topple = { left: { angle: 0, spin: 0 }, right: { angle: 0, spin: 0 } };
   // Where he was when he hit the blade (the feed starts there).
   private cutFromX = 0;
+  // Drawn after the saw this frame: his near half, so the blade reads as
+  // passing between his two halves.
+  private frontLayer: (() => void) | undefined;
   private shavings: Shaving[] = [];
 
   constructor(
@@ -218,6 +221,7 @@ class MenuGag {
       return;
     }
 
+    this.frontLayer = undefined;
     this.sawAngle +=
       dt * (this.phase === 'impact' || this.phase === 'crack' ? SAW_SPIN_GRINDING : SAW_SPIN);
     this.updateShavings(l, dt, h);
@@ -248,6 +252,7 @@ class MenuGag {
         const shake = t > 90 ? Math.sin(now / 4) * 1.5 : 0;
         const x = this.feedX(sawX, t);
         this.drawPieceAt(WINCE, x + recoil + shake, feetY, h);
+        this.frontLayer = () => this.drawNearHalf(WINCE, x + recoil + shake, feetY, h);
         if (t > 90) this.emitShavings(sawX - sawR * 0.5, feetY - h * 0.5, h, dt, 30);
         if (t >= IMPACT_MS) this.enter('crack', now);
         break;
@@ -257,6 +262,7 @@ class MenuGag {
         const shake = Math.sin(now / 3.5) * (1.5 + 1.5 * clamp01(t / CRACK_MS));
         const x = this.feedX(sawX, IMPACT_MS + t);
         this.drawPieceAt(CRACK, x + shake, feetY, h);
+        this.frontLayer = () => this.drawNearHalf(CRACK, x + shake, feetY, h);
         this.emitShavings(sawX - sawR * 0.5, feetY - h * (0.2 + 0.6 * Math.random()), h, dt, 45);
         if (t >= CRACK_MS) {
           // Through: one half each side of the blade, each kicked over its
@@ -282,9 +288,15 @@ class MenuGag {
         }
         const alpha = this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1;
         ctx.globalAlpha = alpha;
-        this.drawHalf(LEFT_HALF, -1, this.topple.left.angle, this.hitX, feetY, h);
         this.drawHalf(RIGHT_HALF, 1, this.topple.right.angle, this.hitX, feetY, h);
         ctx.globalAlpha = 1;
+        const leftAngle = this.topple.left.angle;
+        const at = this.hitX;
+        this.frontLayer = () => {
+          ctx.globalAlpha = alpha;
+          this.drawHalf(LEFT_HALF, -1, leftAngle, at, feetY, h);
+          ctx.globalAlpha = 1;
+        };
         if (this.phase === 'fade' && t >= FADE_MS) {
           this.shavings = [];
           this.enter('run', now);
@@ -294,6 +306,7 @@ class MenuGag {
     }
 
     this.drawSaw(l, sawX, sawY, sawR, this.sawAngle);
+    this.frontLayer?.();
   }
 
   // One run-strip frame, bottom-centre at (x, feetY).
@@ -315,6 +328,20 @@ class MenuGag {
       piece.w * k,
       piece.h * k
     );
+  }
+
+  // The left half of a whole pose (left of the line his halves split along,
+  // just right of his feet-centre), drawn again over the saw.
+  private drawNearHalf(piece: Piece, x: number, feetY: number, h: number): void {
+    const ctx = this.ctx;
+    const k = h / PIECE_H;
+    const splitX = x + (LEFT_HALF.dx + LEFT_HALF.w) * k;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(splitX - h * 2, feetY - h * 2, h * 2, h * 3);
+    ctx.clip();
+    this.drawPieceAt(piece, x, feetY, h);
+    ctx.restore();
   }
 
   // One half, toppled `angle` outward (side -1 left, 1 right) about its
