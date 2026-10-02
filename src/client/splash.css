@@ -34,8 +34,8 @@ button:focus-visible {
 }
 
 /* No sound toggle on the feed card, so no room to reserve for it. Three
-   columns — Follow, the play count, an empty spacer as wide as Follow —
-   keep the count centred on the card. */
+   columns — Follow, the play count, Build — with equal outer columns keep
+   the count centred on the card. */
 #game-menu-header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -44,6 +44,31 @@ button:focus-visible {
 
 #game-menu-follow-btn {
   justify-self: start;
+}
+
+/* Build: a small corner button, deliberately quieter than Play. */
+#splash-build {
+  justify-self: end;
+  padding: 6px 12px;
+  background: var(--paper-card);
+  color: var(--ink);
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard);
+  font-family: var(--font-ui);
+  font-size-adjust: none;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+
+#splash-build:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
 }
 
 #splash-header-center {

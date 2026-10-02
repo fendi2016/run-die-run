@@ -39,6 +39,7 @@ function expandInto(event: MouseEvent, target: SplashAutostart): void {
 
 const targets: [string, SplashAutostart][] = [
   ['game-menu-play', 'game'],
+  ['splash-build', 'editor'],
 ];
 for (const [id, target] of targets) {
   requireButton(id).addEventListener('click', (e) => expandInto(e, target));
