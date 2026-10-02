@@ -2,9 +2,10 @@ import { requireElement } from './domUtils';
 
 // The menu's death gag, drawn on one canvas (#menu-gag) over the whole menu
 // (shared by the feed card and game.html's menu): the pencil runs along
-// Play's top edge into a saw, which hops up over his head and slowly saws
-// him down the middle while blood sprays all over the card; the halves
-// flop open, everything fades, he respawns with a poof. One rAF loop and
+// Play's top edge, trips onto the saw and ends up hunched over the blade,
+// which slowly cuts him in half at the waist while blood sprays all over
+// the card; the two pieces drop off either side, everything fades, he
+// respawns with a poof. One rAF loop and
 // plain drawImage/arc calls — no DOM churn — so it stays smooth on phones.
 
 // Run strip: 19 frames of 114x128, one stride (ui/menu-gag-run.webp).
@@ -18,20 +19,28 @@ const WIDTH_SCALE = 1.25;
 const STRIDE_PER_HEIGHT = 2.05;
 const RUN_HEIGHTS_PER_S = 4.2;
 const SAW_AT = 0.86; // fraction of Play's width
-const SAW_RADIUS = 0.31; // of the runner's height
+const SAW_RADIUS = 0.4; // of the runner's height
 // Counter-clockwise (negative is anticlockwise on a y-down canvas).
 const SAW_SPIN = (-Math.PI * 2) / 0.6;
 const SAW_SPIN_CUTTING = (-Math.PI * 2) / 0.25;
 
-const HOP_MS = 260;
-const CUT_MS = 1500;
-const FALL_MS = 420;
+const TRIP_MS = 220;
+const CUT_MS = 1600;
+const FALL_MS = 450;
 const HOLD_MS = 700;
 const FADE_MS = 350;
 const POOF_MS = 350;
 const POOF_FRAMES = 7;
-// How far the halves have peeled open by the time the saw reaches his feet.
-const SPLAY_MAX = 0.5;
+// Hunched over the blade: clockwise turn of each piece from upright. The
+// top half folds forward over the saw (head hanging down the far side),
+// the legs trail back down the near side — and both droop further as the
+// blade sinks in.
+const HUNCH_TOP = 2.3;
+const HUNCH_LEGS = 0.8;
+const DROOP = 0.2;
+// A piece lying flat sits this much of the frame width above Play (the
+// pencil art is narrower than its frame).
+const REST_LIFT = 0.3;
 
 const BLOOD_COLORS = ['#e0303a', '#b3121f', '#ff4d5a'];
 const MAX_DROPS = 700;
@@ -56,7 +65,7 @@ type Layout = {
   runnerH: number;
 };
 
-type Phase = 'run' | 'hop' | 'cut' | 'fall' | 'hold' | 'fade';
+type Phase = 'run' | 'trip' | 'cut' | 'fall' | 'hold' | 'fade';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -65,13 +74,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`menu gag: ${src} failed to load`));
     image.src = src;
   });
-}
-
-// How far to raise the halves at `angle` so their outer bottom corners stay
-// on the floor: none while still splaying, half their width once flat.
-function liftFor(angle: number, w: number): number {
-  const from = Math.sin(SPLAY_MAX);
-  return (w / 2) * clamp01((Math.sin(angle) - from) / (1 - from));
 }
 
 const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
@@ -104,9 +106,9 @@ class MenuGag {
   private phaseStart = 0;
   private lastTime = 0;
   private sawAngle = 0;
-  // Where he stopped, his pose, and the saw's path for this death.
-  private hitX = 0;
+  // His pose when he hit the saw, and Play's top edge this frame.
   private frame = 0;
+  private floorY = 0;
   private drops: Drop[] = [];
 
   constructor(
@@ -182,9 +184,11 @@ class MenuGag {
     const w = h * (FRAME_W / FRAME_H) * WIDTH_SCALE;
     const sawR = h * SAW_RADIUS;
     const feetY = l.playTop + 1;
+    this.floorY = feetY + 1;
     const spawnX = l.playLeft + w * 0.35;
     const sawRestX = l.playLeft + l.playWidth * SAW_AT;
-    const sawRestY = feetY + sawR * 0.25;
+    // Mostly out of Play, so there's a blade for him to fold over.
+    const sawRestY = feetY - sawR * 0.15;
 
     if (this.reducedMotion) {
       this.drawSaw(l, sawRestX, sawRestY, sawR, 0);
@@ -193,10 +197,20 @@ class MenuGag {
     }
 
     this.sawAngle += dt * (this.phase === 'cut' ? SAW_SPIN_CUTTING : SAW_SPIN);
-    const hitX = sawRestX - sawR - w * 0.3;
-    const sawAboveY = feetY - h - sawR * 0.4;
-    let sawX = sawRestX;
-    let sawY = sawRestY;
+    // The saw behind him; where it's cutting, a sliver of blade is drawn
+    // again over his waist (below) so it reads as going through him.
+    this.drawSaw(l, sawRestX, sawRestY, sawR, this.sawAngle);
+    // Blood behind him too, so it flies out from behind the body instead of
+    // burying it.
+    this.updateDrops(l, dt, h);
+    this.drawDrops(this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1);
+    let waist: { x: number; y: number } | undefined;
+    // He stops when his front foot meets the teeth.
+    const hitX = sawRestX - sawR - w * 0.25;
+    // Hunched: his waist rests on top of the blade, then sinks to its hub.
+    const bladeTop = sawRestY - sawR * 0.9;
+    const upright = { x: hitX, y: feetY - h / 2, top: 0, legs: 0 };
+    const hunched = { x: sawRestX, y: bladeTop, top: HUNCH_TOP, legs: HUNCH_LEGS };
     let fade = 1;
 
     switch (this.phase) {
@@ -207,59 +221,67 @@ class MenuGag {
         this.frame = Math.floor((travelled / (h * STRIDE_PER_HEIGHT)) * RUN_FRAMES) % RUN_FRAMES;
         if (t < POOF_MS) this.drawPoof(spawnX, feetY, h, t);
         this.drawWhole(x, feetY, w, h, this.frame);
-        if (x >= hitX) {
-          this.hitX = hitX;
-          this.enter('hop', now);
-        }
+        if (x >= hitX) this.enter('trip', now);
         break;
       }
-      case 'hop': {
-        // The saw jumps out of Play and up over his head.
-        const p = easeOut(clamp01(t / HOP_MS));
-        sawX = sawRestX + (this.hitX - sawRestX) * p;
-        sawY = sawRestY + (sawAboveY - sawRestY) * p - Math.sin(p * Math.PI) * h * 0.25;
-        this.drawWhole(this.hitX + Math.sin(now / 9) * 1.2, feetY, w, h, this.frame);
-        if (t >= HOP_MS) this.enter('cut', now);
+      case 'trip': {
+        // Pitches forward and lands folded over the blade.
+        const p = easeOut(clamp01(t / TRIP_MS));
+        const x = upright.x + (hunched.x - upright.x) * p;
+        const y = upright.y + (hunched.y - upright.y) * p - Math.sin(p * Math.PI) * h * 0.2;
+        this.drawBody(x, y, w, h, upright.top + (hunched.top - upright.top) * p, upright.legs + (hunched.legs - upright.legs) * p, 0);
+        if (p > 0.6) waist = { x, y };
+        if (t >= TRIP_MS) this.enter('cut', now);
         break;
       }
       case 'cut': {
-        // Slowly down through his middle; the halves peel open above it.
+        // The blade slowly sinks into his middle; he twitches; blood goes
+        // everywhere; the two halves start to come apart.
         const p = clamp01(t / CUT_MS);
-        sawX = this.hitX;
-        sawY = sawAboveY + (feetY - sawAboveY) * p;
-        const cutY = Math.min(sawY + sawR * 0.6, feetY);
-        const shake = Math.sin(now / 7) * 1.6;
-        this.drawSplit(this.hitX + shake, feetY, w, h, cutY, SPLAY_MAX * p);
-        if (cutY > feetY - h) this.spray(this.hitX, cutY, h, dt, 520);
+        // Partway into the blade, not to the hub, so he stays on top of Play.
+        const y = hunched.y + (sawRestY - hunched.y) * 0.5 * p;
+        const shake = Math.sin(now / 6) * 1.8;
+        const gap = p * p * w * 0.25;
+        this.drawBody(
+          hunched.x + shake,
+          y + Math.cos(now / 9) * 1.2,
+          w,
+          h,
+          hunched.top + DROOP * p,
+          hunched.legs + DROOP * p,
+          gap
+        );
+        this.spray(hunched.x, y, h, dt, 560);
+        waist = { x: hunched.x, y };
         if (t >= CUT_MS) this.enter('fall', now);
         break;
       }
       case 'fall': {
-        // Both halves flop open flat onto Play.
-        const p = clamp01(t / FALL_MS);
-        const angle = SPLAY_MAX + (Math.PI / 2 - SPLAY_MAX) * easeIn(p);
-        sawY = feetY + sawR * 0.25;
-        sawX = this.hitX;
-        this.drawSplit(this.hitX, feetY, w, h, feetY, angle, liftFor(angle, w));
-        this.spray(this.hitX, feetY - h * 0.1, h, dt, 260 * (1 - p));
+        // Cut through: each piece slides off its side of the blade and lands
+        // flat on Play.
+        const p = easeIn(clamp01(t / FALL_MS));
+        const startY = sawRestY;
+        const restY = feetY - w * REST_LIFT;
+        const topAngle = hunched.top + DROOP;
+        const legsAngle = hunched.legs + DROOP;
+        this.drawPiece('top', sawRestX + w * 0.25 + p * sawR * 1.4, startY + (restY - startY) * p, w, h, topAngle + (Math.PI / 2 - topAngle) * p);
+        this.drawPiece('legs', sawRestX - w * 0.25 - p * sawR * 1.4, startY + (restY - startY) * p, w, h, legsAngle + (Math.PI / 2 - legsAngle) * p);
+        this.spray(sawRestX, sawRestY - sawR * 0.5, h, dt, 300 * (1 - p));
         if (t >= FALL_MS) this.enter('hold', now);
         break;
       }
-      case 'hold': {
-        // The saw grinds back to its spot; the blood keeps trickling.
-        const p = easeOut(clamp01(t / 300));
-        sawX = this.hitX + (sawRestX - this.hitX) * p;
-        this.drawSplit(this.hitX, feetY, w, h, feetY, Math.PI / 2, w / 2);
-        this.spray(this.hitX, feetY - h * 0.05, h, dt, 60);
-        if (t >= HOLD_MS) this.enter('fade', now);
-        break;
-      }
+      case 'hold':
       case 'fade': {
-        fade = 1 - clamp01(t / FADE_MS);
+        if (this.phase === 'fade') fade = 1 - clamp01(t / FADE_MS);
+        const restY = feetY - w * REST_LIFT;
         ctx.globalAlpha = fade;
-        this.drawSplit(this.hitX, feetY, w, h, feetY, Math.PI / 2, w / 2);
+        this.drawPiece('top', sawRestX + w * 0.25 + sawR * 1.4, restY, w, h, Math.PI / 2);
+        this.drawPiece('legs', sawRestX - w * 0.25 - sawR * 1.4, restY, w, h, Math.PI / 2);
         ctx.globalAlpha = 1;
-        if (t >= FADE_MS) {
+        if (this.phase === 'hold') {
+          this.spray(sawRestX, sawRestY - sawR * 0.5, h, dt, 50);
+          if (t >= HOLD_MS) this.enter('fade', now);
+        } else if (t >= FADE_MS) {
           this.drops = [];
           this.enter('run', now);
         }
@@ -267,9 +289,14 @@ class MenuGag {
       }
     }
 
-    this.updateDrops(l, dt, h);
-    this.drawDrops(fade);
-    this.drawSaw(l, sawX, sawY, sawR, this.sawAngle);
+    if (waist) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(waist.x - sawR * 0.3, waist.y - h * 0.3, sawR * 0.6, h * 0.3 + 3);
+      ctx.clip();
+      this.drawSaw(l, sawRestX, sawRestY, sawR, this.sawAngle);
+      ctx.restore();
+    }
   }
 
   // One run-strip frame, bottom-centre at (x, feetY).
@@ -277,51 +304,44 @@ class MenuGag {
     this.ctx.drawImage(this.runImage, frame * FRAME_W, 0, FRAME_W, FRAME_H, x - w / 2, feetY - h, w, h);
   }
 
-  // The pose cut down the middle above cutY: each half rotated `angle` away
-  // from the other about the bottom of the cut; below it, still whole.
-  // `lift` raises the halves so, once fully cut, their outer edges ride on
-  // Play's top instead of swinging down into it.
-  private drawSplit(
+  // His body bent at the waist (x, y): the top half turned `topAngle` and
+  // the legs `legsAngle` clockwise from upright, `gap` apart at the cut.
+  private drawBody(
     x: number,
-    feetY: number,
+    y: number,
     w: number,
     h: number,
-    cutY: number,
-    angle: number,
-    lift = 0
+    topAngle: number,
+    legsAngle: number,
+    gap: number
   ): void {
+    this.drawPiece('legs', x - gap / 2, y, w, h, legsAngle);
+    this.drawPiece('top', x + gap / 2, y, w, h, topAngle);
+  }
+
+  // Half of the pose at hit time, pivoting on its cut edge at the waist.
+  // Play is the floor: nothing of him hangs over its face.
+  private drawPiece(half: 'top' | 'legs', x: number, y: number, w: number, h: number, angle: number): void {
     const ctx = this.ctx;
-    const sx = this.frame * FRAME_W;
-    const top = feetY - h;
-    if (cutY < feetY) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x - w, cutY, w * 2, feetY - cutY + 2);
-      ctx.clip();
-      this.drawWhole(x, feetY, w, h, this.frame);
-      ctx.restore();
-    }
-    for (const side of [-1, 1]) {
-      ctx.save();
-      ctx.translate(x, cutY - lift);
-      ctx.rotate(side * angle);
-      ctx.translate(-x, -cutY);
-      ctx.beginPath();
-      ctx.rect(side < 0 ? x - w : x, top - 2, w, cutY - top + 2);
-      ctx.clip();
-      ctx.drawImage(
-        this.runImage,
-        side < 0 ? sx : sx + FRAME_W / 2,
-        0,
-        FRAME_W / 2,
-        FRAME_H,
-        side < 0 ? x - w / 2 : x,
-        top,
-        w / 2,
-        h
-      );
-      ctx.restore();
-    }
+    const sy = half === 'top' ? 0 : FRAME_H / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, ctx.canvas.width, this.floorY);
+    ctx.clip();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.drawImage(
+      this.runImage,
+      this.frame * FRAME_W,
+      sy,
+      FRAME_W,
+      FRAME_H / 2,
+      -w / 2,
+      half === 'top' ? -h / 2 : 0,
+      w,
+      h / 2
+    );
+    ctx.restore();
   }
 
   // Sunk into Play: never drawn below its top edge.
@@ -352,8 +372,8 @@ class MenuGag {
       if (count < 1 && Math.random() > count) break;
       count -= 1;
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5;
-      const speed = (250 + Math.random() * 650) * k;
-      const big = Math.random() < 0.12;
+      const speed = (380 + Math.random() * 620) * k;
+      const big = Math.random() < 0.06;
       this.drops.push({
         x: x + (Math.random() - 0.5) * 4,
         y,
