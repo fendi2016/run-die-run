@@ -19,7 +19,9 @@ const WIDTH_SCALE = 1.25;
 // covered and the feet stay planted.
 const STRIDE_PER_HEIGHT = 2.05;
 const RUN_HEIGHTS_PER_S = 4.2;
-const SAW_AT = 0.86; // fraction of Play's width
+// Fraction of Play's width, but always leaving room past it for his right
+// half to land on Play.
+const SAW_AT = 0.72;
 const SAW_RADIUS = 0.4; // of the runner's height
 // Counter-clockwise (negative is anticlockwise on a y-down canvas). The 14
 // teeth are ~26 degrees apart, so a turn faster than ~13 degrees a frame
@@ -41,6 +43,9 @@ const RIGHT_HALF: Piece = { sx: 204, sy: 13, w: 40, h: 116, dx: 2.7, dy: -8.3 };
 
 const IMPACT_MS = 420;
 const CRACK_MS = 520;
+// While it cuts he keeps getting fed right through the blade, until his
+// middle is on it and he comes apart.
+const CUT_MS = IMPACT_MS + CRACK_MS;
 const REST_MS = 900;
 const FADE_MS = 400;
 const POOF_MS = 350;
@@ -77,8 +82,6 @@ type Phase = 'run' | 'impact' | 'crack' | 'split' | 'rest' | 'fade';
 // A half toppling over its outer foot: angle away from upright (radians),
 // and its angular speed.
 type Topple = { angle: number; spin: number };
-// The right half once the blade catches it: a tumbling projectile (centre).
-type Fling = { x: number; y: number; vx: number; vy: number; angle: number; spin: number };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -125,7 +128,8 @@ class MenuGag {
   // Where he stopped against the saw, and the two halves once split.
   private hitX = 0;
   private topple = { left: { angle: 0, spin: 0 }, right: { angle: 0, spin: 0 } };
-  private fling: Fling | undefined;
+  // Where he was when he hit the blade (the feed starts there).
+  private cutFromX = 0;
   private shavings: Shaving[] = [];
 
   constructor(
@@ -204,7 +208,7 @@ class MenuGag {
     const sawR = h * SAW_RADIUS;
     const feetY = l.playTop + 1;
     const spawnX = l.playLeft + w * 0.35;
-    const sawX = l.playLeft + l.playWidth * SAW_AT;
+    const sawX = Math.min(l.playLeft + l.playWidth * SAW_AT, l.playLeft + l.playWidth - h * 1.05);
     // Mostly out of Play, so it's a big blade to run into.
     const sawY = feetY - sawR * 0.15;
 
@@ -232,30 +236,34 @@ class MenuGag {
           // Whole poses stand on their own feet-centre; put his front edge
           // where the runner's was.
           this.hitX = hitX + w * 0.5 - (WINCE.w + WINCE.dx) * (h / PIECE_H) - h * 0.12;
+          this.cutFromX = this.hitX;
           this.emitShavings(sawX - sawR * 0.9, feetY - h * 0.5, h, 1, 14);
           this.enter('impact', now);
         }
         break;
       }
       case 'impact': {
-        // Thunk: knocked back a hair, then shoved into the blade, shaking.
+        // Thunk: knocked back a hair, then fed on into the blade, shaking.
         const recoil = t < 90 ? -(t / 90) * h * 0.06 : -h * 0.06 * (1 - clamp01((t - 90) / 200));
         const shake = t > 90 ? Math.sin(now / 4) * 1.5 : 0;
-        this.drawPieceAt(WINCE, this.hitX + recoil + shake, feetY, h);
-        if (t > 90) this.emitShavings(sawX - sawR * 0.9, feetY - h * 0.5, h, dt, 30);
+        const x = this.feedX(sawX, t);
+        this.drawPieceAt(WINCE, x + recoil + shake, feetY, h);
+        if (t > 90) this.emitShavings(sawX - sawR * 0.5, feetY - h * 0.5, h, dt, 30);
         if (t >= IMPACT_MS) this.enter('crack', now);
         break;
       }
       case 'crack': {
         // The crack runs down his middle; he shakes harder.
         const shake = Math.sin(now / 3.5) * (1.5 + 1.5 * clamp01(t / CRACK_MS));
-        this.drawPieceAt(CRACK, this.hitX + shake, feetY, h);
-        this.emitShavings(sawX - sawR * 0.9, feetY - h * (0.2 + 0.6 * Math.random()), h, dt, 45);
+        const x = this.feedX(sawX, IMPACT_MS + t);
+        this.drawPieceAt(CRACK, x + shake, feetY, h);
+        this.emitShavings(sawX - sawR * 0.5, feetY - h * (0.2 + 0.6 * Math.random()), h, dt, 45);
         if (t >= CRACK_MS) {
-          // Split: each half kicked over its outer foot.
-          this.topple = { left: { angle: 0, spin: 2.2 }, right: { angle: 0, spin: 2.6 } };
-          this.fling = undefined;
-          this.emitShavings(this.hitX, feetY - h * 0.5, h, 1, 22);
+          // Through: one half each side of the blade, each kicked over its
+          // outer foot, away from it.
+          this.hitX = sawX;
+          this.topple = { left: { angle: 0, spin: 2.2 }, right: { angle: 0, spin: 2.2 } };
+          this.emitShavings(sawX, feetY - h * 0.5, h, 1, 22);
           this.enter('split', now);
         }
         break;
@@ -265,19 +273,8 @@ class MenuGag {
       case 'fade': {
         if (this.phase === 'split') {
           const leftDown = this.stepTopple(this.topple.left, dt);
-          // The right half tips into the spinning blade, which flings it
-          // away over the edge of the card.
-          if (!this.fling) {
-            this.stepTopple(this.topple.right, dt);
-            if (this.topple.right.angle > 0.7) {
-              this.fling = this.flingFrom(RIGHT_HALF, this.topple.right.angle, this.hitX, feetY, h);
-              this.emitShavings(sawX - sawR * 0.6, feetY - sawR, h, 1, 16);
-            }
-          } else {
-            this.stepFling(this.fling, dt, h);
-          }
-          const rightGone = this.fling !== undefined && this.fling.y > l.height + h;
-          const settled = leftDown && rightGone;
+          const rightDown = this.stepTopple(this.topple.right, dt);
+          const settled = leftDown && rightDown;
           if (t < 250) this.emitShavings(this.hitX, feetY - h * 0.4, h, dt, 60);
           if (settled || t > 1500) this.enter('rest', now);
         } else if (this.phase === 'rest' && t >= REST_MS) {
@@ -286,8 +283,7 @@ class MenuGag {
         const alpha = this.phase === 'fade' ? 1 - clamp01(t / FADE_MS) : 1;
         ctx.globalAlpha = alpha;
         this.drawHalf(LEFT_HALF, -1, this.topple.left.angle, this.hitX, feetY, h);
-        if (this.fling) this.drawFlung(RIGHT_HALF, this.fling, h);
-        else this.drawHalf(RIGHT_HALF, 1, this.topple.right.angle, this.hitX, feetY, h);
+        this.drawHalf(RIGHT_HALF, 1, this.topple.right.angle, this.hitX, feetY, h);
         ctx.globalAlpha = 1;
         if (this.phase === 'fade' && t >= FADE_MS) {
           this.shavings = [];
@@ -337,40 +333,10 @@ class MenuGag {
     ctx.restore();
   }
 
-  // Where the toppling half's centre is now, launched up and to the right.
-  private flingFrom(piece: Piece, angle: number, x: number, feetY: number, h: number): Fling {
-    const k = h / PIECE_H;
-    const left = x + piece.dx * k;
-    const bottom = feetY + piece.dy * k;
-    const pivotX = left + piece.w * k;
-    // Centre relative to the bottom-right pivot, rotated by the lean.
-    const cx = -piece.w * k * 0.5;
-    const cy = -piece.h * k * 0.5;
-    return {
-      x: pivotX + cx * Math.cos(angle) - cy * Math.sin(angle),
-      y: bottom + cx * Math.sin(angle) + cy * Math.cos(angle),
-      vx: h * 3.2,
-      vy: -h * 7,
-      angle,
-      spin: 9,
-    };
-  }
-
-  private stepFling(f: Fling, dt: number, h: number): void {
-    f.vy += 1500 * (h / 56) * dt;
-    f.x += f.vx * dt;
-    f.y += f.vy * dt;
-    f.angle += f.spin * dt;
-  }
-
-  private drawFlung(piece: Piece, f: Fling, h: number): void {
-    const ctx = this.ctx;
-    const k = h / PIECE_H;
-    ctx.save();
-    ctx.translate(f.x, f.y);
-    ctx.rotate(f.angle);
-    ctx.drawImage(this.splitImage, piece.sx, piece.sy, piece.w, piece.h, (-piece.w * k) / 2, (-piece.h * k) / 2, piece.w * k, piece.h * k);
-    ctx.restore();
+  // His feet-centre `t` ms into the cut: fed steadily from where he hit
+  // until his middle is on the blade.
+  private feedX(sawX: number, t: number): number {
+    return this.cutFromX + (sawX - this.cutFromX) * clamp01(t / CUT_MS);
   }
 
   // Falls over like a plank (faster the further it leans), thuds flat,
