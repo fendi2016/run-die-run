@@ -23,7 +23,8 @@ follow.post('/', async (c) => {
 
   try {
     await reddit.subscribeToCurrentSubreddit();
-  } catch {
+  } catch (error) {
+    console.error(`Follow failed for u/${username} in r/${subredditName}:`, error);
     return c.json<ErrorResponse>(
       { status: 'error', message: 'Could not follow subreddit' },
       500
