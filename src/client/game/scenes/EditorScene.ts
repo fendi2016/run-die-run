@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { showToast } from '@devvit/web/client';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
+import { onBoardTap } from '../editor/boardTap';
 import {
   EDITOR_MAX_COLUMNS,
   GRID_CELL_SIZE,
@@ -126,15 +127,16 @@ export class EditorScene extends Scene {
   // see GridSystem.drawSketchRect's own comment).
   private selectionHighlight!: Phaser.GameObjects.Image;
   private renderedObjects = new Map<string, Phaser.GameObjects.Sprite>();
+  // What each rendered sprite was drawn from (type, cell, terrain
+  // neighbours): redrawObjects() only rebuilds sprites whose key changed,
+  // instead of every object on every tap — the full rebuild was the
+  // builder's per-tap hitch on phones.
+  private renderedKeys = new Map<string, string>();
   // A patrolling/rideable placed object's tween (see ObjectRegistry's
-  // motionTweenConfigFor) — stopped and rebuilt alongside its sprite on
-  // every redrawObjects() so a moving hazard's motion in the editor matches
-  // what it'll actually do in a run, instead of sitting frozen. Stopping
-  // these before destroying their sprites (rather than leaving them to keep
-  // running with repeat: -1 against a dead target) is what actually matters
-  // here — an uncapped pile of ghost tweens would otherwise build up on
-  // every edit.
-  private motionTweens: Phaser.Tweens.Tween[] = [];
+  // motionTweenConfigFor), so a moving hazard moves in the editor like it
+  // will in a run. Stopped with its sprite (rather than left running with
+  // repeat: -1 against a dead target, piling up ghost tweens on every edit).
+  private motionTweens = new Map<string, Phaser.Tweens.Tween>();
 
   private panZoom!: PanZoomCamera;
 
@@ -151,6 +153,8 @@ export class EditorScene extends Scene {
     this.verifiedToken = data.verifiedCandidateToken;
     this.currentTool = 'select';
     this.renderedObjects = new Map();
+    this.renderedKeys = new Map();
+    this.motionTweens = new Map();
   }
 
   create(): void {
@@ -169,11 +173,9 @@ export class EditorScene extends Scene {
       width: EDITOR_MAX_COLUMNS,
       height: EDITOR_BOARD_ROWS,
     });
-    // Scene-level pointer events instead of a dedicated full-screen touch
-    // zone, so the board's tap detection coexists with this scene's own
-    // pointer listeners below (used for drag-to-pan the camera).
-    this.board.setInteractive({ useTouchZone: false });
-    this.board.on('tiletap', this.onBoardTileTap, this);
+    // Scene-level tap gesture (no full-screen touch zone), so it coexists
+    // with PanZoomCamera's own pointer listeners for drag-to-pan.
+    onBoardTap(this, this.board, (pointer, tileXY) => this.onBoardTileTap(pointer, tileXY));
 
     // Toolbar must be shown (and laid out) before the first zoom pass —
     // applyResponsiveZoom measures its rendered height to keep the camera
@@ -442,16 +444,15 @@ export class EditorScene extends Scene {
   }
 
   private redrawObjects(): void {
-    for (const tween of this.motionTweens) {
-      tween.stop();
-    }
-    this.motionTweens = [];
-    for (const image of this.renderedObjects.values()) {
-      image.destroy();
-    }
-    this.renderedObjects.clear();
-    const neighborsOf = terrainNeighborsIn(this.controller.getObjects());
-    for (const object of this.controller.getObjects()) {
+    const objects = this.controller.getObjects();
+    const neighborsOf = terrainNeighborsIn(objects);
+    const live = new Set<string>();
+    for (const object of objects) {
+      live.add(object.id);
+      const neighbors = neighborsOf(object);
+      const key = `${object.type}|${object.x}|${object.y}|${neighbors.left ? 1 : 0}${neighbors.right ? 1 : 0}`;
+      if (this.renderedKeys.get(object.id) === key) continue;
+      this.removeRendered(object.id);
       // ObjectRegistry deliberately renders nothing for 'spawn' (Player
       // reads its position directly at runtime, it's never an obstacle),
       // which left placing one with no visual confirmation in the editor
@@ -464,17 +465,26 @@ export class EditorScene extends Scene {
               properties: {},
               addedBy: '',
               addedInVersion: 1,
-            }, neighborsOf(object));
-      if (image) {
-        this.renderedObjects.set(object.id, image);
-        const tweenConfig = motionTweenConfigFor(image, object);
-        if (tweenConfig) {
-          this.motionTweens.push(this.tweens.add(tweenConfig));
-        }
-        attachAmbience(this, image, object);
-      }
+            }, neighbors);
+      if (!image) continue;
+      this.renderedObjects.set(object.id, image);
+      this.renderedKeys.set(object.id, key);
+      const tweenConfig = motionTweenConfigFor(image, object);
+      if (tweenConfig) this.motionTweens.set(object.id, this.tweens.add(tweenConfig));
+      attachAmbience(this, image, object);
+    }
+    for (const id of [...this.renderedObjects.keys()]) {
+      if (!live.has(id)) this.removeRendered(id);
     }
     this.refreshSelectionHighlight();
+  }
+
+  private removeRendered(id: string): void {
+    this.motionTweens.get(id)?.stop();
+    this.motionTweens.delete(id);
+    this.renderedObjects.get(id)?.destroy();
+    this.renderedObjects.delete(id);
+    this.renderedKeys.delete(id);
   }
 
   private refreshSelectionHighlight(): void {

@@ -33,7 +33,9 @@ import {
 // `visibleWorldRangeX()` — never `camera.scrollX` or `camera.worldView`
 // directly (the latter is matrix-cached and can be a frame stale
 // immediately after a same-tick zoom/scroll change).
-const DRAG_THRESHOLD_PX = 4;
+// A fingertip wobbles a few pixels on any tap; below this it's still a tap
+// (see boardTap.ts), not the start of a pan.
+const DRAG_THRESHOLD_PX = 12;
 export const PAN_STEP_PX = 240;
 const TRAILING_OVERHANG_PX = GRID_CELL_SIZE * 3;
 

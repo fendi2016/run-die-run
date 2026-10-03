@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import type * as Phaser from 'phaser';
 import BoardPlugin from 'phaser4-rex-plugins/plugins/board-plugin.js';
+import { onBoardTap } from '../editor/boardTap';
 import { EDITOR_MAX_COLUMNS, SEED_AUTHOR } from '../../../shared/constants';
 import {
   CURSE_ERASABLE_TYPES,
@@ -211,8 +212,7 @@ export class CurseScene extends Scene {
       width: EDITOR_MAX_COLUMNS,
       height: EDITOR_BOARD_ROWS,
     });
-    this.board.setInteractive({ useTouchZone: false });
-    this.board.on('tiletap', this.onBoardTileTap, this);
+    onBoardTap(this, this.board, (pointer, tileXY) => this.onBoardTileTap(pointer, tileXY));
 
     this.toolbar = CurseToolbar.instance();
     this.toolbar.setHandlers({
