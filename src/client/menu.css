@@ -14,6 +14,10 @@
   inset: 0;
   display: flex;
   flex-direction: column;
+  /* Own stacking context: #menu-gag's z-index ranks it inside the menu
+     only, so it can't paint over overlays (leaderboard/stats/reveal, all
+     z 5) that open on top of the menu. */
+  isolation: isolate;
 }
 
 #game-menu.hidden {
