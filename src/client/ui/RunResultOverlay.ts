@@ -72,7 +72,7 @@ export class RunResultOverlay {
     // Level of the Day is on its way.
     const left = msUntilNextDaily(Date.now());
     const hours = Math.floor(left / 3_600_000);
-    const minutes = Math.floor((left % 3_600_000) / 60_000);
+    const minutes = Math.max(1, Math.floor((left % 3_600_000) / 60_000));
     const nextDaily = `New Level of the Day in ${hours > 0 ? `${hours}h` : `${minutes}m`}`;
     this.dailyEl.textContent =
       result.dayStreak >= 2 ? `🔥 ${result.dayStreak} days in a row · ${nextDaily}` : nextDaily;

@@ -201,7 +201,7 @@ export class CurseScene extends Scene {
   }
 
   create(): void {
-    setLeavePlace('sabotage');
+    setLeavePlace(this.tutorial ? 'tutorial' : 'sabotage');
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
