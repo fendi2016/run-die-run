@@ -9,6 +9,7 @@
     "deploy": "npm run check:production && devvit upload",
     "dev": "devvit playtest",
     "launch": "npm run deploy && devvit publish",
+    "launch-public": "npm run deploy && devvit publish --public",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "login": "devvit login",
     "prettier": "prettier --write .",
