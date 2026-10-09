@@ -368,7 +368,7 @@ try {
       const request = route.request().postDataJSON();
       return route.fulfill({ json: { timeMs: request.timeMs, rank: 1, personalBestMs: request.timeMs,
         isNewPersonalBest: true, worldRecordMs: request.timeMs, topTen: [], streak: 1,
-        isNewStreakIncrease: true, currencyAwarded: 10, currencyBalance: 10 } }).catch(() => {});
+        isNewStreakIncrease: true, dayStreak: 1, currencyAwarded: 10, currencyBalance: 10 } }).catch(() => {});
     });
     const start = (id = 'result-actions') => page.evaluate((levelId) => {
       const game = window.__PHASER_GAME__;

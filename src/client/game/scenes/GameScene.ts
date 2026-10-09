@@ -34,6 +34,7 @@ import {
   isCurseEligibilityResponse,
   isPublishCurseResponse,
   isVerifyLevelResponse,
+  PLAYER_TRAP_LIFETIME_MS,
 } from '../../../shared/editorApi';
 import {
   isRealtimeEvent,
@@ -187,6 +188,33 @@ type PreviewReturn =
       extendByTiles?: number;
       removeObjectId?: string;
     };
+
+// The line under Add a trap. Players who skipped the tutorial's practice
+// trap get sabotage explained on their first real offer; after that it's
+// the reason to come back: the trap is up for a day.
+const SABOTAGE_EXPLAINED_KEY = 'sketchy:sabotage-explained';
+
+function markSabotageExplained(): void {
+  try {
+    localStorage.setItem(SABOTAGE_EXPLAINED_KEY, '1');
+  } catch {
+    // Storage unavailable: the longer line may show once on a real level.
+  }
+}
+const TRAP_LIFETIME_TEXT = `${Math.round(PLAYER_TRAP_LIFETIME_MS / 3_600_000)} hours`;
+
+function sabotageHint(): string {
+  let explained = false;
+  try {
+    explained = localStorage.getItem(SABOTAGE_EXPLAINED_KEY) === '1';
+    localStorage.setItem(SABOTAGE_EXPLAINED_KEY, '1');
+  } catch {
+    // Storage unavailable: the longer line just shows again next time.
+  }
+  return explained
+    ? `Your trap stays up ${TRAP_LIFETIME_TEXT}. Come back to see who it caught.`
+    : `You beat it, so now you sabotage it: add one trap that everyone after you has to survive. It stays up ${TRAP_LIFETIME_TEXT}. Come back to see who it caught.`;
+}
 
 // Data passed in via `scene.start('GameScene', data)`. Absent (a normal
 // menu -> GameScene entry) means "load the requested/default published
@@ -467,7 +495,7 @@ export class GameScene extends Scene {
     if (this.runStarted && !this.runEnded) {
       const progress = this.currentProgress();
       this.runHud.setProgress(progress);
-      if (!this.previewLevel) noteLeaveProgress(progress * 100);
+      if (this.tutorial || !this.previewLevel) noteLeaveProgress(progress * 100);
     }
     // Only takes over once the tap-to-start gate has lifted — while
     // waiting, the tutorial's first hint is already showing as the
@@ -875,8 +903,9 @@ export class GameScene extends Scene {
       playReported = true;
       sendAnalyticsEvent({ event: 'play' });
     }
-    // Preview runs belong to the builder/sabotage screen that started them.
-    if (!this.previewLevel) {
+    // Preview runs belong to the builder/sabotage screen that started them;
+    // the tutorial runs as a preview too, but is its own place.
+    if (this.tutorial || !this.previewLevel) {
       setLeavePlace(this.tutorial ? 'tutorial' : 'level');
       resetLeaveProgress();
     }
@@ -1012,6 +1041,7 @@ export class GameScene extends Scene {
       );
     } else if (this.previewReturn?.kind === 'tutorialCurse') {
       PreviewBackButton.instance().hide();
+      markSabotageExplained();
       this.resultOverlay.showTutorialCurseOutro(() => this.leaveTutorial());
     } else if (devWarp) {
       void this.offerCurseAndNext(this.levelVersion.levelId);
@@ -1058,7 +1088,7 @@ export class GameScene extends Scene {
     if (canCurse) {
       this.resultOverlay.setCurseHandler(
         () => this.scene.start('CurseScene', { levelId }),
-        this.revengeLine()
+        this.revengeLine() ?? sabotageHint()
       );
     }
     void this.findNextLevel();
@@ -1418,7 +1448,7 @@ export class GameScene extends Scene {
     }
     this.runEnded = true;
     this.deathsThisLevel++;
-    if (!this.previewLevel) noteLeaveDeath();
+    if (this.tutorial || !this.previewLevel) noteLeaveDeath();
     this.deathStreak++;
     if (objectId) {
       this.reportHazardDeath(objectId);

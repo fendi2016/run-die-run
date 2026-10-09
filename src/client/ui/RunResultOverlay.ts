@@ -1,4 +1,5 @@
 import type { SubmitRunResponse } from '../../shared/runsApi';
+import { msUntilNextDaily } from '../../shared/constants';
 import { requireButton, requireElement } from './domUtils';
 
 export type RunResultDock = 'left' | 'top' | 'bottom';
@@ -16,6 +17,7 @@ export class RunResultOverlay {
   private readonly root = requireElement('run-result');
   private readonly panel = requireElement('run-result-panel');
   private readonly streakEl = requireElement('run-result-streak');
+  private readonly dailyEl = requireElement('run-result-daily');
   private readonly curseBtn = requireButton('run-result-curse-btn');
   private readonly leaderboardBtn = requireButton('run-result-leaderboard-btn');
   private readonly shareBtn = requireButton('run-result-share');
@@ -50,6 +52,7 @@ export class RunResultOverlay {
     this.showSaveStatus('');
     this.showNext('');
     this.streakEl.textContent = '';
+    this.dailyEl.textContent = '';
     this.curseBtn.classList.add('hidden');
     this.root.classList.remove('run-result-curse-only');
     this.leaderboardBtn.classList.add('hidden');
@@ -65,6 +68,14 @@ export class RunResultOverlay {
   showResult(result: SubmitRunResponse): void {
     this.streakEl.textContent = `Streak: ${result.streak}`;
     this.streakEl.classList.toggle('run-result-streak-increased', result.isNewStreakIncrease);
+    // A reason to come back tomorrow: keep the run of days going, and a new
+    // Level of the Day is on its way.
+    const left = msUntilNextDaily(Date.now());
+    const hours = Math.floor(left / 3_600_000);
+    const minutes = Math.floor((left % 3_600_000) / 60_000);
+    const nextDaily = `New Level of the Day in ${hours > 0 ? `${hours}h` : `${minutes}m`}`;
+    this.dailyEl.textContent =
+      result.dayStreak >= 2 ? `🔥 ${result.dayStreak} days in a row · ${nextDaily}` : nextDaily;
   }
 
   // While the curse is on offer the card is just the curse button and its

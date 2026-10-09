@@ -22,6 +22,8 @@ export type SubmitRunResponse = {
   // actually grew.
   streak: number;
   isNewStreakIncrease: boolean;
+  // Days in a row (UTC) this player has cleared a level, today included.
+  dayStreak: number;
 };
 
 // Runtime guard for the fetch response on the client side. Avoids an `as`
@@ -38,7 +40,9 @@ export function isSubmitRunResponse(
     'streak' in value &&
     typeof value.streak === 'number' &&
     'isNewStreakIncrease' in value &&
-    typeof value.isNewStreakIncrease === 'boolean'
+    typeof value.isNewStreakIncrease === 'boolean' &&
+    'dayStreak' in value &&
+    typeof value.dayStreak === 'number'
   );
 }
 

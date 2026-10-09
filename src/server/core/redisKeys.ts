@@ -40,6 +40,8 @@ export const versionLeaderboardKey = (
 export const levelDeathsKey = (levelId: string, version: number): string =>
   `level:${levelId}:version:${version}:deaths`;
 
+// Days in a row the player cleared a level: { day (UTC day number), count }.
+export const userDayStreakKey = (username: string): string => `user:${username}:dayStreak`;
 export const userStatsKey = (redditId: string): string =>
   `user:${redditId}:stats`;
 

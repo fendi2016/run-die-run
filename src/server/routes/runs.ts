@@ -26,6 +26,7 @@ import {
 import { getCurrentLevelVersion } from '../services/LevelService';
 import { recordCatch, recordPasses } from '../services/TrapStatsService';
 import { trackSafely } from '../services/AnalyticsService';
+import { recordClearDay } from '../services/DayStreakService';
 import type {
   SubmitRunRequest,
   SubmitRunResponse,
@@ -228,11 +229,14 @@ runs.post('/', async (c) => {
   // A clear got past every other player's trap in this version.
   await recordPasses(levelId, version, username, 'clear').catch(() => undefined);
   await trackSafely('clear', username);
+  // Never fails the clear over a streak counter.
+  const dayStreak = await recordClearDay(username).catch(() => 1);
 
   return c.json<SubmitRunResponse>({
     timeMs,
     streak,
     isNewStreakIncrease,
+    dayStreak,
   });
 });
 

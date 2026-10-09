@@ -79,3 +79,14 @@ export const CURSES_PER_LEVEL = 3;
 // How many entries a leaderboard listing (per-level times, or the global
 // Clear Streaks board) returns.
 export const LEADERBOARD_TOP_N = 1000;
+
+// The Level of the Day posts at this UTC hour (devvit.json's daily-level
+// cron, checked by a test). The clear screen counts down to the next one.
+export const DAILY_LEVEL_HOUR_UTC = 16;
+
+export function msUntilNextDaily(now: number): number {
+  const next = new Date(now);
+  next.setUTCHours(DAILY_LEVEL_HOUR_UTC, 0, 0, 0);
+  if (next.getTime() <= now) next.setUTCDate(next.getUTCDate() + 1);
+  return next.getTime() - now;
+}
