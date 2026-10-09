@@ -43,6 +43,7 @@ import { PanZoomCamera, PAN_STEP_PX } from '../editor/PanZoomCamera';
 import { nearestTappedId } from '../editor/tapHit';
 import { labelFor } from '../../../shared/objectLabels';
 import {
+  isTerrainType,
   motionTweenConfigFor,
   renderLevelObject,
   renderSpawnMarker,
@@ -287,7 +288,7 @@ export class CurseScene extends Scene {
     this.category = category;
     this.updateStartZone();
     this.selectedType = undefined;
-    this.pending = undefined;
+    this.dropPending();
     this.toolbar.setActiveType(undefined);
     this.updateClearEnabled();
     this.toolbar.hideMessage();
@@ -302,7 +303,7 @@ export class CurseScene extends Scene {
   private selectType(type: ObjectType): void {
     if (this.proposalRequest) return;
     this.selectedType = type;
-    this.pending = undefined;
+    this.dropPending();
     this.toolbar.hideMessage();
     this.updateClearEnabled();
     this.redrawPending();
@@ -310,12 +311,24 @@ export class CurseScene extends Scene {
     this.toolbar.showMessage('Tap anywhere to place your sabotage.');
   }
 
+  // Unsets the pending object; a pending platform was joined into the
+  // level's runs (see boardNeighbors), so they get their end caps back.
+  private dropPending(): void {
+    const wasTerrain = this.pending !== undefined && isTerrainType(this.pending.type);
+    this.pending = undefined;
+    if (wasTerrain) this.redrawBase();
+  }
+
   // Keep tap placement and drag repositioning in sync with the toolbar.
   private setPendingAt(x: number, y: number): void {
     const type = this.selectedType ?? this.pending?.type;
     if (!type) return;
+    // A platform joins up with the level's own runs, so their end caps
+    // change wherever it lands (or leaves).
+    const reshapesTerrain = isTerrainType(type) || (this.pending !== undefined && isTerrainType(this.pending.type));
     this.pending = { id: 'pending', type, x, y };
     this.updateClearEnabled();
+    if (reshapesTerrain) this.redrawBase();
     this.redrawPending();
     this.updateProveEnabled();
   }
@@ -512,6 +525,18 @@ export class CurseScene extends Scene {
     this.updateProveEnabled();
   }
 
+  // End caps for every terrain tile on the board — the level's own, the
+  // pending extension's ground and the pending platform — worked out
+  // together, so a run reads as one piece wherever the curse touches it.
+  private boardNeighbors(): ReturnType<typeof terrainNeighborsIn> {
+    const extension = this.currentExtension();
+    return terrainNeighborsIn([
+      ...(this.baseLevel?.objects ?? []),
+      ...(extension?.groundTiles ?? []),
+      ...(this.pending ? [this.pending] : []),
+    ]);
+  }
+
   // Hides the base level's own finish while an extension is pending — it's
   // being relocated, and redrawExtension() renders the new one in its
   // place — so the player never sees two finish portals at once.
@@ -526,7 +551,7 @@ export class CurseScene extends Scene {
     this.baseImages = [];
     this.erasableImages = new Map();
     const relocatingFinish = this.pendingExtendTiles > 0;
-    const neighborsOf = terrainNeighborsIn(this.baseLevel?.objects ?? []);
+    const neighborsOf = this.boardNeighbors();
     for (const object of this.baseLevel?.objects ?? []) {
       if (relocatingFinish && object.type === 'finish') {
         continue;
@@ -563,10 +588,15 @@ export class CurseScene extends Scene {
       image.destroy();
     }
     this.extensionImages = [];
+    this.toolbar.setExtended(
+      this.pendingExtendTiles > 0 &&
+        this.pendingExtendTiles >= maxExtendableTiles(this.baseObjectsAsDraft())
+    );
     const extension = this.currentExtension();
     if (!extension) {
       return;
     }
+    const neighborsOf = this.boardNeighbors();
     for (const tile of [...extension.groundTiles, extension.finish]) {
       const previewObject: LevelObject = {
         id: tile.id,
@@ -577,7 +607,7 @@ export class CurseScene extends Scene {
         addedBy: 'you',
         addedInVersion: 0,
       };
-      const image = renderLevelObject(this, previewObject);
+      const image = renderLevelObject(this, previewObject, neighborsOf(previewObject));
       if (image) {
         image.disableInteractive();
         this.extensionImages.push(image);
@@ -611,7 +641,7 @@ export class CurseScene extends Scene {
       addedBy: 'you',
       addedInVersion: 0,
     };
-    const image = renderLevelObject(this, previewObject);
+    const image = renderLevelObject(this, previewObject, this.boardNeighbors()(previewObject));
     if (image) {
       image.setAlpha(0.85);
       image.setInteractive();

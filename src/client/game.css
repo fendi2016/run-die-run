@@ -1000,6 +1000,25 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   color: var(--accent);
 }
 
+/* Extend Level: a wide, labelled button in the curse action row, so
+   lengthening the level reads as an obvious option, not a hidden tool. */
+#curse-extend {
+  flex-direction: row;
+  gap: 6px;
+  min-width: 96px;
+  padding: 6px 12px;
+}
+
+#curse-extend:not(.active) {
+  background: var(--rule-blue);
+  color: var(--paper-card);
+}
+
+#curse-extend .editor-btn-label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .editor-btn-ghost {
   background: transparent;
   border-color: transparent;

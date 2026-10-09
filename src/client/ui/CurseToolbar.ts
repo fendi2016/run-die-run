@@ -42,12 +42,13 @@ export class CurseToolbar {
   private readonly messageEl = requireElement('curse-message');
   private readonly proveBtn = requireButton('curse-prove');
   private readonly clearBtn = requireButton('curse-clear');
-  // Live in the palette next to the Platform type tiles, not the generic
-  // action row — visible only while the Platform category is active (see
-  // setActiveCategory), same discoverability reasoning as extendBtn always
-  // having its own explicit button rather than only ever triggering
-  // implicitly (see CurseScene.growExtensionToReach's comment).
+  // Extend sits in the always-visible action row (not a category palette)
+  // so players see they can lengthen the level whatever they're placing.
   private readonly extendBtn = requireButton('curse-extend');
+  private readonly extendLabel = requireElement('curse-extend-label');
+  // Erase lives in the palette next to the Hazard/Platform type tiles —
+  // visible only while one of those is the active category (see
+  // setActiveCategory).
   private readonly removeBtn = requireButton('curse-remove');
   private readonly categoryButtons = new Map<
     CurseCategory,
@@ -109,10 +110,8 @@ export class CurseToolbar {
       button.classList.toggle('active', c === category);
     }
     this.setTypesForCategory(category);
-    // They live right beside the type tiles: Extend under Platform only,
-    // Erase under Hazard and Platform (what it can take out), neither under
-    // Power-Up, where they don't apply.
-    this.extendBtn.classList.toggle('hidden', category !== 'platform');
+    // Erase sits beside the type tiles under Hazard and Platform (what it
+    // can take out), not under Power-Up, where it doesn't apply.
     this.removeBtn.classList.toggle(
       'hidden',
       category !== 'platform' && category !== 'hazard'
@@ -140,6 +139,13 @@ export class CurseToolbar {
     this.clearBtn.disabled = !enabled;
     this.extendBtn.disabled = !enabled;
     this.removeBtn.disabled = !enabled;
+  }
+
+  // Marks the button done (highlighter + check badge) once the level is
+  // at its full length, so a second tap isn't the only way to find out.
+  setExtended(extended: boolean): void {
+    this.extendBtn.classList.toggle('active', extended);
+    this.extendLabel.textContent = extended ? 'Level Extended' : 'Extend Level';
   }
 
   setProveEnabled(enabled: boolean): void {
