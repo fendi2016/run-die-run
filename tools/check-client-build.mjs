@@ -26,5 +26,9 @@ const game = await entryBytes('game.html');
 assert.ok(splash < 16 * 1024, `Splash JS exceeds 16 KiB gzip: ${splash}`);
 assert.ok(game < 550 * 1024, `Game JS exceeds 550 KiB gzip: ${game}`);
 const files = await readdir(root, { recursive: true });
+// splash.ts prefetches these exact paths so Play opens from cache.
+for (const file of ['game.js', 'game.css']) {
+  assert.ok(files.includes(file), `splash.ts prefetches /${file}, but the build has no ${file}`);
+}
 assert.ok(!files.some((file) => file.endsWith('.map')), 'Client source maps must not ship');
 console.log(`Production budgets passed: splash ${splash} bytes gzip; game ${game} bytes gzip.`);

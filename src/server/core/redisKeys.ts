@@ -205,6 +205,17 @@ export const analyticsNewKey = (day: string): string => `analytics:${day}:new`;
 export const analyticsReturnsKey = (day: string): string => `analytics:${day}:returns`;
 export const analyticsDeviceKey = (day: string): string => `analytics:${day}:device`;
 export const analyticsLoadKey = (day: string): string => `analytics:${day}:load`;
+// Feed card views and game opens by device, as event counts (not unique
+// players), so the two can be compared per device.
+export const analyticsDeviceEventsKey = (day: string): string =>
+  `analytics:${day}:deviceEvents`;
+// Which asset keys failed to load, and how often.
+export const analyticsLoadFailKey = (day: string): string => `analytics:${day}:loadFail`;
+// One sorted set per load phase: each load's duration in ms as the score.
+export const analyticsLoadPhaseKey = (day: string, phase: string): string =>
+  `analytics:${day}:loadPhase:${phase}`;
+// Where players were when they left, and how far they'd got.
+export const analyticsLeaveKey = (day: string): string => `analytics:${day}:leave`;
 export const analyticsFirstSeenKey = (username: string): string =>
   `analytics:firstSeen:${username}`;
 

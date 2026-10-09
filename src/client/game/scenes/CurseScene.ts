@@ -53,6 +53,7 @@ import { TUTORIAL_LEVEL, TUTORIAL_LEVEL_ID, finishTutorial } from '../levels/tut
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
 import { attachAmbience } from '../systems/TrapAmbience';
+import { setLeavePlace } from '../../leaveTracker';
 
 // curse-strike's impact sits near its frame's bottom (~112 of 128px); it
 // lands on the placed curse's base. Both effects draw above the board,
@@ -200,6 +201,7 @@ export class CurseScene extends Scene {
   }
 
   create(): void {
+    setLeavePlace('sabotage');
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 

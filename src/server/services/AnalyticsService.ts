@@ -1,11 +1,16 @@
 import { redis } from '@devvit/web/server';
-import type { DeviceKind } from '../../shared/analyticsApi';
+import type { AnalyticsEventRequest, DeviceKind, LeavePlace } from '../../shared/analyticsApi';
+import { LEAVE_PLACES } from '../../shared/analyticsApi';
 import {
   analyticsActiveKey,
   analyticsCountsKey,
+  analyticsDeviceEventsKey,
   analyticsDeviceKey,
   analyticsFirstSeenKey,
+  analyticsLeaveKey,
+  analyticsLoadFailKey,
   analyticsLoadKey,
+  analyticsLoadPhaseKey,
   analyticsNewKey,
   analyticsReturnsKey,
   analyticsStepKey,
@@ -35,6 +40,35 @@ export const LOAD_BUCKETS = [
   { field: '8to15s', label: '8–15s', maxMs: 15000 },
   { field: 'over15s', label: 'over 15s', maxMs: Infinity },
 ] as const;
+
+// The three parts of a load, each from the client's page-start timings.
+const LOAD_PHASES = [
+  { field: 'code', label: 'download game code' },
+  { field: 'startup', label: 'start-up' },
+  { field: 'assets', label: 'download art' },
+] as const;
+
+type Bucket = { label: string; below: number };
+const LEAVE_TIME: Bucket[] = [
+  { label: 'under 15s', below: 15 },
+  { label: '15–60s', below: 60 },
+  { label: '1–3 min', below: 180 },
+  { label: '3+ min', below: Infinity },
+];
+const LEAVE_DEATHS: Bucket[] = [
+  { label: '0', below: 1 },
+  { label: '1–2', below: 3 },
+  { label: '3–9', below: 10 },
+  { label: '10+', below: Infinity },
+];
+const LEAVE_PROGRESS: Bucket[] = [
+  { label: '0–24%', below: 25 },
+  { label: '25–49%', below: 50 },
+  { label: '50–74%', below: 75 },
+  { label: '75–100%', below: Infinity },
+];
+const bucketOf = (buckets: Bucket[], value: number): string =>
+  (buckets.find((b) => value < b.below) ?? buckets[buckets.length - 1]!).label;
 
 export function utcDay(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
@@ -71,7 +105,20 @@ async function markActive(username: string, day: string, now: number): Promise<b
   return true;
 }
 
-type TrackExtras = { device?: DeviceKind; loadMs?: number; now?: number };
+type TrackExtras = {
+  device?: DeviceKind;
+  loadMs?: number;
+  codeMs?: number;
+  assetsStartMs?: number;
+  now?: number;
+};
+
+async function addLoadPhase(day: string, phase: string, ms: number, now: number): Promise<void> {
+  if (!(ms >= 0)) return;
+  const key = analyticsLoadPhaseKey(day, phase);
+  await redis.zAdd(key, { member: `${now}:${Math.random().toString(36).slice(2)}`, score: ms });
+  await redis.expire(key, ANALYTICS_RETENTION_SECONDS);
+}
 
 // Records one funnel event. Logged-out viewers only add to the totals.
 // Seeing the feed card doesn't make someone an active player.
@@ -86,6 +133,14 @@ export async function track(
   if (step === 'open' && extras.loadMs !== undefined) {
     const bucket = LOAD_BUCKETS.find((b) => extras.loadMs !== undefined && extras.loadMs < b.maxMs);
     if (bucket) await bump(analyticsLoadKey(day), bucket.field);
+    if (extras.codeMs !== undefined && extras.assetsStartMs !== undefined) {
+      await addLoadPhase(day, 'code', extras.codeMs, now);
+      await addLoadPhase(day, 'startup', extras.assetsStartMs - extras.codeMs, now);
+      await addLoadPhase(day, 'assets', extras.loadMs - extras.assetsStartMs, now);
+    }
+  }
+  if ((step === 'card' || step === 'open') && extras.device) {
+    await bump(analyticsDeviceEventsKey(day), `${step}:${extras.device}`);
   }
   if (!username) return;
   if (step !== 'card') await markActive(username, day, now);
@@ -95,8 +150,31 @@ export async function track(
   }
 }
 
-export async function trackLoadFailed(now = Date.now()): Promise<void> {
-  await bump(analyticsLoadKey(utcDay(now)), 'failed');
+export async function trackLoadFailed(now = Date.now(), file?: string): Promise<void> {
+  const day = utcDay(now);
+  await bump(analyticsLoadKey(day), 'failed');
+  if (file) await bump(analyticsLoadFailKey(day), file);
+}
+
+// The first time a player leaves the game in a visit: where they were, how
+// long they'd been in, how often they'd died and how far they'd got.
+export async function trackLeave(
+  event: AnalyticsEventRequest,
+  now = Date.now()
+): Promise<void> {
+  const where = event.where;
+  if (!where) return;
+  const key = analyticsLeaveKey(utcDay(now));
+  await bump(key, where);
+  if (event.seconds !== undefined) {
+    await bump(key, `${where}:time:${bucketOf(LEAVE_TIME, event.seconds)}`);
+  }
+  if (event.deaths !== undefined) {
+    await bump(key, `${where}:deaths:${bucketOf(LEAVE_DEATHS, event.deaths)}`);
+  }
+  if (event.progress !== undefined) {
+    await bump(key, `${where}:progress:${bucketOf(LEAVE_PROGRESS, event.progress)}`);
+  }
 }
 
 // Analytics must never fail the gameplay request it rides on.
@@ -131,6 +209,35 @@ export type AnalyticsReport = {
   funnel: string;
   activity: string;
   load: string;
+  leaving: string;
+};
+
+function median(values: number[]): number | undefined {
+  if (values.length === 0) return undefined;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
+
+// "label n, label n" for the buckets that have any, in bucket order.
+function bucketLine(
+  counts: Record<string, number>,
+  prefix: string,
+  buckets: Bucket[]
+): string {
+  return buckets
+    .filter((b) => (counts[`${prefix}${b.label}`] ?? 0) > 0)
+    .map((b) => `${b.label} ${counts[`${prefix}${b.label}`]}`)
+    .join(', ');
+}
+
+const LEAVE_LABELS: Record<LeavePlace, string> = {
+  menu: 'on the menu',
+  tutorial: 'in the tutorial',
+  level: 'in a level',
+  sabotage: 'placing a trap',
+  build: 'in the builder',
 };
 
 // The last `days` UTC days (today included), as plain text sections.
@@ -143,6 +250,10 @@ export async function buildReport(days = 7, now = Date.now()): Promise<Analytics
   const totals: Record<string, number> = {};
   const load: Record<string, number> = {};
   const devices: Record<string, number> = {};
+  const deviceEvents: Record<string, number> = {};
+  const loadFails: Record<string, number> = {};
+  const leaves: Record<string, number> = {};
+  const phases: Record<string, number[]> = {};
   for (const day of dayList) {
     const active = await members(analyticsActiveKey(day));
     for (const name of active) weekPlayers.add(name);
@@ -155,10 +266,31 @@ export async function buildReport(days = 7, now = Date.now()): Promise<Analytics
     for (const [k, v] of Object.entries(await counts(analyticsCountsKey(day)))) totals[k] = (totals[k] ?? 0) + v;
     for (const [k, v] of Object.entries(await counts(analyticsLoadKey(day)))) load[k] = (load[k] ?? 0) + v;
     for (const [k, v] of Object.entries(dayDevices)) devices[k] = (devices[k] ?? 0) + v;
+    for (const [k, v] of Object.entries(await counts(analyticsDeviceEventsKey(day)))) {
+      deviceEvents[k] = (deviceEvents[k] ?? 0) + v;
+    }
+    for (const [k, v] of Object.entries(await counts(analyticsLoadFailKey(day)))) {
+      loadFails[k] = (loadFails[k] ?? 0) + v;
+    }
+    for (const [k, v] of Object.entries(await counts(analyticsLeaveKey(day)))) {
+      leaves[k] = (leaves[k] ?? 0) + v;
+    }
+    for (const { field } of LOAD_PHASES) {
+      const entries = await redis.zRange(analyticsLoadPhaseKey(day, field), 0, -1, { by: 'rank' });
+      (phases[field] ??= []).push(...entries.map((entry) => entry.score));
+    }
   }
   const players = [
     `${weekPlayers.size} different players in the last ${days} days.`,
     `Device split: ${pct(devices.mobile ?? 0, (devices.mobile ?? 0) + (devices.desktop ?? 0))} mobile.`,
+    `Feed card views → game opens: ` +
+      (['mobile', 'desktop'] as const)
+        .map((device) => {
+          const views = deviceEvents[`card:${device}`] ?? 0;
+          const opens = deviceEvents[`open:${device}`] ?? 0;
+          return `${device} ${views} → ${opens} (${pct(opens, views)})`;
+        })
+        .join(' · '),
     ...playerLines,
   ].join('\n');
 
@@ -211,11 +343,35 @@ export async function buildReport(days = 7, now = Date.now()): Promise<Analytics
   ].join('\n');
 
   const loads = LOAD_BUCKETS.reduce((sum, b) => sum + (load[b.field] ?? 0), 0);
-  const loadText = [
+  const loadText: string[] = [
     `Time to the menu, ${loads} loads:`,
     ...LOAD_BUCKETS.map((b) => `${b.label}: ${load[b.field] ?? 0} (${pct(load[b.field] ?? 0, loads)})`),
     `Failed to load: ${load.failed ?? 0}`,
-  ].join('\n');
+  ];
+  const phaseParts = LOAD_PHASES.flatMap(({ field, label }) => {
+    const ms = median(phases[field] ?? []);
+    return ms === undefined ? [] : [`${label} ${seconds(ms)}`];
+  });
+  if (phaseParts.length) loadText.push(`Median per load: ${phaseParts.join(' · ')}`);
+  const failedFiles = Object.entries(loadFails)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([file, n]) => `${file} (${n})`);
+  if (failedFiles.length) loadText.push(`Files that failed: ${failedFiles.join(', ')}`);
 
-  return { players, retention, funnel, activity, load: loadText };
+  const leaveLines = LEAVE_PLACES.filter((where) => (leaves[where] ?? 0) > 0).map((where) => {
+    const parts = [`Left ${LEAVE_LABELS[where]}: ${leaves[where]}`];
+    const time = bucketLine(leaves, `${where}:time:`, LEAVE_TIME);
+    if (time) parts.push(`after ${time}`);
+    const deaths = bucketLine(leaves, `${where}:deaths:`, LEAVE_DEATHS);
+    if (deaths && (where === 'tutorial' || where === 'level')) parts.push(`deaths ${deaths}`);
+    const progress = bucketLine(leaves, `${where}:progress:`, LEAVE_PROGRESS);
+    if (progress) parts.push(`furthest reached ${progress}`);
+    return parts.join('\n  ');
+  });
+  const leaving = leaveLines.length
+    ? ['Where players were the first time they closed or left the game in a visit.', ...leaveLines].join('\n')
+    : 'No exits recorded yet.';
+
+  return { players, retention, funnel, activity, load: loadText.join('\n'), leaving };
 }

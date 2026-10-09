@@ -122,6 +122,12 @@ import {
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { movedObjectOf, setSlowTint, triggerBatFlight } from '../objects/ObjectRegistry';
 import { sendAnalyticsEvent } from '../../analytics';
+import {
+  noteLeaveDeath,
+  noteLeaveProgress,
+  resetLeaveProgress,
+  setLeavePlace,
+} from '../../leaveTracker';
 
 const FALLBACK_SPAWN = { x: 80, y: LOGICAL_HEIGHT - 200 };
 // The scribble-in (Juice.playScribbleIn): on level load the player is
@@ -459,7 +465,9 @@ export class GameScene extends Scene {
     }
 
     if (this.runStarted && !this.runEnded) {
-      this.runHud.setProgress(this.currentProgress());
+      const progress = this.currentProgress();
+      this.runHud.setProgress(progress);
+      if (!this.previewLevel) noteLeaveProgress(progress * 100);
     }
     // Only takes over once the tap-to-start gate has lifted — while
     // waiting, the tutorial's first hint is already showing as the
@@ -866,6 +874,11 @@ export class GameScene extends Scene {
     if (!playReported) {
       playReported = true;
       sendAnalyticsEvent({ event: 'play' });
+    }
+    // Preview runs belong to the builder/sabotage screen that started them.
+    if (!this.previewLevel) {
+      setLeavePlace(this.tutorial ? 'tutorial' : 'level');
+      resetLeaveProgress();
     }
     this.controls.hideDialog();
     const player = new Player(this, 0, 0);
@@ -1405,6 +1418,7 @@ export class GameScene extends Scene {
     }
     this.runEnded = true;
     this.deathsThisLevel++;
+    if (!this.previewLevel) noteLeaveDeath();
     this.deathStreak++;
     if (objectId) {
       this.reportHazardDeath(objectId);

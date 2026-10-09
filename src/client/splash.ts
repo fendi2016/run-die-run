@@ -13,7 +13,7 @@ import { initFollowButton } from './ui/followButton';
 import { startSplashMusic } from './ui/musicHandoff';
 import { showKillCount } from './ui/killLine';
 import { startMenuGag } from './ui/menuGag';
-import { sendAnalyticsEvent } from './analytics';
+import { deviceKind, sendAnalyticsEvent } from './analytics';
 
 // The feed card is the game's main menu (same markup ids and menu.css as
 // game.html's #game-menu); every button expands into the game.
@@ -84,5 +84,21 @@ async function loadStats(): Promise<void> {
   }
 }
 
+// The game's code is most of what Play waits on. Fetching it while the
+// pointer is over the card (or as a tap begins) puts it in the browser
+// cache, so the game opens from cache. Feed scrollers who never come near
+// the card download nothing. Paths match the build output (checked by
+// tools/check-client-build.mjs).
+let gamePrefetched = false;
+function prefetchGame(): void {
+  if (gamePrefetched) return;
+  gamePrefetched = true;
+  for (const path of ['/game.js', '/game.css']) {
+    void fetch(path).catch(() => undefined);
+  }
+}
+document.addEventListener('pointerover', prefetchGame, { once: true });
+document.addEventListener('pointerdown', prefetchGame, { once: true });
+
 void loadStats();
-sendAnalyticsEvent({ event: 'card' });
+sendAnalyticsEvent({ event: 'card', device: deviceKind() });

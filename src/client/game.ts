@@ -43,6 +43,12 @@ const config: Phaser.Types.Core.GameConfig = {
     width: LOGICAL_WIDTH,
     height: LOGICAL_HEIGHT,
   },
+  // Phaser drops to 6 parallel downloads on Android; the webview talks
+  // HTTP/2 to one host, so all ~140 preload files can be in flight at once
+  // everywhere instead of queueing in rounds of 6.
+  loader: {
+    maxParallelDownloads: 32,
+  },
   physics: {
     default: 'arcade',
     arcade: {

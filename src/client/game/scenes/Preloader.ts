@@ -1,5 +1,5 @@
 import { SCRIBBLE_FX } from '../systems/DeathEffects';
-import { Scene } from 'phaser';
+import { Scene, type Loader } from 'phaser';
 import { PLAYER_TEXTURE_KEYS } from '../entities/Player';
 import {
   createSpawnIconTexture,
@@ -17,14 +17,33 @@ import { deviceKind, sendAnalyticsEvent } from '../../analytics';
 
 const BAR_WIDTH = 460;
 
+// One quiet automatic retry before asking the player to tap: a dropped
+// request on a flaky connection usually succeeds on the next try, and
+// files already loaded are kept, so a retry only fetches what's missing.
+const AUTO_RETRIES = 1;
+let retriesUsed = 0;
+// When this load (or its first try) began, ms from page start.
+let assetsStartMs: number | undefined;
+
+// When the game's own code finished downloading, ms from page start.
+function codeDownloadedMs(): number | undefined {
+  const src = document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src;
+  if (!src) return undefined;
+  const entry = performance.getEntriesByName(src)[0];
+  return entry instanceof PerformanceResourceTiming ? Math.round(entry.responseEnd) : undefined;
+}
+
 export class Preloader extends Scene {
   private failed = false;
+  private failedFile: string | undefined;
   constructor() {
     super('Preloader');
   }
 
   init() {
     this.failed = false;
+    this.failedFile = undefined;
+    assetsStartMs ??= Math.round(performance.now());
     // RESIZE mode means `this.scale` is the real device viewport here, not
     // a fixed logical size, so center against it directly.
     const centerX = this.scale.width / 2;
@@ -49,8 +68,9 @@ export class Preloader extends Scene {
     };
     // Every file here is required (sounds stream in later, see
     // Sfx.streamSfx), so any load failure means the game can't safely start.
-    const onError = () => {
+    const onError = (file: Loader.File) => {
       this.failed = true;
+      this.failedFile ??= file.key;
     };
     this.load.on('progress', onProgress);
     this.load.on('loaderror', onError);
@@ -139,8 +159,18 @@ export class Preloader extends Scene {
   }
 
   create() {
+    if (this.failed && retriesUsed < AUTO_RETRIES) {
+      retriesUsed++;
+      this.time.delayedCall(1000, () => this.scene.restart());
+      return;
+    }
     if (this.failed) {
-      sendAnalyticsEvent({ event: 'loadFailed' });
+      sendAnalyticsEvent({
+        event: 'loadFailed',
+        ...(this.failedFile
+          ? { file: this.failedFile.replace(/[^\w./-]/g, '_').slice(0, 80) }
+          : {}),
+      });
       this.add
         .text(
           this.scale.width / 2,
@@ -162,7 +192,15 @@ export class Preloader extends Scene {
     streamLateSpritesheets(this.game);
     streamSfx(this.game);
 
-    sendAnalyticsEvent({ event: 'open', device: deviceKind(), loadMs: Math.round(performance.now()) });
+    const codeMs = codeDownloadedMs();
+    sendAnalyticsEvent({
+      event: 'open',
+      device: deviceKind(),
+      loadMs: Math.round(performance.now()),
+      ...(codeMs !== undefined && assetsStartMs !== undefined && codeMs <= assetsStartMs
+        ? { codeMs, assetsStartMs }
+        : {}),
+    });
     // The menu needs none of the level, so it doesn't wait for the level
     // prefetch: GameScene takes it whenever it lands (see levelPrefetch.ts).
     this.scene.start('MainMenu');

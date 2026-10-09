@@ -38,6 +38,7 @@ menu.post('/analytics', async (c) => {
       ['FUNNEL', report.funnel],
       ['ACTIVITY', report.activity],
       ['LOADING', report.load],
+      ['LEAVING', report.leaving],
     ]
       .map(([label, body]) => `${label}\n${body}`)
       .join('\n\n');

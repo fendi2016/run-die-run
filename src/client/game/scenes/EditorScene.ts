@@ -48,6 +48,7 @@ import {
 import { ensurePlaceholderTextures } from '../systems/PlaceholderTextures';
 import { playPixelFx } from '../systems/Juice';
 import { attachAmbience } from '../systems/TrapAmbience';
+import { setLeavePlace } from '../../leaveTracker';
 
 type EditorSceneData = {
   objects?: DraftObject[];
@@ -158,6 +159,7 @@ export class EditorScene extends Scene {
   }
 
   create(): void {
+    setLeavePlace('build');
     ensurePlaceholderTextures(this);
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 

@@ -56,7 +56,7 @@ mock.module('@devvit/web/server', {
   },
 });
 
-const { track, trackLoadFailed, buildReport } = await import('../services/AnalyticsService');
+const { track, trackLeave, trackLoadFailed, buildReport } = await import('../services/AnalyticsService');
 const { analytics } = await import('../routes/analytics');
 
 const DAY = 86_400_000;
@@ -126,4 +126,52 @@ await test('the event route accepts client events and rejects anything else', as
   assert.equal((await post({ event: 'open', loadMs: -1 })).status, 400);
   const report = await buildReport(1);
   assert.match(report.players, /^1 different players/);
+});
+
+await test('card views and opens are compared per device, logged-out views included', async () => {
+  await track('card', undefined, { now: day0, device: 'mobile' });
+  await track('card', 'alice', { now: day0, device: 'mobile' });
+  await track('card', 'bob', { now: day0, device: 'desktop' });
+  await track('open', 'bob', { now: day0, device: 'desktop' });
+  const report = await buildReport(1, day0);
+  assert.match(report.players, /Feed card views → game opens: mobile 2 → 0 \(0%\) · desktop 1 → 1 \(100%\)/);
+});
+
+await test('load phases report medians, and failed files are named', async () => {
+  await track('open', 'alice', { now: day0, loadMs: 3000, codeMs: 1000, assetsStartMs: 1500 });
+  await track('open', 'bob', { now: day0, loadMs: 9000, codeMs: 4000, assetsStartMs: 4200 });
+  await track('open', 'carol', { now: day0, loadMs: 2000, codeMs: 500, assetsStartMs: 800 });
+  await trackLoadFailed(day0, 'player-run-3');
+  await trackLoadFailed(day0, 'player-run-3');
+  await trackLoadFailed(day0);
+  const report = await buildReport(1, day0);
+  assert.match(report.load, /Median per load: download game code 1\.0s · start-up 0\.3s · download art 1\.5s/);
+  assert.match(report.load, /Failed to load: 3/);
+  assert.match(report.load, /Files that failed: player-run-3 \(2\)/);
+});
+
+await test('leaving is grouped by place, with time, deaths and progress buckets', async () => {
+  await trackLeave({ event: 'leave', where: 'tutorial', seconds: 40, deaths: 4, progress: 30 }, day0);
+  await trackLeave({ event: 'leave', where: 'tutorial', seconds: 10, deaths: 0, progress: 5 }, day0);
+  await trackLeave({ event: 'leave', where: 'menu', seconds: 200, deaths: 0 }, day0);
+  const report = await buildReport(1, day0);
+  assert.match(report.leaving, /Left in the tutorial: 2\n {2}after under 15s 1, 15–60s 1\n {2}deaths 0 1, 3–9 1\n {2}furthest reached 0–24% 1, 25–49% 1/);
+  assert.match(report.leaving, /Left on the menu: 1\n {2}after 3\+ min 1$/m);
+});
+
+await test('the event route takes leave events and rejects bad ones', async () => {
+  const post = (body: unknown) =>
+    analytics.request('/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  assert.equal((await post({ event: 'leave', where: 'level', seconds: 30, deaths: 2, progress: 60 })).status, 200);
+  assert.equal((await post({ event: 'leave', where: 'kitchen' })).status, 400);
+  assert.equal((await post({ event: 'leave', where: 'level', progress: 101 })).status, 400);
+  assert.equal((await post({ event: 'loadFailed', file: 'bad key!' })).status, 400);
+  assert.equal((await post({ event: 'loadFailed', file: 'player-run-1' })).status, 200);
+  const report = await buildReport(1);
+  assert.match(report.leaving, /Left in a level: 1/);
+  assert.match(report.load, /Files that failed: player-run-1 \(1\)/);
 });

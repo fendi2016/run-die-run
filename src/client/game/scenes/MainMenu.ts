@@ -4,6 +4,7 @@ import { CurseRevealPanel, takeCurseReveal } from '../../ui/CurseReveal';
 import { DiscoveryOverlay } from '../../ui/DiscoveryOverlay';
 import { GameMenu } from '../../ui/GameMenu';
 import { isTutorialDone, prefetchTutorialStatus } from '../levels/tutorial';
+import { setLeavePlace } from '../../leaveTracker';
 
 // The menu scene for game.html (the popped-out/expanded webview). Renders
 // no Phaser content of its own — GameMenu is a DOM overlay styled to match
@@ -20,6 +21,7 @@ export class MainMenu extends Scene {
 
   create(data: { browse?: boolean } = {}): void {
     this.starting = false;
+    setLeavePlace('menu');
     prefetchTutorialStatus();
     let browseRequested = data.browse === true;
     // The splash screen's Play/Build/Browse each expand into this same
