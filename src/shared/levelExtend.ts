@@ -24,12 +24,17 @@ function columnToX(column: number): number {
 // "the next column after this" still lands on column 0, the same
 // left-aligned start groundStrip itself uses for a level authored from
 // scratch — not on some arbitrary mid-grid column.
-function rightmostGroundColumn(
+//
+// The finish counts too: a level whose finish sits out past its last
+// ground tile (up on end-of-course platforms) must extend from the
+// finish, or a one-tile extension would relocate the finish back to the
+// ground's end and let a sabotage skip most of the course.
+function levelEndColumn(
   objects: readonly { type: string; x: number }[]
 ): number {
   let max = -1;
   for (const object of objects) {
-    if (object.type !== 'ground') {
+    if (object.type !== 'ground' && object.type !== 'finish') {
       continue;
     }
     const column = xToColumn(object.x);
@@ -40,9 +45,9 @@ function rightmostGroundColumn(
   return max;
 }
 
-// How many extension tiles (counted from the level's current rightmost
-// ground tile, same reference point computeLevelExtension uses) are needed
-// for a new chunk of ground to actually reach world-x `x`. Used to
+// How many extension tiles (counted from the level's current end — its
+// rightmost ground tile or finish, the same reference point
+// computeLevelExtension uses) are needed for a new chunk of ground to actually reach world-x `x`. Used to
 // auto-grow a curse's pending extension when the player places their
 // object out past the level's current end, rather than only growing on an
 // explicit "Extend Level" tap.
@@ -50,11 +55,11 @@ export function tilesNeededToReach(
   objects: readonly DraftObject[],
   x: number
 ): number {
-  return Math.max(0, xToColumn(x) - rightmostGroundColumn(objects));
+  return Math.max(0, xToColumn(x) - levelEndColumn(objects));
 }
 
 function roomTiles(objects: readonly DraftObject[]): number {
-  const startColumn = rightmostGroundColumn(objects) + 1;
+  const startColumn = levelEndColumn(objects) + 1;
   const lastColumn = EDITOR_MAX_COLUMNS - 1;
   return Math.max(0, lastColumn - startColumn + 1);
 }
@@ -69,7 +74,8 @@ export function maxExtendableTiles(objects: readonly DraftObject[]): number {
 
 // Deterministic, side-effect-free: given the level's current objects and a
 // tile count, computes the ground fill + relocated finish for extending the
-// level by that many tiles past its current rightmost ground tile. Called
+// level by that many tiles past its current end (rightmost ground or
+// finish), so the finish only ever moves right. Called
 // from both the client (live preview while placing/proving a curse, or
 // building in the base editor) and the server (curse propose/publish
 // recompute this themselves from the client's requested tile count rather
@@ -86,7 +92,7 @@ export function computeLevelExtension(
   makeGroundId: () => string,
   makeFinishId: () => string
 ): LevelExtension | undefined {
-  const startColumn = rightmostGroundColumn(objects) + 1;
+  const startColumn = levelEndColumn(objects) + 1;
   const clampedTiles = Math.max(0, Math.min(Math.floor(tiles), roomTiles(objects)));
   if (clampedTiles <= 0) {
     return undefined;
