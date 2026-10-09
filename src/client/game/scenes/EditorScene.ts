@@ -9,8 +9,10 @@ import {
   GROUND_TOP_Y,
 } from '../../../shared/constants';
 import {
+  isInSpawnBuffer,
   isPublishLevelResponse,
   isValidateLevelResponse,
+  SPAWN_BUFFER_MESSAGE,
   type DraftObject,
   type ValidateLevelRequest,
 } from '../../../shared/editorApi';
@@ -32,6 +34,7 @@ import {
 import {
   boardGridConfig,
   drawGrid,
+  drawSpawnBufferZone,
   normalizeBoardRow,
   EDITOR_BOARD_ROWS,
   PAPER_COLOR,
@@ -122,6 +125,8 @@ export class EditorScene extends Scene {
   private exitWithoutSaving = false;
 
   private gridGraphics!: Phaser.GameObjects.Graphics;
+  // Red zone around the spawn where only ground/platforms may go.
+  private spawnZoneGraphics!: Phaser.GameObjects.Graphics;
   // The Kenney ui_select corner-bracket art, scaled over the selected
   // object's 64x64 box — replaces the old drawSketchRect ink outline here
   // (CurseScene's own pending/suggestion outlines still use that helper;
@@ -164,6 +169,7 @@ export class EditorScene extends Scene {
     this.cameras.main.setBackgroundColor(PAPER_COLOR);
 
     this.gridGraphics = this.add.graphics();
+    this.spawnZoneGraphics = this.add.graphics();
     this.selectionHighlight = this.add
       .image(0, 0, 'ui-select')
       .setDisplaySize(SELECTION_BOX_SIZE, SELECTION_BOX_SIZE)
@@ -363,9 +369,11 @@ export class EditorScene extends Scene {
       return;
     }
 
-    // Any type can go on any cell — Test (spec section 13) is what catches
-    // an unbeatable layout, not the editor second-guessing placement.
-    // Tapping an occupied cell replaces whatever was there.
+    // Any type can go on any cell outside the red zone around the spawn —
+    // Test (spec section 13) is what catches an unbeatable layout, not the
+    // editor second-guessing placement. Tapping an occupied cell replaces
+    // whatever was there.
+    if (this.blockedBySpawnBuffer(tool, world.x)) return;
     this.applyMutation(() =>
       this.controller.placeObject(tool, world.x, world.y)
     );
@@ -380,6 +388,7 @@ export class EditorScene extends Scene {
     }
 
     if (this.controller.canMoveSelectedTo(x, y)) {
+      if (this.blocksSelectedMove(x)) return;
       this.applyMutation(() => this.controller.moveSelectedTo(x, y));
       return;
     }
@@ -390,6 +399,27 @@ export class EditorScene extends Scene {
     if (!found) {
       this.toolbar.showMessage('Nothing there to select — tap an object.');
     }
+  }
+
+  // True (and says why) when a `type` at world-x `x` would land in the
+  // red zone around the spawn.
+  private blockedBySpawnBuffer(type: DraftObject['type'], x: number): boolean {
+    const spawn = this.controller.getObjects().find((o) => o.type === 'spawn');
+    if (!spawn || !isInSpawnBuffer(type, x, spawn.x)) return false;
+    this.toolbar.showError(SPAWN_BUFFER_MESSAGE);
+    return true;
+  }
+
+  // Moving an object into the red zone is blocked the same way; moving the
+  // spawn itself is checked against everything already there.
+  private blocksSelectedMove(x: number): boolean {
+    const objects = this.controller.getObjects();
+    const selected = objects.find((o) => o.id === this.controller.getSelectedId());
+    if (!selected) return false;
+    if (selected.type !== 'spawn') return this.blockedBySpawnBuffer(selected.type, x);
+    if (!objects.some((o) => isInSpawnBuffer(o.type, o.x, x))) return false;
+    this.toolbar.showError(SPAWN_BUFFER_MESSAGE);
+    return true;
   }
 
   // One tap, one object gone — no select-then-Delete. (x, y) is the tapped
@@ -447,6 +477,7 @@ export class EditorScene extends Scene {
 
   private redrawObjects(): void {
     const objects = this.controller.getObjects();
+    drawSpawnBufferZone(this.spawnZoneGraphics, objects.find((o) => o.type === 'spawn')?.x);
     const neighborsOf = terrainNeighborsIn(objects);
     const live = new Set<string>();
     for (const object of objects) {
@@ -549,7 +580,7 @@ export class EditorScene extends Scene {
         return;
       }
       if (json.status === 'error') {
-        this.toolbar.showMessage(json.errors.join(' '));
+        this.toolbar.showError(json.errors.join(' '));
         return;
       }
       this.toolbar.hideMessage();

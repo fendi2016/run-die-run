@@ -4,15 +4,16 @@ import {
   EDITOR_MAX_COLUMNS,
   EDITOR_MAX_OBJECTS,
   EDITOR_MAX_ROWS,
-  EDITOR_SPAWN_BUFFER_CELLS,
   GRID_CELL_SIZE,
   GROUND_TOP_Y,
 } from '../../shared/constants';
 import {
   CURSE_CATEGORY_TYPES,
   isDraftObject,
+  isInSpawnBuffer,
   isSurfaceType,
   isTrapInStartZone,
+  SPAWN_BUFFER_MESSAGE,
   TRAP_IN_START_ZONE_MESSAGE,
   type DraftObject,
 } from '../../shared/editorApi';
@@ -209,7 +210,7 @@ export function validatePlacement(objects: DraftObject[]): string[] {
   const ids = new Set<string>();
   for (const object of objects) {
     if (!object.id.trim() || ids.has(object.id)) {
-      errors.push('Object IDs must be nonempty and unique.');
+      errors.push('Something in this level is broken. Erase it and place it again.');
     }
     ids.add(object.id);
   }
@@ -230,7 +231,7 @@ export function validatePlacement(objects: DraftObject[]): string[] {
       object.y < MIN_Y ||
       object.y > MAX_Y
     ) {
-      errors.push(`Object "${object.id}" is outside the level boundaries.`);
+      errors.push('Something is outside the edges of the level.');
     }
   }
 
@@ -252,9 +253,7 @@ export function validatePlacement(objects: DraftObject[]): string[] {
       : seenOtherPositions;
     const existingId = bucket.get(key);
     if (existingId) {
-      errors.push(
-        `Objects "${existingId}" and "${object.id}" occupy the same location.`
-      );
+      errors.push('Two things are in the same spot.');
     } else {
       bucket.set(key, object.id);
     }
@@ -265,13 +264,9 @@ export function validatePlacement(objects: DraftObject[]): string[] {
   // stand on one (and a platform beside or under it is harmless).
   const spawn = spawns[0];
   if (spawn) {
-    const bufferPx = EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE;
     for (const object of objects) {
-      if (object.id === spawn.id || isSurfaceType(object.type)) {
-        continue;
-      }
-      if (Math.abs(object.x - spawn.x) < bufferPx) {
-        errors.push(`Object "${object.id}" is too close to the spawn point.`);
+      if (object.id !== spawn.id && isInSpawnBuffer(object.type, object.x, spawn.x)) {
+        errors.push(SPAWN_BUFFER_MESSAGE);
       }
     }
   }
@@ -290,7 +285,8 @@ export function validatePlacement(objects: DraftObject[]): string[] {
     }
   }
 
-  return errors;
+  // Player-facing: several objects tripping one rule read as one message.
+  return [...new Set(errors)];
 }
 
 // Curse-time validation (spec section 20): checks only what the new object

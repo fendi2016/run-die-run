@@ -2,6 +2,7 @@ import type * as Phaser from 'phaser';
 import {
   EDITOR_MAX_COLUMNS,
   EDITOR_MAX_ROWS,
+  EDITOR_SPAWN_BUFFER_CELLS,
   GRID_CELL_SIZE,
   GROUND_TOP_Y,
 } from '../../../shared/constants';
@@ -188,6 +189,23 @@ export function drawTrapFreeStartZone(graphics: Phaser.GameObjects.Graphics): vo
   graphics.fillStyle(ACCENT_COLOR, START_ZONE_FILL_ALPHA);
   graphics.fillRect(0, top, right, GROUND_TOP_Y - top);
   graphics.lineStyle(2, ACCENT_COLOR, START_ZONE_EDGE_ALPHA);
+  graphics.lineBetween(right, top, right, GROUND_TOP_Y);
+}
+
+// Shades the builder's no-objects zone around the spawn (isInSpawnBuffer):
+// the spawn's column and the EDITOR_SPAWN_BUFFER_CELLS - 1 on each side,
+// every row, in the same red as the trap-free start zone.
+export function drawSpawnBufferZone(graphics: Phaser.GameObjects.Graphics, spawnX: number | undefined): void {
+  graphics.clear();
+  if (spawnX === undefined) return;
+  const top = GROUND_TOP_Y - (EDITOR_MAX_ROWS - 1) * GRID_CELL_SIZE;
+  const halfWidth = (EDITOR_SPAWN_BUFFER_CELLS - 0.5) * GRID_CELL_SIZE;
+  const left = Math.max(0, spawnX - halfWidth);
+  const right = spawnX + halfWidth;
+  graphics.fillStyle(ACCENT_COLOR, START_ZONE_FILL_ALPHA);
+  graphics.fillRect(left, top, right - left, GROUND_TOP_Y - top);
+  graphics.lineStyle(2, ACCENT_COLOR, START_ZONE_EDGE_ALPHA);
+  graphics.lineBetween(left, top, left, GROUND_TOP_Y);
   graphics.lineBetween(right, top, right, GROUND_TOP_Y);
 }
 

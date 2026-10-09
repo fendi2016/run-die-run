@@ -1112,7 +1112,7 @@ await test('spawn can stand on a platform in the editor and pass validation', as
   assert.deepEqual(validatePlacement(placed), []);
   // A hazard beside the spawn is still caught by the buffer.
   assert.ok(validatePlacement([...placed, { id: 'saw', type: 'saw', x: 150, y: 480 }])
-    .some((e: string) => e.includes('too close to the spawn')));
+    .some((e: string) => e.includes('Too close to the spawn')));
 });
 
 // Kenney level objects: every new full-cell terrain block is a surface
@@ -1149,7 +1149,7 @@ await test('new terrain blocks are surfaces, same as ground/platform', async () 
   // Two surfaces sharing a cell is still a real conflict.
   assert.ok(
     validatePlacement([...base, { id: 'brick-2', type: 'brickBlock', x: 330, y: 480 }])
-      .some((e: string) => e.includes('occupy the same location'))
+      .some((e: string) => e.includes('in the same spot'))
   );
 });
 
@@ -1399,7 +1399,7 @@ await test('placement rejects duplicate and blank IDs through validation endpoin
     }));
     const body = await response.json();
     assert.equal(body.status, 'error');
-    assert.ok(body.errors.includes('Object IDs must be nonempty and unique.'));
+    assert.ok(body.errors.includes('Something in this level is broken. Erase it and place it again.'));
   }
 });
 

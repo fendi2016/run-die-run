@@ -1,4 +1,4 @@
-import { GRID_CELL_SIZE, SEED_AUTHOR } from './constants';
+import { EDITOR_SPAWN_BUFFER_CELLS, GRID_CELL_SIZE, SEED_AUTHOR } from './constants';
 import { HAZARD_TYPES } from './hazards';
 import {
   GROUND_LIKE_TYPES,
@@ -62,6 +62,19 @@ export function isSurfaceType(type: ObjectType): boolean {
     PLATFORM_LIKE_TYPES.has(type)
   );
 }
+
+// A built level keeps everything but ground/platforms out of the columns
+// within EDITOR_SPAWN_BUFFER_CELLS of the spawn, every row, so nothing sits
+// on top of the player as they appear. The builder shades this zone red.
+export function isInSpawnBuffer(type: ObjectType, x: number, spawnX: number): boolean {
+  return (
+    type !== 'spawn' &&
+    !isSurfaceType(type) &&
+    Math.abs(x - spawnX) < EDITOR_SPAWN_BUFFER_CELLS * GRID_CELL_SIZE
+  );
+}
+
+export const SPAWN_BUFFER_MESSAGE = 'Too close to the spawn. Only ground and platforms can go in the red area.';
 
 // No sabotage trap in the first TRAP_FREE_START_CELLS columns of a level
 // (from its left edge, at any height): a trap at the start is unfair.

@@ -775,6 +775,12 @@ body:has(#editor-preview-back:not(.hidden)) #death-toast {
   max-width: 90%;
 }
 
+#editor-message.error {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 #editor-message.hidden {
   display: none;
 }

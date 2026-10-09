@@ -196,12 +196,19 @@ export class EditorToolbar {
 
   showMessage(message: string): void {
     this.messageEl.textContent = message;
-    this.messageEl.classList.remove('hidden');
+    this.messageEl.classList.remove('hidden', 'error');
+  }
+
+  // Same spot as showMessage, in red: something the player has to fix.
+  showError(message: string): void {
+    this.showMessage(message);
+    this.messageEl.classList.add('error');
   }
 
   hideMessage(): void {
     this.messageEl.textContent = '';
     this.messageEl.classList.add('hidden');
+    this.messageEl.classList.remove('error');
   }
 
   showPublishDialog(): void {
