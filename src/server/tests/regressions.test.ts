@@ -1735,14 +1735,14 @@ await test('a published level is posted from the creator account, flaired NEW', 
   assert.equal(body.status, 'ok');
   const created = optionsOf(redditCalls.find((call) => call.method === 'submitCustomPost'));
   assert.equal(created.runAs, 'USER');
-  assert.equal(created.title, '"Mine Now" — can you beat it?');
+  assert.equal(created.title, 'Mine Now');
   assert.deepEqual(created.userGeneratedContent, { text: 'Mine Now' });
   const flair = optionsOf(redditCalls.find((call) => call.method === 'setPostFlair'));
   assert.equal(flair.text, 'NEW');
   assert.equal(flair.subredditName, 'sketchy_test');
 });
 
-await test('a refused user post falls back to an app post that credits the creator', async () => {
+await test('a refused user post falls back to an app post with the same title', async () => {
   const token = await ready('fred');
   const submit = mock.method(reddit, 'submitCustomPost', async (options: unknown) => {
     redditCalls.push({ method: 'submitCustomPost', options });
@@ -1756,7 +1756,7 @@ await test('a refused user post falls back to an app post that credits the creat
     const posts = redditCalls.filter((call) => call.method === 'submitCustomPost').map(optionsOf);
     assert.equal(posts.length, 2);
     assert.equal(posts[1]?.runAs, undefined);
-    assert.equal(posts[1]?.title, '"Plan B" by u/fred — can you beat it?');
+    assert.equal(posts[1]?.title, 'Plan B');
   } finally {
     submit.mock.restore();
   }

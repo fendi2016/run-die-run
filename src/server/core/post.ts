@@ -54,7 +54,7 @@ export async function createLevelPost(opts: {
     if (opts.asCreator) {
       try {
         return await reddit.submitCustomPost({
-          title: `"${opts.title}" — can you beat it?`,
+          title: opts.title,
           postData,
           runAs: 'USER',
           userGeneratedContent: { text: opts.title },
@@ -65,10 +65,7 @@ export async function createLevelPost(opts: {
       }
     }
     return reddit.submitCustomPost({
-      title:
-        opts.daily !== undefined
-          ? opts.title
-          : `"${opts.title}" ${byline} — can you beat it?`,
+      title: opts.title,
       postData,
       textFallback: { text: fallbackText },
     });
