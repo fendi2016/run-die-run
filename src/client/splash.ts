@@ -11,7 +11,6 @@ import { currentPostData } from './devvitContext';
 import { requireButton, requireElement } from './ui/domUtils';
 import { initFollowButton } from './ui/followButton';
 import { startSplashMusic } from './ui/musicHandoff';
-import { clearRateText, versionText } from '../shared/levelStatsText';
 import { showKillCount } from './ui/killLine';
 import { startMenuGag } from './ui/menuGag';
 import { sendAnalyticsEvent } from './analytics';
@@ -77,16 +76,7 @@ async function loadStats(): Promise<void> {
     }
     // Only a level post names its level; the hub post keeps a clean header.
     if (postData) {
-      const daily = postData.daily !== undefined ? `Day #${postData.daily}` : '';
       requireElement('splash-level-title').textContent = body.title;
-      requireElement('splash-level-meta').textContent = [
-        daily,
-        body.difficulty,
-        versionText(body),
-        clearRateText(body),
-      ]
-        .filter((part) => part !== '')
-        .join(' · ');
       requireElement('splash-level').classList.remove('hidden');
     }
   } catch {

@@ -1,7 +1,5 @@
 import type { LevelStats } from './discoveryApi';
 
-// Shared by the feed card (splash) and the in-game menu so both describe a
-// level the same way.
 export function clearRateText(stats: LevelStats): string {
   if (stats.attempts === 0) return 'No runs yet';
   const rate = (stats.clears / stats.attempts) * 100;
@@ -12,11 +10,5 @@ export function clearRateText(stats: LevelStats): string {
       ? rate.toFixed(1).replace(/\.0$/, '')
       : String(Math.round(rate));
   return `${shown}% clear rate`;
-}
-
-export function versionText(stats: LevelStats): string {
-  const { sabotages } = stats;
-  if (sabotages === 0) return 'Not sabotaged yet';
-  return `Sabotaged ${sabotages === 1 ? 'once' : `${sabotages} times`}`;
 }
 

@@ -104,24 +104,14 @@ button:focus-visible {
   text-align: center;
 }
 
-#splash-level-title,
-#splash-level-meta {
+#splash-level-title {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-#splash-level-title {
   font-size: 14px;
   font-weight: 800;
   color: var(--ink);
-}
-
-#splash-level-meta {
-  font-size: var(--text-min);
-  font-weight: 600;
-  color: var(--ink-soft);
 }
 
 /* "Made by" credit: the creator's Reddit avatar beside their name, bigger
