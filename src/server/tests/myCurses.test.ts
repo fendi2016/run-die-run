@@ -51,8 +51,9 @@ mock.module('@devvit/web/server', {
 
 const { myCurses } = await import('../routes/myCurses');
 const { recordCatch, recordPasses, cursePlacedFields } = await import('../services/TrapStatsService');
-const { levelVersionKey, userCursesKey } = await import('../core/redisKeys');
-const { isMyCursesResponse } = await import('../../shared/myCursesApi');
+const { levelCurrentVersionKey, levelVersionKey, userCursesKey } = await import('../core/redisKeys');
+const { isMyCursesResponse, trapTimeLeft } = await import('../../shared/myCursesApi');
+const { PLAYER_TRAP_LIFETIME_MS } = await import('../../shared/editorApi');
 
 const obj = (id: string, type: LevelObject['type'], x: number, addedBy: string): LevelObject =>
   ({ id, type, x, y: GROUND_TOP_Y, properties: {}, addedBy, addedInVersion: 1 });
@@ -63,6 +64,7 @@ async function seedLevel(objects: LevelObject[]): Promise<void> {
     contributorUsername: SEED_AUTHOR, verificationTimeMs: 1, createdAt: 0,
   };
   await redis.set(levelVersionKey('lvl', 2), JSON.stringify(level));
+  await redis.set(levelCurrentVersionKey('lvl'), '2');
 }
 
 async function listCurses() {
@@ -85,7 +87,7 @@ await test('a placed curse is listed with zero catches and passes', async () => 
   assert.equal(body.curses.length, 1);
   assert.deepEqual(
     { ...body.curses[0], placedAt: 0 },
-    { objectId: 'trap', levelId: 'lvl', levelTitle: 'lvl', type: 'candle', placedAt: 0,
+    { objectId: 'trap', levelId: 'lvl', levelTitle: 'lvl', type: 'candle', placedAt: 0, live: true,
       caught: 0, passed: 0, newCaught: 0, newPassed: 0 }
   );
 });
@@ -134,10 +136,29 @@ await test('signed out gets 401 on both routes', async () => {
 
 await test('levelTrapKills totals every kill by the level\'s traps', async () => {
   const { levelTrapKills } = await import('../services/TrapStatsService');
-  const { levelCurrentVersionKey, trapKillsKey } = await import('../core/redisKeys');
-  await redis.set(levelCurrentVersionKey('lvl'), '2');
+  const { trapKillsKey } = await import('../core/redisKeys');
   assert.equal(await levelTrapKills('lvl'), 0);
   await redis.set(trapKillsKey('trap'), '4');
   await redis.set(trapKillsKey('other'), '340');
   assert.equal(await levelTrapKills('lvl'), 344);
+});
+
+await test('a trap no longer in the level is listed as not live', async () => {
+  await seedLevel([obj('other', 'saw', 900, 'bob')]);
+  const { body } = await listCurses();
+  assert.ok(isMyCursesResponse(body));
+  assert.equal(body.curses[0]?.live, false);
+});
+
+await test('trapTimeLeft counts down the 24 hours, then says why it is gone', () => {
+  const curse = { objectId: 't', levelId: 'lvl', levelTitle: 'lvl', type: 'candle' as const, placedAt: 0,
+    live: true, caught: 0, passed: 0, newCaught: 0, newPassed: 0 };
+  const hour = 3_600_000;
+  assert.equal(PLAYER_TRAP_LIFETIME_MS, 24 * hour);
+  assert.equal(trapTimeLeft(curse, 0), '24h left');
+  assert.equal(trapTimeLeft(curse, 22.5 * hour), '1h left');
+  assert.equal(trapTimeLeft(curse, 23.5 * hour), '30m left');
+  assert.equal(trapTimeLeft(curse, 25 * hour), 'expiring now');
+  assert.equal(trapTimeLeft({ ...curse, live: false }, 2 * hour), 'removed');
+  assert.equal(trapTimeLeft({ ...curse, live: false }, 25 * hour), 'expired');
 });

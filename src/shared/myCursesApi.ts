@@ -1,3 +1,4 @@
+import { PLAYER_TRAP_LIFETIME_MS } from './editorApi';
 import { isObjectType, type ObjectType } from './types';
 
 // Wire contract for GET /api/me/curses: each curse the signed-in player
@@ -9,6 +10,9 @@ export type MyCurse = {
   levelTitle: string;
   type: ObjectType;
   placedAt: number;
+  // Still in the level's current version: false once it expired, was
+  // erased by another player's sabotage, or a mod removed it.
+  live: boolean;
   caught: number;
   passed: number;
   newCaught: number;
@@ -29,6 +33,7 @@ export function isMyCurse(value: unknown): value is MyCurse {
     'levelTitle' in value && typeof value.levelTitle === 'string' &&
     'type' in value && isObjectType(value.type) &&
     'placedAt' in value && isCount(value.placedAt) &&
+    'live' in value && typeof value.live === 'boolean' &&
     'caught' in value && isCount(value.caught) &&
     'passed' in value && isCount(value.passed) &&
     'newCaught' in value && isCount(value.newCaught) &&
@@ -59,4 +64,14 @@ export function pickCurseReveal(curses: readonly MyCurse[]): CurseReveal | undef
     if (curse.newCaught > (top?.newCaught ?? 0)) top = curse;
   }
   return top ? { curse: top, otherNewCaught: total - top.newCaught } : undefined;
+}
+
+// How long the trap has left before the expire-traps job takes it out,
+// or why it's already gone.
+export function trapTimeLeft(curse: MyCurse, now = Date.now()): string {
+  const left = curse.placedAt + PLAYER_TRAP_LIFETIME_MS - now;
+  if (!curse.live) return left > 0 ? 'removed' : 'expired';
+  if (left <= 0) return 'expiring now';
+  const hours = Math.floor(left / 3_600_000);
+  return hours >= 1 ? `${hours}h left` : `${Math.max(1, Math.ceil(left / 60_000))}m left`;
 }

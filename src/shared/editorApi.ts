@@ -87,8 +87,9 @@ export function isPlayerTrap(object: LevelObject): boolean {
 export const PLAYER_TRAPS_PER_LEVEL = 12;
 
 // Player traps also expire on their own after this long (see the server's
-// expire-traps job); the owner gets the slot back.
-export const PLAYER_TRAP_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+// expire-traps job); the owner gets the slot back. The STATS screen counts
+// down to it.
+export const PLAYER_TRAP_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 // No new trap within this many columns of a player trap (any height), so
 // sabotage can't stack an unjumpable wall. Creator and built-in traps are

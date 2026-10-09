@@ -1,4 +1,4 @@
-import { isMyCursesResponse, type MyCurse } from '../../shared/myCursesApi';
+import { isMyCursesResponse, trapTimeLeft, type MyCurse } from '../../shared/myCursesApi';
 import { labelFor } from '../../shared/objectLabels';
 import { isUserStatsResponse, type UserStatsResponse } from '../../shared/userStatsApi';
 import { requireButton, requireElement } from './domUtils';
@@ -125,7 +125,7 @@ function curseRow(curse: MyCurse): HTMLLIElement {
   }
   const level = document.createElement('div');
   level.className = 'stats-curse-level';
-  level.textContent = `on ${curse.levelTitle}`;
+  level.textContent = `on ${curse.levelTitle} · ${trapTimeLeft(curse)}`;
   row.append(line, level);
   return row;
 }

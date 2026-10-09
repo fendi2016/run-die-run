@@ -132,6 +132,15 @@ export async function getMyCurses(username: string): Promise<MyCurse[]> {
     })
     .sort((a, b) => b.meta.placedAt - a.meta.placedAt)
     .slice(0, MAX_LISTED);
+  // Which listed traps are still in their level's current version, one
+  // level read per distinct level.
+  const liveIds = new Set<string>();
+  await Promise.all(
+    [...new Set(entries.map((e) => e.meta.levelId))].map(async (levelId) => {
+      const level = await getCurrentLevelVersion(levelId);
+      for (const object of level?.objects ?? []) liveIds.add(object.id);
+    })
+  );
   return Promise.all(
     entries.map(async ({ objectId, meta }) => {
       const [caught, passed, stats] = await Promise.all([
@@ -146,6 +155,7 @@ export async function getMyCurses(username: string): Promise<MyCurse[]> {
         levelTitle: stats?.title ?? meta.levelId,
         type: meta.type,
         placedAt: meta.placedAt,
+        live: liveIds.has(objectId),
         caught,
         passed,
         newCaught: Math.max(0, caught - before.caught),

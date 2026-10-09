@@ -770,7 +770,7 @@ export class GameScene extends Scene {
     this.startRun(levelVersion);
     if (this.focusTrap) this.focusOnTrap(this.focusTrap);
     if (this.justCursed) {
-      showToast('You made it worse. Nice.');
+      showToast('You made it worse. Nice. Your trap stays up for 24 hours.');
       void this.showNextLevelShortcut();
       void this.offerCurseComment(levelVersion.levelId);
     }

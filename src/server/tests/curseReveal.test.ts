@@ -9,6 +9,7 @@ const curse = (objectId: string, newCaught: number, newPassed = 0): MyCurse => (
   levelTitle: 'Pop Quiz',
   type: 'candle',
   placedAt: 1,
+  live: true,
   caught: newCaught,
   passed: newPassed,
   newCaught,

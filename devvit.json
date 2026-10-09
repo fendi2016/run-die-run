@@ -107,7 +107,7 @@
       },
       "expire-traps": {
         "endpoint": "/internal/scheduler/expire-traps",
-        "cron": "20 * * * *"
+        "cron": "*/15 * * * *"
       }
     }
   },
